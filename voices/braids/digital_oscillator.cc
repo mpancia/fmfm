@@ -214,25 +214,9 @@ void DigitalOscillator::RenderComb(
   int32_t delay_fractional = delay & 0xffff;
 
   // Warp the resonance curve to have a more precise adjustment in the extrema.
-  int16_t resonance = (parameter_[1] << 1) - 32768;
-  resonance = Interpolate88(ws_moderate_overdrive, resonance + 32768);
-  
-  uint32_t delay_ptr = phase_;
-  delay_ptr =  delay_ptr % kCombDelayLength;
-  while (size--) {
-    int32_t in = *buffer;
-    uint32_t offset = delay_ptr + 2 * kCombDelayLength - delay_integral;
-    int32_t a = dl[offset % kCombDelayLength];
-    int32_t b = dl[(offset - 1) % kCombDelayLength];
-    int32_t delayed_sample = a + (((b - a) * (delay_fractional >> 1)) >> 15);
-    int32_t feedback = (delayed_sample * resonance >> 15) + (in >> 1);
-    CLIP(feedback)
-    dl[delay_ptr] = feedback;
-    int32_t out = (in + (delayed_sample << 1)) >> 1;
-    CLIP(out)
-    *buffer++ = out;
-    delay_ptr = (delay_ptr + 1) % kCombDelayLength;
-  }
+  int32_t resonance = fm1_physical_comb_resonance(parameter_[1]);
+  uint32_t delay_ptr = phase_ % kCombDelayLength;
+  fm1_physical_render_comb(dl, &delay_ptr, delay_integral, delay_fractional, resonance, buffer, size);
   phase_ = delay_ptr;
 }
 
@@ -764,63 +748,27 @@ void DigitalOscillator::RenderPlucked(
     loss = 0;
   }
   
-  int16_t previous_sample = state_.plk[0].previous_sample;
-
-  while (size) {
-    int32_t sample = 0;
-    for (size_t i = 0; i < kNumPluckVoices; ++i) {
-      PluckState* p = &state_.plk[i];
-      int16_t* dl = delay_lines_.ks + i * 1025;
-      // Initialization: Just use a white noise sample and fill the delay
-      // line.
-      if (p->initialization_ptr) {
-        --p->initialization_ptr;
-        int32_t excitation_sample = (dl[p->initialization_ptr] + \
-            3 * Random::GetSample()) >> 2;
-        dl[p->initialization_ptr] = excitation_sample;
-        sample += excitation_sample;
-      } else {
-        p->phase += p->phase_increment;
-        size_t read_ptr = ((p->phase >> (22 + p->shift)) + 2) & p->mask;
-        size_t write_ptr = p->write_ptr;
-        size_t num_loops = 0;
-        while (write_ptr != read_ptr) {
-          ++num_loops;
-          size_t next = (write_ptr + 1) & p->mask;
-          int32_t a = dl[write_ptr];
-          int32_t b = dl[next];
-          uint32_t probability = Random::GetWord();
-          if ((probability & 0xffff) <= update_probability) {
-            int32_t sum = (a + b);
-            sum = sum < 0 ? -(-sum >> 1) : (sum >> 1);
-            if (loss) {
-              sum = sum * (32768 - loss) >> 15;
-            }
-            dl[write_ptr] = sum;
-          }
-          if (write_ptr == 0) {
-            dl[p->size] = dl[0];
-          }
-          write_ptr = next;
-        }
-        p->write_ptr = write_ptr;
-        sample += Interpolate1022(dl, p->phase >> p->shift);
-      }
-    }
-    CLIP(sample);
-    *buffer++ = (previous_sample + sample) >> 1;
-    *buffer++ = sample;
-    previous_sample = sample;
-    size -= 2;
+  fm1_pluck_voice voices[kNumPluckVoices];
+  for (size_t i = 0; i < kNumPluckVoices; ++i) {
+    PluckState* p = &state_.plk[i];
+    voices[i].dl = delay_lines_.ks + i * 1025;
+    voices[i].phase = p->phase;
+    voices[i].phase_increment = p->phase_increment;
+    voices[i].shift = p->shift;
+    voices[i].mask = p->mask;
+    voices[i].size = p->size;
+    voices[i].write_ptr = p->write_ptr;
+    voices[i].initialization_ptr = p->initialization_ptr;
   }
-  state_.plk[0].previous_sample = previous_sample;
+  fm1_physical_render_plucked(voices, kNumPluckVoices, update_probability, loss, &state_.plk[0].previous_sample,
+                              buffer, size);
+  for (size_t i = 0; i < kNumPluckVoices; ++i) {
+    PluckState* p = &state_.plk[i];
+    p->phase = voices[i].phase;
+    p->write_ptr = voices[i].write_ptr;
+    p->initialization_ptr = voices[i].initialization_ptr;
+  }
 }
-
-static const int32_t kBridgeLPGain = 14008;
-static const int32_t kBridgeLPPole1 = 18022;
-static const int32_t kBiquadGain = 6553;
-static const int32_t kBiquadPole1 = 6948;
-static const int32_t kBiquadPole2 = -2959;
 
 void DigitalOscillator::RenderBowed(
     const uint8_t* sync,
@@ -838,12 +786,6 @@ void DigitalOscillator::RenderBowed(
   int16_t parameter_0 = 172 - (parameter_[0]  >> 8);
   int16_t parameter_1 = 6 + (parameter_[1]  >> 9);
 
-  uint16_t delay_ptr = state_.phy.delay_ptr;
-  uint16_t excitation_ptr = state_.phy.excitation_ptr;
-  int32_t lp_state = state_.phy.lp_state;
-
-  int32_t biquad_y0 = state_.phy.filter_state[0];
-  int32_t biquad_y1 = state_.phy.filter_state[1];
   // Setup delay times and interpolation coefficients.
   uint32_t delay = (delay_ >> 1) - (2 << 16);  // Compensation for 1-pole delay
   uint32_t bridge_delay = (delay >> 8) * parameter_1;
@@ -853,89 +795,31 @@ void DigitalOscillator::RenderBowed(
     delay >>= 1;
     bridge_delay >>= 1;
   }
-  uint16_t bridge_delay_integral = bridge_delay >> 16;
-  uint16_t bridge_delay_fractional = bridge_delay & 0xffff;
-  uint32_t neck_delay = delay - bridge_delay;
-  uint32_t neck_delay_integral = neck_delay >> 16;
-  uint16_t neck_delay_fractional = neck_delay & 0xffff;
-  int16_t previous_sample = state_.phy.previous_sample;
-  // Rendered at half the sample rate (for avoiding big rounding error in
-  // coefficients of body IIR filter).
-  while (size) {
-    phase_ += phase_increment_;
-    
-    int32_t new_velocity, friction;
-    uint16_t bridge_delay_ptr = delay_ptr + 2 * kWGBridgeLength \
-        - bridge_delay_integral;
-    uint16_t neck_delay_ptr = delay_ptr + 2 * kWGNeckLength \
-        - neck_delay_integral;
-    int16_t bridge_dl_a = dl_b[bridge_delay_ptr % kWGBridgeLength];
-    int16_t bridge_dl_b = dl_b[(bridge_delay_ptr - 1) % kWGBridgeLength];
-    int16_t nut_dl_a = dl_n[neck_delay_ptr % kWGNeckLength];
-    int16_t nut_dl_b = dl_n[(neck_delay_ptr - 1) % kWGNeckLength];
-    int32_t bridge_value = Mix(
-        bridge_dl_a, bridge_dl_b, bridge_delay_fractional) << 8;
-    int32_t nut_value = Mix(nut_dl_a, nut_dl_b, neck_delay_fractional) << 8;
-    lp_state = (bridge_value * kBridgeLPGain + lp_state * kBridgeLPPole1) >> 15;
-    int32_t bridge_reflection = -lp_state;
-    int32_t nut_reflection = -nut_value;
-    int32_t string_velocity = bridge_reflection + nut_reflection;
-    int32_t bow_velocity = lut_bowing_envelope[excitation_ptr >> 1];
-    bow_velocity += lut_bowing_envelope[(excitation_ptr + 1) >> 1];
-    bow_velocity >>= 1;
-    int32_t velocity_delta = bow_velocity - string_velocity;
-    
-    friction = velocity_delta * parameter_0 >> 5;
-    if (friction < 0) {
-      friction = -friction;
-    }
-    if (friction >= (1 << 17)) {
-      friction = (1 << 17) - 1;
-    }
-    //friction = Interpolate824(lut_bowing_friction, friction << 15);
-    friction = lut_bowing_friction[friction >> 9];
-    new_velocity = friction * velocity_delta >> 15;
-    dl_n[delay_ptr % kWGNeckLength] = (bridge_reflection + new_velocity) >> 8;
-    dl_b[delay_ptr % kWGBridgeLength] = (nut_reflection + new_velocity) >> 8;
-    ++delay_ptr;
-    
-    int32_t temp = bridge_value * kBiquadGain >> 15;
-    temp += biquad_y0 * kBiquadPole1 >> 12;
-    temp += biquad_y1 * kBiquadPole2 >> 12;
-    int32_t out = temp - biquad_y1;
-    biquad_y1 = biquad_y0;
-    biquad_y0 = temp;
-
-    CLIP(out)
-    *buffer++ = (out + previous_sample) >> 1;
-    *buffer++ = out;
-    previous_sample = out;
-    ++excitation_ptr;
-    size -= 2;
-  }
+  fm1_pipe_state state;
+  state.delay_ptr = state_.phy.delay_ptr;
+  state.excitation_ptr = state_.phy.excitation_ptr;
+  state.lp = state_.phy.lp_state;
+  state.filter0 = state_.phy.filter_state[0];
+  state.filter1 = state_.phy.filter_state[1];
+  state.previous = state_.phy.previous_sample;
+  phase_ += phase_increment_ * (size >> 1);
+  fm1_physical_render_bowed(dl_b, dl_n, &state, bridge_delay, delay - bridge_delay, parameter_0, buffer, size);
+  uint16_t excitation_ptr = state.excitation_ptr;
   if ((excitation_ptr >> 1) >= LUT_BOWING_ENVELOPE_SIZE - 32) {
     excitation_ptr = (LUT_BOWING_ENVELOPE_SIZE - 32) << 1;
   }
-  state_.phy.delay_ptr = delay_ptr % kWGNeckLength;
+  state_.phy.delay_ptr = state.delay_ptr % kWGNeckLength;
   state_.phy.excitation_ptr = excitation_ptr;
-  state_.phy.lp_state = lp_state;
-  state_.phy.filter_state[0] = biquad_y0;
-  state_.phy.filter_state[1] = biquad_y1;
-  state_.phy.previous_sample = previous_sample;
+  state_.phy.lp_state = state.lp;
+  state_.phy.filter_state[0] = state.filter0;
+  state_.phy.filter_state[1] = state.filter1;
+  state_.phy.previous_sample = state.previous;
 }
-
-static const uint16_t kBreathPressure = 26214;
-static const int16_t kReflectionCoefficient = -3891;
-static const int16_t kReedSlope = -1229;
-static const int16_t kReedOffset = 22938;
 
 void DigitalOscillator::RenderBlown(
     const uint8_t* sync,
     int16_t* buffer,
     size_t size) {
-  uint16_t delay_ptr = state_.phy.delay_ptr;
-  int32_t lp_state = state_.phy.lp_state;
-  
   int16_t* dl = delay_lines_.bore;
   if (strike_) {
     memset(dl, 0, sizeof(delay_lines_.bore));
@@ -946,10 +830,7 @@ void DigitalOscillator::RenderBlown(
   while (delay > ((kWGBoreLength - 1) << 16)) {
     delay >>= 1;
   }
-  uint16_t bore_delay_integral = delay >> 16;
-  uint16_t bore_delay_fractional = delay & 0xffff;
   uint16_t parameter = 28000 - (parameter_[0] >> 1);
-  int16_t filter_state = state_.phy.filter_state[0];
   int16_t normalized_pitch = (pitch_ - 8192 + (parameter_[1] >> 1)) >> 7;
   if (normalized_pitch < 0) {
     normalized_pitch = 0;
@@ -957,61 +838,32 @@ void DigitalOscillator::RenderBlown(
     normalized_pitch = 127;
   }
   uint16_t filter_coefficient = lut_flute_body_filter[normalized_pitch];
-  while (size--) {
-    phase_ += phase_increment_;
-    
-    int32_t breath_pressure = Random::GetSample() * parameter >> 15;
-    breath_pressure = breath_pressure * kBreathPressure >> 15;
-    breath_pressure += kBreathPressure;
-    
-    uint16_t bore_delay_ptr = delay_ptr + 2 * kWGBoreLength \
-        - bore_delay_integral;
-    int16_t dl_a = dl[bore_delay_ptr % kWGBoreLength];
-    int16_t dl_b = dl[(bore_delay_ptr - 1) % kWGBoreLength];
-    int32_t dl_value = Mix(dl_a, dl_b, bore_delay_fractional);
-    
-    int32_t pressure_delta = (dl_value >> 1) + lp_state;
-    lp_state = dl_value >> 1;
-    
-    pressure_delta = kReflectionCoefficient * pressure_delta >> 12;
-    pressure_delta -= breath_pressure;
-    int32_t reed = (pressure_delta * kReedSlope >> 12) + kReedOffset;
-    CLIP(reed)
-    int32_t out = pressure_delta * reed >> 15;
-    out += breath_pressure;
-    CLIP(out)
-    dl[delay_ptr++ % kWGBoreLength] = out;
-    filter_state = (filter_coefficient * out + \
-        (4096 - filter_coefficient) * filter_state) >> 12;
-    *buffer++ = filter_state;
-  }
-  state_.phy.filter_state[0] = filter_state;
-  state_.phy.delay_ptr = delay_ptr % kWGBoreLength;
-  state_.phy.lp_state = lp_state;
+  fm1_pipe_state state;
+  state.delay_ptr = state_.phy.delay_ptr;
+  state.excitation_ptr = 0;
+  state.lp = state_.phy.lp_state;
+  state.filter0 = state_.phy.filter_state[0];
+  state.filter1 = 0;
+  state.previous = 0;
+  phase_ += phase_increment_ * size;
+  fm1_physical_render_blown(dl, &state, delay, parameter, filter_coefficient, buffer, size);
+  state_.phy.filter_state[0] = state.filter0;
+  state_.phy.delay_ptr = state.delay_ptr % kWGBoreLength;
+  state_.phy.lp_state = state.lp;
 }
-
-static const uint16_t kRandomPressure = 0.22 * 4096;
-static const uint16_t kDCBlockingPole = 0.99 * 4096;
 
 void DigitalOscillator::RenderFluted(
     const uint8_t* sync,
     int16_t* buffer,
     size_t size) {
-  uint16_t delay_ptr = state_.phy.delay_ptr;
-  uint16_t excitation_ptr = state_.phy.excitation_ptr;
-
-  int32_t lp_state = state_.phy.lp_state;
-  int32_t dc_blocking_x0 = state_.phy.filter_state[0];
-  int32_t dc_blocking_y0 = state_.phy.filter_state[1];
-
   int8_t* dl_b = delay_lines_.fluted.bore;
   int8_t* dl_j = delay_lines_.fluted.jet;
   
   if (strike_) {
-    excitation_ptr = 0;
+    state_.phy.excitation_ptr = 0;
     memset(dl_b, 0, sizeof(delay_lines_.fluted.bore));
     memset(dl_j, 0, sizeof(delay_lines_.fluted.jet));
-    lp_state = 0;
+    state_.phy.lp_state = 0;
     strike_ = false;
   }
 
@@ -1024,72 +876,27 @@ void DigitalOscillator::RenderFluted(
     bore_delay >>= 1;
     jet_delay >>= 1;
   }
-  uint16_t bore_delay_integral = bore_delay >> 16;
-  uint16_t bore_delay_fractional = bore_delay & 0xffff;
-  uint32_t jet_delay_integral = jet_delay >> 16;
-  uint16_t jet_delay_fractional = jet_delay & 0xffff;
-  
   uint16_t breath_intensity = 2100 - (parameter_[0] >> 4);
   uint16_t filter_coefficient = lut_flute_body_filter[pitch_ >> 7];
-  while (size--) {
-    phase_ += phase_increment_;
-    
-    uint16_t bore_delay_ptr = delay_ptr + 2 * kWGFBoreLength \
-        - bore_delay_integral;
-    uint16_t jet_delay_ptr = delay_ptr + 2 * kWGJetLength \
-        - jet_delay_integral;
-    int16_t bore_dl_a = dl_b[bore_delay_ptr % kWGFBoreLength];
-    int16_t bore_dl_b = dl_b[(bore_delay_ptr - 1) % kWGFBoreLength];
-    int16_t jet_dl_a = dl_j[jet_delay_ptr % kWGJetLength];
-    int16_t jet_dl_b = dl_j[(jet_delay_ptr - 1) % kWGJetLength];
-    int32_t bore_value = Mix(bore_dl_a, bore_dl_b, bore_delay_fractional) << 9;
-    int32_t jet_value = Mix(jet_dl_a, jet_dl_b, jet_delay_fractional) << 9;
-        
-    int32_t breath_pressure = lut_blowing_envelope[excitation_ptr];
-    breath_pressure <<= 1;
-    int32_t random_pressure = Random::GetSample() * breath_intensity >> 12;
-    random_pressure = random_pressure * breath_pressure >> 15;
-    breath_pressure += random_pressure;
-    
-    lp_state = (-filter_coefficient * bore_value + \
-        (4096 - filter_coefficient) * lp_state) >> 12;
-    int32_t reflection = lp_state;
-    dc_blocking_y0 = (kDCBlockingPole * dc_blocking_y0 >> 12);
-    dc_blocking_y0 += reflection - dc_blocking_x0;
-    dc_blocking_x0 = reflection;
-    reflection = dc_blocking_y0;
-    
-    int32_t pressure_delta = breath_pressure - (reflection >> 1);
-    dl_j[delay_ptr % kWGJetLength] = pressure_delta >> 9;
-    
-    pressure_delta = jet_value;
-    int32_t jet_table_index = pressure_delta;
-    if (jet_table_index < 0) {
-      jet_table_index = 0;
-    }
-    if (jet_table_index > 65535) {
-      jet_table_index = 65535;
-    }
-    pressure_delta = static_cast<int16_t>(
-        lut_blowing_jet[jet_table_index >> 8]) + (reflection >> 1);
-    dl_b[delay_ptr % kWGFBoreLength] = pressure_delta >> 9;
-    ++delay_ptr;
-    
-    int32_t out = bore_value >> 1;
-    CLIP(out)
-    *buffer++ = out;
-    if (size & 3) {
-      ++excitation_ptr;
-    }
-  }
+  fm1_pipe_state state;
+  state.delay_ptr = state_.phy.delay_ptr;
+  state.excitation_ptr = state_.phy.excitation_ptr;
+  state.lp = state_.phy.lp_state;
+  state.filter0 = state_.phy.filter_state[0];
+  state.filter1 = state_.phy.filter_state[1];
+  state.previous = 0;
+  phase_ += phase_increment_ * size;
+  fm1_physical_render_fluted(dl_b, dl_j, &state, bore_delay, jet_delay, breath_intensity, filter_coefficient,
+                             buffer, size);
+  uint16_t excitation_ptr = state.excitation_ptr;
   if (excitation_ptr >= LUT_BLOWING_ENVELOPE_SIZE - 32) {
     excitation_ptr = LUT_BLOWING_ENVELOPE_SIZE - 32;
   }
-  state_.phy.delay_ptr = delay_ptr;
+  state_.phy.delay_ptr = state.delay_ptr;
   state_.phy.excitation_ptr = excitation_ptr;
-  state_.phy.lp_state = lp_state;
-  state_.phy.filter_state[0] = dc_blocking_x0;
-  state_.phy.filter_state[1] = dc_blocking_y0;
+  state_.phy.lp_state = state.lp;
+  state_.phy.filter_state[0] = state.filter0;
+  state_.phy.filter_state[1] = state.filter1;
 }
 
 struct WavetableDefinition {
