@@ -42,13 +42,20 @@ from `Reverb::Process`; the arithmetic of each step is Lean.
 
 ### What is proved
 
-See `docs/PROOFS.md`, section Reverb: every position is inside the memory; at every scale up to 400 the ten delay
-lines fit and never overlap; every decay and brightness setting gives a gain below 1.0; the stored sample saturates
-instead of wrapping. The low-pass and the interpolation are not proved (Lean has no lemmas for signed shifts yet); the
-differential test covers them.
+See `docs/PROOFS.md`, section Reverb, nine theorems:
 
-Not proved: that the whole network is stable. Gains below 1.0 is a design rule, and what the test shows is that the
-tail dies away.
+- every position is inside the memory; at every scale up to 400 the ten delay lines fit and never overlap;
+- the two modulated reads (the first diffuser and the long delay of the second loop) stay inside their own line
+  whatever the LFO does, at every scale from 192 to 400, and the LFO's wobble is always between 0 and 1.0;
+- every decay and brightness setting gives a gain below 1.0, and a signal times a gain of at most 1.0 keeps its sign
+  and never grows, rounding included;
+- one step of the low-pass lands between its state and its input, and an interpolated read lands between its two
+  neighbours, so neither can overshoot;
+- the stored sample saturates instead of wrapping.
+
+Not proved: that the whole network is stable. Each step is shown not to grow a sample on its own, but the allpasses
+add a delayed sample to a scaled one, and the two loops feed each other; the gain budget is Clouds' design and what
+the test shows is that the tail dies away.
 
 ### How it is tested
 

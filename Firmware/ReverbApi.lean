@@ -3,8 +3,7 @@ import Firmware.Reverb
 set_option compiler.extract_closed false
 
 /-! C entry points for `Firmware/Reverb.lean`: one function per operation, so each takes and returns plain
-numbers.
-`fx/reverb_glue.c` includes the generated code and runs the network with them. -/
+numbers. `fx/reverb_glue.c` includes the generated code and runs the network with them. -/
 
 /-- Where a delay line starts in the shared memory. -/
 @[export fm1_rv_start] def rvStart (scale line : UInt32) : UInt32 := Reverb.start scale line

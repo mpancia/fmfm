@@ -31,8 +31,8 @@ private theorem reverb_small_stays (x : UInt32) (h : x.toNat < 2 ^ 31) : x.toInt
   rw [Int32.toInt, UInt32.toBitVec_toInt32, BitVec.toInt_eq_toNat_cond]
   simp only [small, ↓reduceIte, same]
 
-/-- A sample position is always inside the shared delay memory, whatever the write position, line start
-and offset.
+/-- A sample position is always inside the shared delay memory, whatever the write position, line start and
+offset.
 Why it matters: a read or write can never land outside the memory, so no setting of a knob can crash the
 reverb. -/
 theorem reverb_position_in_ring (write base offset : UInt32) :
@@ -43,9 +43,8 @@ theorem reverb_position_in_ring (write base offset : UInt32) :
   rw [this]
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by omega)
 
-/-- At every scale up to 400 (353 is the shipped one), each delay line ends inside the memory, and each
-line starts
-one sample after the previous one ends.
+/-- At every scale up to 400 (353 is the shipped one), each delay line ends inside the memory, and each line
+starts one sample after the previous one ends.
 Why it matters: the ten lines never overlap, so one line cannot overwrite another, and none runs off the
 end. -/
 theorem reverb_lines_fit_and_do_not_overlap (scale : UInt32) (small : scale.toNat ≤ 400) (line : UInt32)
@@ -63,11 +62,9 @@ theorem reverb_lines_fit_and_do_not_overlap (scale : UInt32) (small : scale.toNa
   simpa using this
 
 /-- For every decay-time setting, the loop gain is positive and below 1.0 (at most 0.98), and for every
-brightness
-setting the low-pass amount is too (at most 0.97).
+brightness setting the low-pass amount is too (at most 0.97).
 Why it matters: the tail always dies away; no knob position makes the reverb feed back on itself and grow.
-This is
-about the gain settings, not a proof that the whole network is stable. -/
+This is about the gain settings, not a proof that the whole network is stable. -/
 theorem reverb_gains_below_one (setting : UInt32) :
     0 < (Reverb.timeGain setting).toInt ∧ (Reverb.timeGain setting).toInt < 32768 ∧
       0 < (Reverb.brightGain setting).toInt ∧ (Reverb.brightGain setting).toInt < 32768 := by
@@ -78,14 +75,11 @@ theorem reverb_gains_below_one (setting : UInt32) :
   rw [reverb_small_stays _ (by omega), reverb_small_stays _ (by omega), t, b]
   omega
 
-/-- The signal stored in the delay memory is the signal divided by 8, rounded towards zero, and it
-saturates at the
-ends of the 16-bit range instead of wrapping around: from 262144 up it stores 32767, from -262152 down it
-stores
--32768, and in between it is within 7 of the signal (times 8).
+/-- The signal stored in the delay memory is the signal divided by 8, rounded towards zero, and it saturates
+at the ends of the 16-bit range instead of wrapping around: from 262144 up it stores 32767, from -262152
+down it stores -32768, and in between it is within 7 of the signal (times 8).
 Why it matters: a loud signal in the loops clips like an overdriven analogue stage; it never wraps to the
-opposite
-sign, which is the harsh noise a digital reverb is known for. -/
+opposite sign, which is the harsh noise a digital reverb is known for. -/
 theorem reverb_compress_saturates (signal : Int32) :
     (262144 ≤ signal.toInt → (Reverb.compress signal).toInt = 32767) ∧
     (signal.toInt ≤ -262152 → (Reverb.compress signal).toInt = -32768) ∧
@@ -130,3 +124,212 @@ theorem reverb_compress_saturates (signal : Int32) :
       have a' : (signal / 8).toInt ≤ 32767 := by omega
       have b' : -32768 ≤ (signal / 8).toInt := by omega
       split at hd <;> split <;> omega
+
+/-- An arithmetic shift right of a signed 64-bit number by 15 is division by 32768, rounding down. -/
+private theorem reverb_shift15 (x : Int64) : (x >>> 15).toInt = x.toInt / 32768 := by
+  show (x >>> 15).toBitVec.toInt = _
+  rw [Int64.toBitVec_shiftRight, BitVec.toInt_sshiftRight', Int.shiftRight_eq_div_pow]; rfl
+
+/-- The same by 16. -/
+private theorem reverb_shift16 (x : Int64) : (x >>> 16).toInt = x.toInt / 65536 := by
+  show (x >>> 16).toBitVec.toInt = _
+  rw [Int64.toBitVec_shiftRight, BitVec.toInt_sshiftRight', Int.shiftRight_eq_div_pow]; rfl
+
+/-- The same for a 32-bit number by 1. -/
+private theorem reverb_shift1 (x : Int32) : (x >>> 1).toInt = x.toInt / 2 := by
+  show (x >>> 1).toBitVec.toInt = _
+  rw [Int32.toBitVec_shiftRight, BitVec.toInt_sshiftRight', Int.shiftRight_eq_div_pow]; rfl
+
+/-- A 32-bit subtraction whose inputs are both below a quarter of the range is exact. -/
+private theorem reverb_sub_exact (a b : Int32) (ha : a.toInt.natAbs < 2 ^ 30) (hb : b.toInt.natAbs < 2 ^ 30) :
+    (a - b).toInt = a.toInt - b.toInt := by
+  rw [Int32.toInt_sub]; exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- A 32-bit addition whose true sum fits is exact. -/
+private theorem reverb_add_exact (a b : Int32) (fits : (a.toInt + b.toInt).natAbs < 2 ^ 31) :
+    (a + b).toInt = a.toInt + b.toInt := by
+  rw [Int32.toInt_add]; exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- A signal (not the one most negative number) times a gain of at most 1.0 in size fits in 46 bits with room
+for the rounding and the result fits in 32. -/
+private theorem reverb_product_small (s g : Int32) (nonmin : -2 ^ 31 < s.toInt)
+    (unit : g.toInt.natAbs ≤ 32768) :
+    (s.toInt * g.toInt).natAbs ≤ 2 ^ 46 - 32768 := by
+  rw [Int.natAbs_mul]
+  have hs : s.toInt.natAbs ≤ 2 ^ 31 - 1 := by have := Int32.toInt_lt s; omega
+  exact Nat.le_trans (Nat.mul_le_mul hs unit) (by decide)
+
+/-- `Reverb.mul` as a plain number: the product plus a half, divided by 32768 rounding down. -/
+private theorem reverb_mul_value (s g : Int32) (nonmin : -2 ^ 31 < s.toInt) (unit : g.toInt.natAbs ≤ 32768) :
+    (Reverb.mul s g).toInt = (s.toInt * g.toInt + 16384) / 32768 := by
+  unfold Reverb.mul
+  have hp := reverb_product_small s g nonmin unit
+  rw [Int64.toInt_toInt32, reverb_shift15, Int64.toInt_add, Int64.toInt_mul, Int32.toInt_toInt64,
+    Int32.toInt_toInt64]
+  have c : (16384 : Int64).toInt = 16384 := by decide
+  rw [c]
+  generalize s.toInt * g.toInt = p at *
+  have e1 : Int.bmod p (2 ^ 64) = p := Int.bmod_eq_of_le (by omega) (by omega)
+  rw [e1]
+  have e2 : Int.bmod (p + 16384) (2 ^ 64) = p + 16384 := Int.bmod_eq_of_le (by omega) (by omega)
+  rw [e2]
+  clear e1 e2
+  exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- A signal times a gain between 0 and 1.0 keeps its sign and never grows: the result lies between zero and
+the signal. (The one most negative 32-bit number is left out; no signal in the reverb comes near it.)
+Why it matters: the loop gain and the low-pass amount are such gains, so each pass round a loop cannot make
+a sample louder than it went in, rounding included. -/
+theorem reverb_gain_never_amplifies (signal gain : Int32) (nonmin : -2 ^ 31 < signal.toInt)
+    (nonneg : 0 ≤ gain.toInt) (unit : gain.toInt ≤ 32768) :
+    (0 ≤ signal.toInt →
+      0 ≤ (Reverb.mul signal gain).toInt ∧ (Reverb.mul signal gain).toInt ≤ signal.toInt) ∧
+    (signal.toInt ≤ 0 →
+      signal.toInt ≤ (Reverb.mul signal gain).toInt ∧ (Reverb.mul signal gain).toInt ≤ 0) := by
+  rw [reverb_mul_value signal gain nonmin (by omega)]
+  constructor
+  · intro hs
+    have lo : 0 ≤ signal.toInt * gain.toInt := Int.mul_nonneg hs nonneg
+    have hi : signal.toInt * gain.toInt ≤ signal.toInt * 32768 := Int.mul_le_mul_of_nonneg_left unit hs
+    omega
+  · intro hs
+    have hi : signal.toInt * gain.toInt ≤ 0 := Int.mul_nonpos_of_nonpos_of_nonneg hs nonneg
+    have lo : signal.toInt * 32768 ≤ signal.toInt * gain.toInt := Int.mul_le_mul_of_nonpos_left hs unit
+    omega
+
+/-- One step of the low-pass lands between its old state and the new signal, for any amount from 0 to 1.0,
+when both are within a quarter of the 32-bit range (the loops hold at most 8.0, which is 1/8192 of it).
+Why it matters: the filter in each loop can only smooth; it cannot overshoot, ring or add level of its own. -/
+theorem reverb_lowpass_stays_between (state signal amount : Int32) (hs : state.toInt.natAbs < 2 ^ 30)
+    (hx : signal.toInt.natAbs < 2 ^ 30) (nonneg : 0 ≤ amount.toInt) (unit : amount.toInt ≤ 32768) :
+    min state.toInt signal.toInt ≤ (Reverb.lowpass state signal amount).toInt ∧
+      (Reverb.lowpass state signal amount).toInt ≤ max state.toInt signal.toInt := by
+  unfold Reverb.lowpass
+  have d := reverb_sub_exact signal state hx hs
+  have m := reverb_gain_never_amplifies (signal - state) amount (by omega) nonneg unit
+  rw [d] at m
+  rw [reverb_add_exact _ _ (by omega)]
+  omega
+
+/-- A point read between two stored neighbours lies between them, for any fraction below 1.0, when both are
+within a quarter of the 32-bit range.
+Why it matters: a modulated delay reads between samples; the interpolation can only blend, never add a
+spike. -/
+theorem reverb_interpolation_stays_between (a b fraction : Int32) (ha : a.toInt.natAbs < 2 ^ 30)
+    (hb : b.toInt.natAbs < 2 ^ 30) (nonneg : 0 ≤ fraction.toInt) (unit : fraction.toInt < 65536) :
+    min a.toInt b.toInt ≤ (Reverb.interpolate a b fraction).toInt ∧
+      (Reverb.interpolate a b fraction).toInt ≤ max a.toInt b.toInt := by
+  unfold Reverb.interpolate
+  have d := reverb_sub_exact b a hb ha
+  have step : ((((b - a).toInt64 * fraction.toInt64) >>> 16).toInt32).toInt =
+        ((b.toInt - a.toInt) * fraction.toInt) / 65536 ∧
+      (0 ≤ b.toInt - a.toInt → 0 ≤ ((b.toInt - a.toInt) * fraction.toInt) / 65536 ∧
+        ((b.toInt - a.toInt) * fraction.toInt) / 65536 ≤ b.toInt - a.toInt) ∧
+      (b.toInt - a.toInt ≤ 0 → b.toInt - a.toInt ≤ ((b.toInt - a.toInt) * fraction.toInt) / 65536 ∧
+        ((b.toInt - a.toInt) * fraction.toInt) / 65536 ≤ 0) := by
+    rw [Int64.toInt_toInt32, reverb_shift16, Int64.toInt_mul, Int32.toInt_toInt64, Int32.toInt_toInt64, d]
+    have pn : (b.toInt - a.toInt).natAbs < 2 ^ 31 := by omega
+    generalize b.toInt - a.toInt = p at *
+    have pb : p.natAbs * fraction.toInt.natAbs ≤ (2 ^ 31 - 1) * 65535 := Nat.mul_le_mul (by omega) (by omega)
+    have pa : (p * fraction.toInt).natAbs ≤ (2 ^ 31 - 1) * 65535 := by rw [Int.natAbs_mul]; exact pb
+    have e1 : Int.bmod (p * fraction.toInt) (2 ^ 64) = p * fraction.toInt :=
+      Int.bmod_eq_of_le (by omega) (by omega)
+    rw [e1]
+    refine ⟨Int.bmod_eq_of_le (by omega) (by omega), ?_, ?_⟩
+    · intro hp
+      have l := Int.mul_nonneg hp nonneg
+      have h := Int.mul_le_mul_of_nonneg_left (show fraction.toInt ≤ 65536 by omega) hp
+      omega
+    · intro hp
+      have l := Int.mul_nonpos_of_nonpos_of_nonneg hp nonneg
+      have h := Int.mul_le_mul_of_nonpos_left hp (show fraction.toInt ≤ 65536 by omega)
+      omega
+  obtain ⟨v, pos, neg⟩ := step
+  rw [reverb_add_exact _ _ (by rw [v]; omega), v]
+  omega
+
+/-- The final clamp of the sine keeps its result within 32767 either way. -/
+private theorem reverb_clamp_bounded (z : Int32) :
+    (if z > 32767 then 32767 else if z < -32767 then -32767 else z).toInt.natAbs ≤ 32767 := by
+  have c1 : (32767 : Int32).toInt = 32767 := by decide
+  have c2 : (-32767 : Int32).toInt = -32767 := by decide
+  split
+  · rw [c1]; decide
+  · split
+    · rw [c2]; decide
+    · rename_i h1 h2
+      rw [GT.gt, Int32.lt_iff_toInt_lt, c1] at h1
+      rw [Int32.lt_iff_toInt_lt, c2] at h2
+      omega
+
+/-- The sine is within 32767 either way. -/
+private theorem reverb_sine_bounded (phase : UInt32) : (Reverb.sine phase).toInt.natAbs ≤ 32767 := by
+  unfold Reverb.sine
+  exact reverb_clamp_bounded _
+
+/-- The LFO's wobble is between 0 and 32767 (0 and 1.0 in Q15) at every phase.
+Why it matters: the delay modulation below relies on the wobble never going negative or past 1.0, so a
+modulated delay can only be between its base time and its base plus its depth. -/
+theorem reverb_lfo_in_range (phase : UInt32) :
+    0 ≤ (Reverb.lfo phase).toInt ∧ (Reverb.lfo phase).toInt ≤ 32767 := by
+  unfold Reverb.lfo
+  have s := reverb_sine_bounded (phase + 1073741824)
+  have c : (32768 : Int32).toInt = 32768 := by decide
+  rw [reverb_shift1, reverb_add_exact _ _ (by rw [c]; omega), c]
+  omega
+
+/-- The modulated offset as a plain number, when nothing overflows. -/
+private theorem reverb_mod_offset_value (base depth scale lfo : UInt32) (hb : base.toNat ≤ 4680)
+    (hd : depth.toNat ≤ 100) (hs : scale.toNat ≤ 400) (hl : lfo.toNat ≤ 32767) :
+    (Reverb.modOffset base depth scale lfo).toNat =
+      base.toNat * scale.toNat * 256 + depth.toNat * scale.toNat * lfo.toNat / 128 := by
+  unfold Reverb.modOffset
+  have p1 : base.toNat * scale.toNat ≤ 4680 * 400 := Nat.mul_le_mul hb hs
+  have p3 : depth.toNat * scale.toNat ≤ 100 * 400 := Nat.mul_le_mul hd hs
+  have p2 : depth.toNat * scale.toNat * lfo.toNat ≤ 100 * 400 * 32767 := Nat.mul_le_mul p3 hl
+  simp only [UInt32.toNat_add, UInt32.toNat_mul, UInt32.toNat_shiftLeft, UInt32.toNat_shiftRight,
+    UInt32.toNat_ofNat, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow, Nat.reducePow, Nat.reduceMod]
+  rw [Nat.mod_eq_of_lt (by omega : base.toNat * scale.toNat < 4294967296)]
+  rw [Nat.mod_eq_of_lt (by omega : base.toNat * scale.toNat * 256 < 4294967296)]
+  rw [Nat.mod_eq_of_lt (by omega : depth.toNat * scale.toNat < 4294967296)]
+  rw [Nat.mod_eq_of_lt (by omega : depth.toNat * scale.toNat * lfo.toNat < 4294967296)]
+  omega
+
+/-- A line's length as a plain number. -/
+private theorem reverb_length_value (scale line : UInt32) (hs : scale.toNat ≤ 400) :
+    (Reverb.length scale line).toNat = ((Reverb.baseLength line).toNat * scale.toNat + 128) / 256 := by
+  unfold Reverb.length
+  have b : (Reverb.baseLength line).toNat ≤ 4782 := by
+    unfold Reverb.baseLength; split <;> decide
+  have p : (Reverb.baseLength line).toNat * scale.toNat ≤ 4782 * 400 := Nat.mul_le_mul b hs
+  simp only [UInt32.toNat_add, UInt32.toNat_mul, UInt32.toNat_shiftRight, UInt32.toNat_ofNat,
+    Nat.shiftRight_eq_div_pow, Nat.reducePow, Nat.reduceMod]
+  rw [Nat.mod_eq_of_lt (by omega : (Reverb.baseLength line).toNat * scale.toNat < 4294967296)]
+  rw [Nat.mod_eq_of_lt (by omega)]
+
+/-- The two modulated reads in the glue, the first diffuser (10 samples plus up to 60, line 0 of 113) and the
+long delay of the second loop (4680 plus up to 100, line 9 of 4782), read a sample and its older neighbour
+that are both inside their own line, whatever the LFO does, at every scale from 192 to 400 (353 is the
+shipped one; below 192 the long delay's margin of two samples at Clouds' size is lost to rounding).
+Why it matters: a modulated read that ran past the end of its line would read the next line's samples, a
+quiet bug the differential test could miss. With `reverb_position_in_ring` and the line layout, every read
+is in the memory and in its line. -/
+theorem reverb_modulated_read_stays_in_line (scale lfo : UInt32) (lo : 192 ≤ scale.toNat)
+    (hi : scale.toNat ≤ 400) (wobble : lfo.toNat ≤ 32767) :
+    (Reverb.modOffset 10 60 scale lfo >>> 16).toNat + 1 < (Reverb.length scale 0).toNat ∧
+      (Reverb.modOffset 4680 100 scale lfo >>> 16).toNat + 1 < (Reverb.length scale 9).toNat := by
+  rw [UInt32.toNat_shiftRight, UInt32.toNat_shiftRight,
+    reverb_mod_offset_value _ _ _ _ (by decide) (by decide) hi wobble,
+    reverb_mod_offset_value _ _ _ _ (by decide) (by decide) hi wobble,
+    reverb_length_value _ _ hi, reverb_length_value _ _ hi]
+  have b0 : (Reverb.baseLength 0).toNat = 113 := by decide
+  have b9 : (Reverb.baseLength 9).toNat = 4782 := by decide
+  have c10 : (10 : UInt32).toNat = 10 := by decide
+  have c60 : (60 : UInt32).toNat = 60 := by decide
+  have c4680 : (4680 : UInt32).toNat = 4680 := by decide
+  have c100 : (100 : UInt32).toNat = 100 := by decide
+  rw [b0, b9, c10, c60, c4680, c100]
+  simp only [UInt32.toNat_ofNat, Nat.shiftRight_eq_div_pow, Nat.reducePow, Nat.reduceMod]
+  have w1 : 60 * scale.toNat * lfo.toNat ≤ 60 * scale.toNat * 32767 := Nat.mul_le_mul_left _ wobble
+  have w2 : 100 * scale.toNat * lfo.toNat ≤ 100 * scale.toNat * 32767 := Nat.mul_le_mul_left _ wobble
+  omega

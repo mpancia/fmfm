@@ -3,26 +3,22 @@ set_option compiler.extract_closed false
 /-!
 # Reverb send: the arithmetic
 
-The reverb is Clouds' (Mutable Instruments, MIT): four allpass diffusers feeding two cross-coupled loops
-of two
-allpasses and a long delay, with two slow LFOs smearing some of the delay times. This file holds the
-arithmetic
-of one sample as scalar functions; `fx/reverb_glue.c` owns the delay memory and runs the network in
-Clouds' order.
+The reverb is Clouds' (Mutable Instruments, MIT): four allpass diffusers feeding two cross-coupled loops of
+two allpasses and a long delay, with two slow LFOs smearing some of the delay times. This file holds the
+arithmetic of one sample as scalar functions; `fx/reverb_glue.c` owns the delay memory and runs the network
+in Clouds' order.
 
-Numbers: signals are Q15 (32768 is 1.0) in `Int32`; gains are Q15; the delay memory stores each sample as
-16 bits
-holding the signal times 4096, as Clouds' 12-bit format does, so the signal can swing up to 8.0 inside the
-loops.
-All delay times scale with `scale` (Q8, 256 is Clouds' 32 kHz sizes; 353 is the same room at 44.1 kHz).
+Numbers: signals are Q15 (32768 is 1.0) in `Int32`; gains are Q15; the delay memory stores each sample
+as 16 bits holding the signal times 4096, as Clouds' 12-bit format does, so the signal can swing up to 8.0
+inside the loops. All delay times scale with `scale` (Q8, 256 is Clouds' 32 kHz sizes; 353 is the same room
+at 44.1 kHz).
 -/
 
 /-- Samples in the shared delay memory (a power of two). -/
 @[inline] def Reverb.ring : UInt32 := 32768
 
-/-- The ten delay lines at Clouds' 32 kHz, in samples: four input allpasses, then each loop's two
-allpasses and
-long delay. -/
+/-- The ten delay lines at Clouds' 32 kHz, in samples: four input allpasses, then each loop's two allpasses
+and long delay. -/
 @[inline] def Reverb.baseLength (line : UInt32) : UInt32 :=
   match line with
   | 0 => 113 | 1 => 162 | 2 => 241 | 3 => 399 | 4 => 1653
@@ -55,8 +51,7 @@ long delay. -/
 @[inline] def Reverb.nextWrite (write : UInt32) : UInt32 := (write + 32767) &&& 32767
 
 /-- A signal for the delay memory: the signal times 4096 (as Q15 divided by 8), cut to 16 bits. A signal
-beyond
-8.0 saturates instead of wrapping. -/
+beyond 8.0 saturates instead of wrapping. -/
 @[inline] def Reverb.compress (signal : Int32) : Int16 :=
   let stored := signal / 8
   if stored > 32767 then 32767 else if stored < -32768 then -32768 else stored.toInt16
@@ -90,15 +85,13 @@ beyond
 /-- The slow wobble: half plus half a cosine of the phase, from 0 to 32767 (Q15), as Clouds' LFOs do. -/
 @[inline] def Reverb.lfo (phase : UInt32) : Int32 := (Reverb.sine (phase + 1073741824) + 32768) >>> 1
 
-/-- A delay time that moves with an LFO, in samples as Q16: `base` samples, plus up to `depth` samples,
-both at
-Clouds' sizes and scaled. `lfo` is the wobble from `Reverb.lfo`. -/
+/-- A delay time that moves with an LFO, in samples as Q16: `base` samples, plus up to `depth` samples, both
+at Clouds' sizes and scaled. `lfo` is the wobble from `Reverb.lfo`. -/
 @[inline] def Reverb.modOffset (base depth scale lfo : UInt32) : UInt32 :=
   ((base * scale) <<< 8) + ((depth * scale * lfo) >>> 7)
 
-/-- Loop gain for a decay-time setting of 0 to 100 (more is the same as 100): 0.35 to 0.98 in Q15. Below
-1, so
-the tail always dies away. -/
+/-- Loop gain for a decay-time setting of 0 to 100 (more is the same as 100): 0.35 to 0.98 in Q15. Below 1,
+so the tail always dies away. -/
 @[inline] def Reverb.timeGain (time : UInt32) : Int32 := (11469 + (20644 * (min time 100)) / 100).toInt32
 
 /-- Low-pass amount for a brightness setting of 0 to 100: 0.6 to 0.97 in Q15. Higher is brighter. -/

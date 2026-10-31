@@ -38,6 +38,26 @@ Why it matters: the counter is a small number for good, so it can never grow int
 
 Why it matters: the pattern has the density you asked for, with no missing or extra notes.
 
+## Filters
+
+**`filters_swarm_sum_range`**: The sum of the swarm's seven saws lies between -28672 and 28665, whatever the phases.
+
+Why it matters: the sum is handed to the overdrive shaper offset by 32768 with no mask, so this is what keeps that read inside the shaper's 257 entries (`tables_shape_reads_inside_257`).
+
+**`filters_harmonic_glide_approaches`**: A harmonic's amplitude moves toward its target and never passes it (shown for an amplitude below its target; the other direction is symmetric), for values within a quarter of the 32-bit range.
+
+Why it matters: when a harmonic is told to fade, it fades monotonically; it cannot overshoot and ring.
+
+## Harmony
+
+**`harmony_mask_never_empty`**: The mask handed to a lane always has at least one note and fits in 12 bits, for every scale, key, chord and follow mode the firmware offers.
+
+Why it matters: `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for the chord-following lanes too, so a chord change can never leave a lane with nothing to play.
+
+**`harmony_triad_within_scale`**: A chord's notes are always notes of the scale it was taken from.
+
+Why it matters: TRIAD follow narrows a lane to the chord; it can never add a note that is outside the key.
+
 ## Lane
 
 **`lane_make_valid`**: Whatever settings are asked for, `make` gives a consistent lane.
@@ -80,11 +100,29 @@ Why it matters: stopping the clock cannot leave the lane with a timer and no not
 
 Why it matters: pressing stop never leaves a note hanging.
 
+**`lane_reconfigure_self`**: Applying a lane's own settings back to it changes nothing, for a consistent lane whose settings are the ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 5, mutation up to 100 percent) and whose gate is the one its speed gives. `make`, `reconfigure` and `setNotes` only ever produce such lanes.
+
+Why it matters: saving a patch and loading it again, or redrawing a knob at its current value, cannot alter the music by a tick: the lane is exactly where it was.
+
 ## Lfo
 
 **`lfo_modulate_in_range`**: A modulated value stays a percentage, 0 to 100, for any base, depth and phase.
 
 Why it matters: a modulator can never push a lane's chance, level or timbre setting out of the range the rest of the firmware expects, however it is set.
+
+**`lfo_triangle_symmetric`**: The triangle is the same on the way up as on the way down: mirroring the phase mirrors nothing.
+
+Why it matters: the modulator rises and falls by the same path, so a one-bar LFO repeats exactly every bar with no step or jump at the turn.
+
+**`lfo_modulate_centred`**: At the middle of its swing the modulator leaves the setting exactly as it is; and a depth of zero never changes anything.
+
+Why it matters: the knob's own value is the centre of the motion, not its top or bottom, so adding an LFO does not shift the average sound; and switching depth to zero returns exactly the sound you set.
+
+## Noise
+
+**`noise_particle_amplitude_fades`**: Between hits, a particle burst only fades: its amplitude after a sample is at most what it was.
+
+Why it matters: particle noise dies away between hits; the burst cannot grow by itself.
 
 ## Notes
 
@@ -95,6 +133,38 @@ Why it matters: the lane starts in a state the algorithms can rely on, whatever 
 **`notes_choose_stays_in_range`**: Whichever algorithm picks, the pitch is inside the range and the memory stays consistent.
 
 Why it matters: the note can never land outside the range the lane was given, and no algorithm can corrupt the memory the next pick depends on, however long it runs.
+
+**`notes_up_visits_every_position`**: UP climbs one position a note and wraps at the top, so from position `p` the `i`-th note is at `(p + i) % span`: the first `span` notes visit every position once.
+
+Why it matters: an UP lane is a rising scale that covers its whole range with no position skipped or repeated.
+
+**`notes_down_visits_every_position`**: DOWN falls one position a note and wraps at the bottom: from `p` the `i`-th note is at `(p + (span - 1) * (i + 1)) % span`, so the first `span` notes visit every position once.
+
+Why it matters: a DOWN lane is a falling scale over its whole range with no position skipped or repeated.
+
+**`notes_bounce_moves_one`**: BOUNCE never jumps: each note is at most one position from the last, in a range of at least two.
+
+Why it matters: a BOUNCE lane is a smooth up-and-down line; it can never leap across its range.
+
+**`notes_walk_bounded`**: WALK moves at most `amount` positions a note (the lane draws its step below `2 * amount + 1`, and the position is inside the range).
+
+Why it matters: the AMOUNT knob is a real limit on how far a WALK lane can jump between two notes.
+
+**`notes_loop_repeats`**: LOOP with no mutation plays the same note again every `amount` picks: the memory never changes, and the slot goes round.
+
+Why it matters: MUTATE at zero is an exact loop, the hook a listener can hold on to.
+
+## Percussion
+
+**`percussion_excite_decays`**: Between hits, an exciter's pulse only decays: it stays at or below where it was, and never below zero. The pulse is at most 2^19 (the loudest strike is 15 times 32768) and the decay at most 4096 (one, in 12 bits).
+
+Why it matters: a drum hit dies away; the exciter cannot grow on its own or swing negative.
+
+## Physical
+
+**`physical_pluck_average_no_gain`**: One step of the plucked string's loop never makes the signal louder: the result is within the louder of the two neighbours it averages, for 16-bit neighbours and a loss between 0 and 32768.
+
+Why it matters: the Karplus-Strong loop feeds its output back into itself; a step that could gain would make the string grow instead of ring down.
 
 ## Quantizer
 
@@ -133,3 +203,57 @@ Why it matters: the tail always dies away; no knob position makes the reverb fee
 **`reverb_compress_saturates`**: The signal stored in the delay memory is the signal divided by 8, rounded towards zero, and it saturates at the ends of the 16-bit range instead of wrapping around: from 262144 up it stores 32767, from -262152 down it stores -32768, and in between it is within 7 of the signal (times 8).
 
 Why it matters: a loud signal in the loops clips like an overdriven analogue stage; it never wraps to the opposite sign, which is the harsh noise a digital reverb is known for.
+
+**`reverb_gain_never_amplifies`**: A signal times a gain between 0 and 1.0 keeps its sign and never grows: the result lies between zero and the signal. (The one most negative 32-bit number is left out; no signal in the reverb comes near it.)
+
+Why it matters: the loop gain and the low-pass amount are such gains, so each pass round a loop cannot make a sample louder than it went in, rounding included.
+
+**`reverb_lowpass_stays_between`**: One step of the low-pass lands between its old state and the new signal, for any amount from 0 to 1.0, when both are within a quarter of the 32-bit range (the loops hold at most 8.0, which is 1/8192 of it).
+
+Why it matters: the filter in each loop can only smooth; it cannot overshoot, ring or add level of its own.
+
+**`reverb_interpolation_stays_between`**: A point read between two stored neighbours lies between them, for any fraction below 1.0, when both are within a quarter of the 32-bit range.
+
+Why it matters: a modulated delay reads between samples; the interpolation can only blend, never add a spike.
+
+**`reverb_lfo_in_range`**: The LFO's wobble is between 0 and 32767 (0 and 1.0 in Q15) at every phase.
+
+Why it matters: the delay modulation below relies on the wobble never going negative or past 1.0, so a modulated delay can only be between its base time and its base plus its depth.
+
+**`reverb_modulated_read_stays_in_line`**: The two modulated reads in the glue, the first diffuser (10 samples plus up to 60, line 0 of 113) and the long delay of the second loop (4680 plus up to 100, line 9 of 4782), read a sample and its older neighbour that are both inside their own line, whatever the LFO does, at every scale from 192 to 400 (353 is the shipped one; below 192 the long delay's margin of two samples at Clouds' size is lost to rounding).
+
+Why it matters: a modulated read that ran past the end of its line would read the next line's samples, a quiet bug the differential test could miss. With `reverb_position_in_ring` and the line layout, every read is in the memory and in its line.
+
+## Run
+
+**`run_every_note_on_has_a_note_off`**: Every note a lane starts during a run is stopped: after any sequence of ticks and setting changes, the number of note-ons equals the number of note-offs plus the one note still sounding, which stopping the clock then reports as stopped (`lane_silence_stops_note`) and leaves nothing sounding.
+
+Why it matters: this is the no-stuck-notes promise for a whole performance, not one tick: however long you play and whatever you turn, pressing stop leaves nothing sounding and nothing unaccounted for.
+
+**`run_clock_never_drifts`**: After `n` ticks from a fresh lane, the clock stands at `(n / div) % steps`, whatever notes played.
+
+Why it matters: the step position depends only on the tick count, so four lanes at different speeds stay in phase forever: nothing a note does can make a lane drift.
+
+## Tables
+
+**`tables_phase_reads_inside_257`**: A phase reads two neighbouring entries of a 257-entry table, both inside it, whatever the phase.
+
+Why it matters: the sine, bell, cutoff, damping and comb tables all have 257 entries, so every blend of them (`Analog.sineAt`, `Digital.lutAt`, `Analog.buzz`) stays inside its table at any phase, with no check needed.
+
+**`tables_shape_reads_inside_257`**: A 16-bit index reads two neighbouring entries of a 257-entry wave shaper, both inside it.
+
+Why it matters: the overdrive and fold shapers are 257 entries; `Analog.shape` is safe for any index below 65536, which is why its callers mask or bound what they pass.
+
+**`tables_resonator_reads_inside_129`**: A pitch, after the resonator's clamp, reads inside the 129-entry resonator tables.
+
+Why it matters: these are the only 129-entry tables; without the clamp to 16383 a high note would read past them. The clamp is what makes the particle and twin-peaks resonators safe.
+
+**`tables_wave_reads_inside_129`**: A wave phase, halved as the wavetable engines do, reads inside a 129-byte wave.
+
+Why it matters: Braids' waves are 129 bytes, half the table size the phase could address; the halving in every wavetable engine is what keeps the read inside the wave.
+
+## Wavetables
+
+**`wavetables_wavetable_never_wraps`**: A wavetable sample is exactly the sum of its two half-rate readings, each halved: nothing wraps around.
+
+Why it matters: the wavetable engine cannot click from an overflow, for any waves, phase or morph position.

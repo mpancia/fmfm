@@ -109,6 +109,8 @@ void fm1_reverb_block(const int32_t *send, int32_t *wet_left, int32_t *wet_right
         acc = 0; previous = 0;
 
         read_modulated(AP1, 10u, 60u, 0, 32768);               /* smear the first diffuser inside its loop */
+                                                               /* these bases and depths, and DEL2's below, are the ones
+                                                                * reverb_modulated_read_stays_in_line is about */
         write_line(AP1, scaled(100u), 0);
         read_value(send[n], k_input);
         read_line(AP1, k_diffusion); write_allpass(AP1, -k_diffusion);
