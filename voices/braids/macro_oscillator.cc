@@ -58,10 +58,7 @@ void MacroOscillator::RenderCSaw(
   analog_oscillator_[0].set_aux_parameter(parameter_[1]);
   analog_oscillator_[0].Render(sync, buffer, NULL, size);
   int16_t shift = -(parameter_[1] - 32767) >> 4;
-  while (size--) {
-    int32_t s = *buffer + shift;
-    *buffer++ = (s * 13) >> 3;
-  }
+  fm1_macro_render_csaw(buffer, shift, size);
 }
 
 void MacroOscillator::RenderMorph(
@@ -104,7 +101,6 @@ void MacroOscillator::RenderMorph(
     lp_cutoff = 32767;
   }
   int32_t f = Interpolate824(lut_svf_cutoff, lp_cutoff << 17);
-  int32_t lp_state = lp_state_;
   int32_t fuzz_amount = parameter_[1] << 1;
   if (pitch_ > (80 << 7)) {
     fuzz_amount -= (pitch_ - (80 << 7)) << 4;
@@ -112,17 +108,7 @@ void MacroOscillator::RenderMorph(
       fuzz_amount = 0;
     }
   }
-  while (size--) {
-    int16_t sample = Mix(*shape_1++, *shape_2++, balance);
-    int32_t shifted_sample = sample;
-    lp_state += (shifted_sample - lp_state) * f >> 15;
-    CLIP(lp_state)
-    shifted_sample = lp_state + 32768;
-  
-    int16_t fuzzed = Interpolate88(ws_violent_overdrive, shifted_sample);
-    *buffer++ = Mix(sample, fuzzed, fuzz_amount);
-  }
-  lp_state_ = lp_state;
+  fm1_macro_render_morph(buffer, shape_2, balance, &lp_state_, f, fuzz_amount, size);
 }
 
 void MacroOscillator::RenderSawSquare(
@@ -143,15 +129,8 @@ void MacroOscillator::RenderSawSquare(
   analog_oscillator_[0].Render(sync, saw_buffer, NULL, size);
   analog_oscillator_[1].Render(sync, square_buffer, NULL, size);
   
-  BEGIN_INTERPOLATE_PARAMETER_1
-  while (size--) {
-    INTERPOLATE_PARAMETER_1
-    uint16_t balance = parameter_1 << 1;
-    int16_t attenuated_square = static_cast<int32_t>(
-          *square_buffer++) * 148 >> 8;
-    *buffer++ = Mix(*saw_buffer++, attenuated_square, balance);
-  }
-  END_INTERPOLATE_PARAMETER_1
+  fm1_macro_render_saw_square(saw_buffer, square_buffer, previous_parameter_[1], parameter_[1], size);
+  previous_parameter_[1] = parameter_[1];
 }
 
 #define SEMI * 128
@@ -216,9 +195,7 @@ void MacroOscillator::RenderTriple(
   std::fill(&buffer[0], &buffer[size], 0);
   for (size_t i = 0; i < 3; ++i) {
     analog_oscillator_[i].Render(sync, temp_buffer_, NULL, size);
-    for (size_t j = 0; j < size; ++j) {
-      buffer[j] += temp_buffer_[j] * 21 >> 6;
-    }
+    fm1_macro_render_triple_add(buffer, temp_buffer_, size);
   }
 }
 
@@ -240,19 +217,8 @@ void MacroOscillator::RenderSub(
   analog_oscillator_[0].Render(sync, buffer, NULL, size);
   analog_oscillator_[1].Render(sync, temp_buffer_, NULL, size);
   
-  BEGIN_INTERPOLATE_PARAMETER_1
-
-  int16_t* temp_buffer = temp_buffer_;
-  while (size--) {
-    INTERPOLATE_PARAMETER_1
-    uint16_t sub_gain = (parameter_1 < 16384
-        ? (16383 - parameter_1) : (parameter_1 - 16384)) << 1;
-    *buffer = Mix(*buffer, *temp_buffer, sub_gain);
-    buffer++;
-    temp_buffer++;
-  }
-  
-  END_INTERPOLATE_PARAMETER_1
+  fm1_macro_render_sub(buffer, temp_buffer_, previous_parameter_[1], parameter_[1], size);
+  previous_parameter_[1] = parameter_[1];
 }
 
 void MacroOscillator::RenderDualSync(
@@ -272,19 +238,8 @@ void MacroOscillator::RenderDualSync(
   analog_oscillator_[0].Render(sync, buffer, sync_buffer_, size);
   analog_oscillator_[1].Render(sync_buffer_, temp_buffer_, NULL, size);
   
-  BEGIN_INTERPOLATE_PARAMETER_1
-
-  int16_t* temp_buffer = temp_buffer_;
-  while (size--) {
-    INTERPOLATE_PARAMETER_1
-    uint16_t balance = parameter_1 << 1;
-    
-    *buffer = (Mix(*buffer, *temp_buffer, balance) >> 2) * 3;
-    buffer++;
-    temp_buffer++;
-  }
-  
-  END_INTERPOLATE_PARAMETER_1
+  fm1_macro_render_dual_sync(buffer, temp_buffer_, previous_parameter_[1], parameter_[1], size);
+  previous_parameter_[1] = parameter_[1];
 }
 
 void MacroOscillator::RenderSineTriangle(
@@ -311,20 +266,8 @@ void MacroOscillator::RenderSineTriangle(
   analog_oscillator_[0].Render(sync, buffer, NULL, size);
   analog_oscillator_[1].Render(sync, temp_buffer_, NULL, size);
 
-  int16_t* temp_buffer = temp_buffer_;
-  
-  BEGIN_INTERPOLATE_PARAMETER_1
-  
-  while (size--) {
-    INTERPOLATE_PARAMETER_1
-    uint16_t balance = parameter_1 << 1;
-    
-    *buffer = Mix(*buffer, *temp_buffer, balance);
-    buffer++;
-    temp_buffer++;
-  }
-  
-  END_INTERPOLATE_PARAMETER_1
+  fm1_macro_render_sine_triangle(buffer, temp_buffer_, previous_parameter_[1], parameter_[1], size);
+  previous_parameter_[1] = parameter_[1];
 }
 
 void MacroOscillator::RenderBuzz(
@@ -341,13 +284,7 @@ void MacroOscillator::RenderBuzz(
 
   analog_oscillator_[0].Render(sync, buffer, NULL, size);
   analog_oscillator_[1].Render(sync, temp_buffer_, NULL, size);
-  int16_t* temp_buffer = temp_buffer_;
-  while (size--) {
-    *buffer >>= 1;
-    *buffer += *temp_buffer >> 1;
-    buffer++;
-    temp_buffer++;
-  }
+  fm1_macro_render_buzz(buffer, temp_buffer_, size);
 }
 
 void MacroOscillator::RenderDigital(
