@@ -17,3 +17,5 @@ import Proofs.Physical
 import Proofs.Wavetables
 import Proofs.Blend
 import Proofs.Digital
+import Proofs.Digital
+import Proofs.Blend

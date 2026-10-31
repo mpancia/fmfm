@@ -144,12 +144,19 @@ for f in files:
     try: lines = p.read_text().splitlines()
     except UnicodeDecodeError: continue
     if f.endswith(".md"): md_check(f, lines)
+    elif f == "Challenge.lean": pass      # generated: the statements with sorry for proofs, for Comparator; gen_challenge.py --check keeps it honest
     elif f.endswith(".lean"): lean_check(f, lines)
     elif f.endswith(C_LIKE): c_check(f, lines)
     elif f.endswith((".sh", ".py", "Makefile", ".toml")): sh_py_check(f, lines)
     # hygiene
     if lines and any(l != l.rstrip() for l in lines): warn(f, 1, "trailing whitespace")
 
+for root, lib in (("Proofs.lean", "Proofs"), ("Firmware.lean", "Firmware"), ("Spec.lean", "Spec")):
+    imported = set(re.findall(rf"^import {lib}\.(\S+)", (ROOT / root).read_text(), re.M))
+    for missing in sorted(p.stem for p in (ROOT / lib).glob("*.lean") if p.stem not in imported):
+        errors.append(f"{root} does not import {lib}.{missing}, so `lake build` and Comparator never see it")
+if subprocess.run([sys.executable, str(ROOT / "tools/gen_challenge.py"), "--check"], cwd=ROOT).returncode:
+    errors.append("Challenge.lean or comparator.json is out of date")
 if subprocess.run([sys.executable, str(ROOT / "tools/proof_index.py"), "--check"], cwd=ROOT).returncode:
     errors.append("docs/PROOFS.md is out of date")
 for script in (["tools/gen_alfred.py", "--check"], ["tools/gen_presets.py", "--check"], ["tools/braids_tables.py", "--rate", "44100", "--check"]):

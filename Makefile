@@ -7,7 +7,7 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
 
-.PHONY: install run web test test-lean audit build check lean-check fw flash-deps clean lint proofs
+.PHONY: install run web test test-lean audit build check lean-check fw flash-deps clean lint proofs comparator
 
 
 install:
@@ -50,18 +50,24 @@ test-lean:
 audit:
 	python3 tools/audit_voices.py --check
 
-# Lists every public theorem with what it claims and why (also written to docs/PROOFS.md).
+# Lists every public theorem with what it claims and why (also written to docs/PROOFS.md), and regenerates
+# the Comparator challenge (Challenge.lean, comparator.json) from the same theorems.
 proofs:
 	python3 tools/proof_index.py --write
+	python3 tools/gen_challenge.py
 	@cat docs/PROOFS.md
+
+# Comparator: Proofs/ proves every statement in Challenge.lean, with no axiom but the three standard ones,
+# and the kernel accepts it (Linux, bubblewrap). PARANOID=1 also runs the five external checkers.
+comparator:
+	lake comparator $(if $(PARANOID),--paranoid)
 
 # Style checks: sorry/axioms, undocumented or pointless theorems, excess comments, machine-sounding prose.
 lint:
 	python3 tools/lint.py
 
-# Lint, then Lean kernel replay (Linux, bubblewrap) + the chip link check.
-check: lint lean-check test-lean
-	lake check
+# Lint, the chip link check, the differential tests, then Comparator (Linux, bubblewrap).
+check: lint lean-check test-lean comparator
 
 # Only needed to flash from this computer: python MIDI libs for fw/tools/fm1_install.py.
 flash-deps:

@@ -246,6 +246,13 @@ theorem needs a definition that is not part of the code.
 (`make proofs`), and `make lint` fails if it is stale. Read it first to see what the repo proves; it is also the
 right text to show a reviewer.
 
+**The challenge.** `Challenge.lean` and `comparator.json` restate every public theorem with `sorry` for its
+proof; `make proofs` generates them from `Proofs/` and `make lint` fails if they are stale. `make comparator`
+then builds the challenge and `Proofs/` in a sandbox and checks that each statement is the same, proved, with
+no axiom but the three standard ones. `Challenge.lean` is the one file where `sorry` is allowed, and it is
+not a default build target, so `lake build` never links it in. A `Proofs/*.lean` that `Proofs.lean` does not
+import is a lint error: Comparator cannot see it.
+
 **What not to prove.**
 - Prove a property, not a restatement. If the theorem is `rfl` against a definition you just wrote, delete it.
   `phase + step` equals `phase + step` mod 2^32 is the definition.
@@ -264,8 +271,9 @@ right text to show a reviewer.
 
 **What `make lint` enforces.** It rejects `sorry`, `admit`, new axioms, `native_decide`, `bv_decide` (each use
 adds an axiom, so `lake check` fails), `maxHeartbeats 0`, `partial def`, `unsafe`, `x = x` theorems,
-theorems outside `Proofs/`, public theorems without `Why it matters:`, and a stale `docs/PROOFS.md`. It warns on
-undocumented declarations. `make check` adds the kernel replay.
+theorems outside `Proofs/`, public theorems without `Why it matters:`, a stale `docs/PROOFS.md` or
+`Challenge.lean`, and a proof module the root does not import. It warns on undocumented declarations.
+`make check` adds the chip link check, the differential tests and Comparator.
 
 ## 13. Before you finish a change
 

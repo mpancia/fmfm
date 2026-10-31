@@ -63,7 +63,7 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 | a C toolchain + libc headers | Lean and the firmware host simulator link native executables |
 | `python3` with `venv` | firmware build scripts (Pillow is installed into `.venv`) |
 | Linux x86-64 | JieLi's compiler is a Linux x86-64 binary (macOS/Windows: not supported here) |
-| `bubblewrap` (Linux only) | sandbox used by `lake check` / `lake comparator` |
+| `bubblewrap` (Linux only) | sandbox used by `lake comparator` (`make check`) |
 
 Arch / CachyOS: `sudo pacman -S --needed git curl base-devel python bubblewrap`
 Debian / Ubuntu: `sudo apt install git curl build-essential python3 python3-venv bubblewrap`
@@ -82,9 +82,10 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 | `make test` | headless test of the web build in node (boot, sound, screen, LEDs) |
 | `make fw` | build `fw/build/dinghy.fwsc` with the Lean code linked in (does not flash) |
 | `make lean-check` | the Lean code in `Firmware/` links for the chip with only the small runtime in `rt/` |
-| `make proofs` | list every proved theorem with what it claims and why (`docs/PROOFS.md`) |
+| `make proofs` | list every proved theorem with what it claims and why (`docs/PROOFS.md`); regenerate the Comparator challenge |
+| `make comparator` | `lake comparator`: `Proofs/` proves every statement of `Challenge.lean`, standard axioms only, kernel-checked in a sandbox (`PARANOID=1` adds the five external checkers) |
 | `make lint` | style checks, proof layout checks |
-| `make check` | `make lean-check` + `lake check` (kernel replay, standard axioms only) |
+| `make check` | `make lint` + `make lean-check` + `make test-lean` + `make comparator` |
 | `make flash-deps` | optional: MIDI libraries for `fw/tools/fm1_install.py` |
 
 ## Reproducibility
@@ -97,7 +98,12 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 
 ## Trusted surface
 
-Proofs cover the Lean code in `Firmware/`. They do not cover:
+Proofs cover the Lean code in `Firmware/`. What is proved is listed in `docs/PROOFS.md`; the same statements are
+in `Challenge.lean`, and `make comparator` (Lean 4.35's `lake comparator`) checks in a sandbox that `Proofs/`
+proves each of them with no axiom but `propext`, `Classical.choice` and `Quot.sound`. `PARANOID=1` also runs
+the five external checkers bundled with Lean: nanoda accepts everything; lean4lean, con-leche and con-ron
+give up on `digital_mix_between_inputs` (recursion depth and fuel, not a rejection), so that one proof should
+be made smaller. They do not cover:
 
 - `rt/lean_rt.c`: the small Lean runtime (allocator, freeing, arrays, panics). See `docs/LEAN-ON-CHIP.md`.
 - Lean's compiler (Lean to C) and JieLi's clang (C to chip code).
