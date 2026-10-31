@@ -56,6 +56,20 @@ int main() {
         if (a[i] != b[i]) { if (bad++ == 0) printf("shape %d first difference at block %d sample %d: %d vs %d\n", shape, block, i, a[i], b[i]); mismatches++; }
       }
     }
+    // The question mark plays a long message of short and long beeps: run it past the end of the message (8240 dits of 3600 samples).
+    if (shape == 47) {
+      for (int block = 0; block < 2100000; block++) {
+        int16_t a[16], b[16];
+        ref_voice_set(ref, shape, 60 * 128, 32767, 3000);
+        lean_voice_set(lean, shape, 60 * 128, 32767, 3000);
+        ref_voice_render(ref, a, 16);
+        lean_voice_render(lean, b, 16);
+        for (int i = 0; i < 16; i++) {
+          samples++;
+          if (a[i] != b[i]) { if (bad++ == 0) printf("shape %d first difference at block %d sample %d: %d vs %d\n", shape, block, i, a[i], b[i]); mismatches++; }
+        }
+      }
+    }
     if (bad) shapes_differing++;
   }
   printf("%ld samples over 48 shapes: %ld differ (%d shapes)\n", samples, mismatches, shapes_differing);

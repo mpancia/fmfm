@@ -350,35 +350,8 @@ void DigitalOscillator::RenderVowel(
     }
     state_.vow.noise = 0;
   }
-  int32_t noise = state_.vow.noise;
-  
-  while (size--) {
-    phase_ += phase_increment_;
-    size_t phaselet;
-    int16_t sample = 0;
-    state_.vow.formant_phase[0] += state_.vow.formant_increment[0];
-    phaselet = (state_.vow.formant_phase[0] >> 24) & 0xf0;
-    sample += wav_formant_sine[phaselet | state_.vow.formant_amplitude[0]];
-
-    state_.vow.formant_phase[1] += state_.vow.formant_increment[1];
-    phaselet = (state_.vow.formant_phase[1] >> 24) & 0xf0;
-    sample += wav_formant_sine[phaselet | state_.vow.formant_amplitude[1]];
-    
-    state_.vow.formant_phase[2] += state_.vow.formant_increment[2];
-    phaselet = (state_.vow.formant_phase[2] >> 24) & 0xf0;
-    sample += wav_formant_square[phaselet | state_.vow.formant_amplitude[2]];
-    
-    sample *= 255 - (phase_ >> 24);
-    int32_t phase_noise = Random::GetSample() * noise;
-    if ((phase_ + phase_noise) < phase_increment_) {
-      state_.vow.formant_phase[0] = 0;
-      state_.vow.formant_phase[1] = 0;
-      state_.vow.formant_phase[2] = 0;
-      sample = 0;
-    }
-    sample = Interpolate88(ws_moderate_overdrive, sample + 32768);
-    *buffer++ = sample;
-  }
+  fm1_vowels_render_vowel(&phase_, phase_increment_, state_.vow.formant_phase, state_.vow.formant_increment,
+                          state_.vow.formant_amplitude, state_.vow.noise, buffer, size);
 }
 
 static const int16_t formant_f_data[kNumFormants][kNumFormants][kNumFormants] = {
@@ -522,45 +495,12 @@ void DigitalOscillator::RenderVowelFof(
   if (init_) {
     init_ = false;
   }
-  
-  uint32_t phase = phase_;
-  int32_t previous_sample = state_.fof.previous_sample;
-  int32_t next_saw_sample = state_.fof.next_saw_sample;
-  uint32_t increment = phase_increment_ << 1;
-  while (size) {
-    int32_t this_saw_sample = next_saw_sample;
-    next_saw_sample = 0;
-    phase += increment;
-    if (phase < increment) {
-      uint32_t t = phase / (increment >> 16);
-      if (t > 65535) {
-        t = 65535;
-      }
-      this_saw_sample -= static_cast<int32_t>(t * t >> 18);
-      t = 65535 - t;
-      next_saw_sample -= -static_cast<int32_t>(t * t >> 18);
-    }
-    next_saw_sample += phase >> 17;
-    int32_t in = this_saw_sample;
-    int32_t out = 0;
-    for (int32_t i = 0; i < 5; ++i) {
-      int32_t notch = in - (svf_bp[i] >> 6);
-      svf_lp[i] += svf_f[i] * svf_bp[i] >> 15;
-      CLIP(svf_lp[i])
-      int32_t hp = notch - svf_lp[i];
-      svf_bp[i] += svf_f[i] * hp >> 15;
-      CLIP(svf_bp[i])
-      out += svf_bp[i] * amplitudes[0] >> 17;
-    }
-    CLIP(out);
-    *buffer++ = (out + previous_sample) >> 1;
-    *buffer++ = out;
-    previous_sample = out;
-    size -= 2;
+  int32_t svf_f32[kNumFormants];
+  for (size_t i = 0; i < kNumFormants; ++i) {
+    svf_f32[i] = svf_f[i];
   }
-  phase_ = phase;
-  state_.fof.next_saw_sample = next_saw_sample;
-  state_.fof.previous_sample = previous_sample;
+  fm1_vowels_render_fof(&phase_, &state_.fof.previous_sample, &state_.fof.next_saw_sample, phase_increment_ << 1,
+                        svf_lp, svf_bp, svf_f32, amplitudes[0], buffer, size);
   for (size_t i = 0; i < kNumFormants; ++i) {
     state_.fof.svf_lp[i] = svf_lp[i];
     state_.fof.svf_bp[i] = svf_bp[i];
@@ -1967,57 +1907,13 @@ void DigitalOscillator::RenderQuestionMark(
     strike_ = false;
   }
   
-  uint32_t phase = phase_;
-  uint32_t increment = phase_increment_;
   uint32_t dit_duration = 3600 + ((32767 - parameter_[0]) >> 2);
   int32_t noise_threshold = 1024 + (parameter_[1] >> 3);
-  while (size--) {
-    phase += increment;
-    int32_t sample;
-    if (state->rng_state) {
-      sample = (Interpolate824(wav_sine, phase) * 3) >> 2;
-    } else {
-      sample = 0;
-    }
-    if (++state->cycle_phase > dit_duration) {
-      --state->sample;
-      if (state->sample == 0) {
-        ++state->cycle_phase_increment;
-        state->rng_state = !state->rng_state;
-
-        size_t address = state->cycle_phase_increment >> 2;
-        size_t shift = (state->cycle_phase_increment & 0x3) << 1;
-        state->sample = (2 << ((wt_code[address] >> shift) & 3)) - 1;
-        if (state->sample == 15) {
-          state->sample = 100;
-          state->rng_state = 0;
-          state->cycle_phase_increment = - 1;
-        }
-        phase = 1L << 30;
-      }
-      state->cycle_phase = 0;
-    }
-    state->seed += Random::GetSample() >> 2;
-    int32_t noise_intensity = state->seed >> 8;
-    if (noise_intensity < 0) {
-      noise_intensity = -noise_intensity;
-    }
-    if (noise_intensity < noise_threshold) {
-      noise_intensity = noise_threshold;
-    }
-    if (noise_intensity > 16000) {
-      noise_intensity = 16000;
-    }
-    int32_t noise = (Random::GetSample() * noise_intensity >> 15);
-    noise = noise * wav_sine[(phase >> 22) & 0xff] >> 15;
-    sample += noise;
-    CLIP(sample);
-    int32_t distorted = sample * sample >> 14;
-    sample += distorted * parameter_[1] >> 15;
-    CLIP(sample);
-    *buffer++ = sample;
-  }
-  phase_ = phase;
+  int16_t length = state->sample;
+  fm1_vowels_render_question(&phase_, phase_increment_, &state->cycle_phase, &state->cycle_phase_increment,
+                             &state->rng_state, &state->seed, &length, dit_duration, noise_threshold, parameter_[1],
+                             buffer, size);
+  state->sample = length;
 }
 
 void DigitalOscillator::RenderKick(
