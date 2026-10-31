@@ -1,0 +1,2 @@
+#pragma once
+inline void *operator new(__SIZE_TYPE__, void *where) noexcept { return where; }

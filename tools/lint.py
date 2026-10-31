@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Repo style checks: clean code, no excess comments or proofs, no LLM-sounding prose.
 Errors fail `make lint`; warnings are printed. Rules and reasons: agents.md sections 10-12.
-Vendored code (fw/, vendor/, build/) is not checked."""
+Vendored code (fw/, vendor/, voices/braids/, voices/stmlib/) and generated files are not checked."""
 import re, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 files = subprocess.check_output(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT, text=True).split()
 files = [f for f in files if (ROOT / f).is_file()]
-skip = ("fw/", "vendor/", "build/", ".lake/", "rules.md", "lake-manifest.json")
+skip = ("fw/", "vendor/", "build/", ".lake/", "rules.md", "lake-manifest.json", "voices/braids/", "voices/stmlib/",
+        "voices/presets.h")
 files = [f for f in files if not f.startswith(skip)]
 
 errors, warnings = [], []
@@ -151,6 +152,9 @@ for f in files:
 
 if subprocess.run([sys.executable, str(ROOT / "tools/proof_index.py"), "--check"], cwd=ROOT).returncode:
     errors.append("docs/PROOFS.md is out of date")
+for script in (["tools/gen_presets.py", "--check"], ["tools/braids_tables.py", "--rate", "44100", "--check"]):
+    if subprocess.run([sys.executable, *script], cwd=ROOT, stdout=subprocess.DEVNULL).returncode:
+        errors.append(f"{' '.join(script)} failed: regenerate with --write")
 for w in warnings: print("warn ", w)
 for e in errors: print("ERROR", e)
 print(f"lint: {len(files)} files, {len(errors)} errors, {len(warnings)} warnings")

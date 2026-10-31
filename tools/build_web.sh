@@ -6,6 +6,7 @@ set -eu
 cd "$(dirname "$0")/.."
 T=wasm32
 sh tools/build_lean_fw.sh $T
+sh tools/build_braids.sh $T
 . tools/target_env.sh
 OUT=build/web
 mkdir -p "$OUT" build/bin
@@ -14,6 +15,6 @@ ln -sf "$PREFIX/bin/ld.lld" build/bin/wasm-ld         # lld picks its wasm perso
     -Ifirmware/hal -Ifirmware/src -Ifirmware/gen -I../voices -c firmware/src/dinghy.c -o ../build/dinghy_web.o)
 EXPORTS=$(sed -n 's/^@\[export \([A-Za-z0-9_]*\)\].*/\1/p' Firmware/*.lean)
 build/bin/wasm-ld --no-entry --export=web_run --export=web_in_ptr -z stack-size=1048576 \
-    build/dinghy_web.o build/lean/$T/*.o build/init/$T/libInit.a -o "$OUT/dinghy.wasm"
+    build/dinghy_web.o build/lean/$T/*.o build/braids/$T/*.o build/init/$T/libInit.a -o "$OUT/dinghy.wasm"
 cp web/index.html web/sim.css web/sim.js web/worker.js web/worklet.js "$OUT/"
 echo "web: $OUT ($(wc -c < "$OUT/dinghy.wasm") B wasm)"

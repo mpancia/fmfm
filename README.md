@@ -12,18 +12,20 @@ Then open http://localhost:8000/ and click **Power on**. Four lanes start playin
 | Control | Does |
 |---|---|
 | PLAY | start or stop the clock (stopping silences every lane) |
-| SELECT | choose a lane |
-| KNOB 1, 2, 3, 4 | hits per bar, steps per bar, speed, scale of the chosen lane |
-| ALGORITHM | tempo |
-| PRESETS | voice of the chosen lane: saw, pulse, FM, feedback FM, sine (hold GLO: MIDI-in channel) |
-| keys, OCT- OCT+ | play the sines by hand |
+| SELECT | choose a lane; SEL button mutes it |
+| PRESETS | sound preset of the chosen lane (199 of them) |
+| HOME held + PRESETS | patch: 123 factory patches, then 8 user slots |
+| SAVE | keep the current patch in a user slot (the chosen one, else slot 1) |
+| ALGORITHM | tempo (on the SOUND page: the Braids shape, 48 of them) |
+| GLO held + PRESETS / ALGORITHM | MIDI-in channel / key |
+| knobs 1 to 4 | PATTERN page: hits, steps, speed, scale. EDIT = SOUND page: timbre, colour, level, octave. ENV = ENVELOPE page: attack, release, envelope-to-timbre |
+| keys, OCT- OCT+ | play the chosen lane's sound by hand |
 
 Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
 snaps it to the scale. That logic is Lean, and `docs/PROOFS.md` lists what is proved about it.
 
-The lanes sound through oscillators ported from Mutable Instruments' Braids (`voices/braids.h`, MIT): a
-band-limited saw, a pulse, two-operator FM and feedback FM, plus a sine. Each lane starts on a different one and
-any lane can use any of them. The keys play a plain sine.
+The sound is Mutable Instruments' Braids, all 48 of its oscillator shapes, compiled from its own source
+(`voices/`). `make audit` checks every factory sound.
 
 The simulator runs the real firmware app (`fw/firmware/src/dinghy.c`) compiled to WebAssembly, with the FM-1's
 screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed. See `docs/SIMULATOR.md`.
@@ -78,7 +80,7 @@ Proofs cover the Lean code in `Firmware/`. They do not cover:
 
 - `rt/lean_rt.c`: the small Lean runtime (allocator, freeing, arrays, panics). See `docs/LEAN-ON-CHIP.md`.
 - Lean's compiler (Lean to C) and JieLi's clang (C to chip code).
-- `voices/braids.h`: the C port of the Braids oscillators. Not proved. Its pitch was checked against the note names with a one-off spectrum test; nobody has listened to it on hardware.
+- `voices/`: Braids (C++, unchanged, tables regenerated for 44.1 kHz) and our wrapper. Not proved. `make audit` checks levels; nobody has listened to it on hardware.
 - `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
 - The hardware, and `web/web_host.c` for the simulator.
 - Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.
