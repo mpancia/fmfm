@@ -70,7 +70,7 @@ const peak = (from, to) => Math.max(...[...peaks].filter(([h]) => h * 500 >= fro
 const changed = (a, b) => a.reduce((c, v, i) => c + (v !== b[i]), 0);
 const ok = (name, cond) => { console.log((cond ? 'PASS ' : 'FAIL ') + name); if (!cond) process.exitCode = 1; };
 const region = (f, y0, y1) => f.slice(y0 * 240, y1 * 240);
-const row = (f, r) => region(f, 22 + r * 38, 22 + r * 38 + 36);
+const row = (f, r) => region(f, 28 + r * 36, 28 + r * 36 + 34);   // HOME_ROW_Y in dinghy.c
 const sameRows = (a, b, rows) => rows.every((r) => changed(row(a, r), row(b, r)) === 0);
 const audible = (from, to) => { let n = 0, all = 0; for (let t = from; t < to; t += 500) { all++; if (peak(t, t + 500) > 200) n++; } return [n, all]; };
 

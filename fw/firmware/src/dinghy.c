@@ -126,8 +126,8 @@ static const char *const KEY_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "
 /* chord progressions: semitones above the key, one chord a step; index 0 is no progression */
 static const uint8_t PROGRESSION[][4] = {{0, 0, 0, 0}, {0, 5, 7, 0}, {0, 7, 9, 5}, {9, 5, 0, 7}, {2, 7, 0, 0},
                                          {0, 8, 3, 10}, {0, 4, 5, 7}, {0, 5, 7, 0}};
-static const char *const PROGRESSION_NAME[] = {"OFF", "I-IV-V-I", "I-V-vi-IV", "vi-IV-I-V", "ii-V-I-I", "i-VI-III-VII",
-                                               "I-iii-IV-V", "i-iv-v-i"};
+static const char *const PROGRESSION_NAME[] = {"OFF", "1-4-5-1", "1-5-6-4", "6-4-1-5", "2-5-1-1", "1-6-3-7", "1-3-4-5",
+                                               "1-4-5 m"};   /* scale degrees of the chord roots; m: the minor set */
 #define NPROGRESSION (sizeof PROGRESSION_NAME / sizeof PROGRESSION_NAME[0])
 static const uint8_t RATE_BARS[] = {1, 2, 4};
 static const uint16_t ATTACK_MS[4] = {2, 6, 25, 190};
@@ -317,10 +317,10 @@ static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_EDIT, 
 static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "HARMONY",
                                               "SYSTEM", "MIDI", "BANKS"};
 static const char *const PAGE_LABEL[NPAGES][4] = {
-    {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"ALGORITHM", "AMOUNT", "MUTATE", "RANGE"},
-    {"SCALE", "LOW NOTE", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV>TIMBRE", ""},
-    {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"KEY", "SCALE LOCK", "CHORDS", "CHANGE"}, {"TEMPO", "KEYS OCTAVE", "LOOK", ""},
-    {"MIDI IN", "MIDI OUT", "", ""}, {"PATCH", "SAVE TO", "", ""}};
+    {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
+    {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
+    {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", ""},
+    {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "", ""}};
 static uint32_t page = P_HOME, group_page[4] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
 static uint8_t browse_list[NSOUNDS];
@@ -573,127 +573,165 @@ static void text_box(uint32_t x, uint32_t y, uint32_t w, const felucca_font_t *f
     lcd_sync();
 }
 
-#define STRIP_Y 22u
-static uint32_t row_h(void) { return page == P_HOME ? 38u : 20u; }
+/* The screen. A title bar (0..20), lane rows, the page's four columns, a status bar (218..239).
+ * HOME: a ledger of the four lanes, and Alfred standing in when the clock is stopped. */
+#define BAR_H 21u
+#define HOME_ROW_Y(i) (28u + (i) * 36u)
+#define STRIP_ROW_Y(i) (26u + (i) * 14u)
+#define ALFRED_X 188u
+#define ALFRED_Y 172u
 
-static void draw_lane(uint32_t i)
+static uint16_t blend(uint16_t a, uint16_t b)   /* halfway between two colours */
 {
-    uint32_t k, steps = cfg[i].steps, cur = fm1_lane_step_of(lane[i]), h = row_h(), x0 = page == P_HOME ? (240u - steps * 7u) / 2u : 16u;
-    uint16_t col = cfg[i].muted || !cfg[i].level ? C_REST : LANE_COLOUR(i);
-    char s[40], *p = s;
-    cv_begin(240, h, TH.bg);
-    for (k = 0; k < steps; k++) {
-        int32_t x = (int32_t)(x0 + k * 7u);
-        if (fm1_lane_hit_at_of(lane[i], k)) cv_rect(x, 2, 6, page == P_HOME ? 12 : 10, k == cur ? TH.hi : col);
-        else cv_rect(x + 2, page == P_HOME ? 8 : 6, 2, 2, k == cur ? TH.hi : C_REST);
-    }
-    if (i == selected) cv_rect(0, 0, 2, (int32_t)h, col);
-    if (page == P_HOME) {
-        *p++ = (char)('1' + i); *p++ = ' ';
-        p = put_num(p, cfg[i].hits); *p++ = '/'; p = put_num(p, cfg[i].steps); *p++ = ' ';
-        p = put_str(p, SPEED_NAME[cfg[i].speed]); *p++ = ' ';
-        p = put_str(p, SCALE_NAME[scale_lock ? scale_lock - 1u : cfg[i].scale]);
-        *p = 0;
-        cv_text(6, 18, &FONT_S, s, i == selected ? col : C_OFF);
-        cv_text(160, 18, &FONT_S, braids_shape_name(cfg[i].sound.shape), i == selected ? col : C_OFF);
-    } else {
-        s[0] = (char)('1' + i); s[1] = 0;
-        cv_text(5, 2, &FONT_S, s, i == selected ? col : C_OFF);
-    }
-    cv_blit(0, STRIP_Y + i * h);
+    return (uint16_t)(((((a >> 11) + (b >> 11)) / 2u) << 11) | (((((a >> 5) & 63u) + ((b >> 5) & 63u)) / 2u) << 5) |
+                      (((a & 31u) + (b & 31u)) / 2u));
 }
 
-static void draw_tabs(void)
+static void draw_steps(uint32_t x, uint32_t y, uint32_t i, uint16_t col, uint32_t w, uint32_t h, uint32_t gap)
 {
-    uint32_t g;
-    char s[12], *p = s;
-    cv_begin(240, 18, TH.bg);
-    for (g = 0; g < 4u; g++) {
-        uint16_t on = PAGE_GROUP[page] == g;
-        int32_t x = (int32_t)(g * 48u);
-        if (on) cv_rect(x, 0, 46, 18, C_ACC);
-        cv_text(x + (int32_t)(23u - 4u * (g == 0u ? 4u : g == 2u ? 4u : g == 1u ? 3u : 3u)), 1, &FONT_S, GROUP_NAME[g], on ? TH.bg : C_OFF);
+    uint32_t k, cur = fm1_lane_step_of(lane[i]);
+    for (k = 0; k < cfg[i].steps; k++) {
+        int32_t sx = (int32_t)(x + k * gap);
+        uint16_t c = k == cur ? TH.hi : fm1_lane_hit_at_of(lane[i], k) ? col : TH.dim;
+        if (fm1_lane_hit_at_of(lane[i], k) || k == cur) cv_rect(sx, (int32_t)y, (int32_t)w, (int32_t)h, c);
+        else cv_rect(sx + (int32_t)(w / 2u) - 1, (int32_t)(y + h / 2u) - 1, 2, 2, c);
     }
-    p = put_num(p, bpm);
+}
+
+static void draw_lane(uint32_t i)               /* one lane row: the ledger on HOME, a thin strip elsewhere */
+{
+    uint16_t live = cfg[i].muted || !cfg[i].level ? TH.dim : LANE_COLOUR(i);
+    uint16_t ink = i == selected ? live : TH.mid;
+    char s[40], *p = s;
+    if (page == P_HOME) {
+        cv_begin(240, 36, TH.bg);
+        if (i == selected) cv_rect(0, 0, 2, 33, live);
+        s[0] = (char)('1' + i); s[1] = 0;
+        cv_text(8, 0, &FONT_S, s, live);
+        draw_steps(24, 3, i, live, 6, 10, 7);
+        cv_text(150, 0, &FONT_S, SCALE_NAME[scale_lock ? scale_lock - 1u : cfg[i].scale], TH.mid);
+        p = put_num(s, cfg[i].hits); *p++ = '/'; p = put_num(p, cfg[i].steps); *p++ = ' ';
+        p = put_str(p, SPEED_NAME[cfg[i].speed]); *p = 0;
+        cv_text(8, 16, &FONT_S, s, ink);
+        cv_text(232 - text_w(&FONT_S, braids_shape_name(cfg[i].sound.shape)), 16, &FONT_S, braids_shape_name(cfg[i].sound.shape), ink);
+        cv_rect(8, 33, 224, 1, TH.dim);
+        cv_blit(0, HOME_ROW_Y(i));
+    } else {
+        cv_begin(240, 14, TH.bg);
+        s[0] = (char)('1' + i); s[1] = 0;
+        cv_text(6, -2, &FONT_S, s, i == selected ? live : TH.dim);
+        draw_steps(22, 2, i, i == selected ? live : TH.dim, 5, 8, 6);
+        cv_text(232 - text_w(&FONT_S, braids_shape_name(cfg[i].sound.shape)), -2, &FONT_S, braids_shape_name(cfg[i].sound.shape),
+                i == selected ? live : TH.dim);
+        cv_blit(0, STRIP_ROW_Y(i));
+    }
+}
+
+static void draw_title(void)                    /* the group and page, or the name on HOME; the tempo on the right */
+{
+    char s[24], *p = s;
+    cv_begin(240, BAR_H, TH.dim);
+    if (page == P_HOME) p = put_str(s, "FORMALFRED");
+    else { p = put_str(s, GROUP_NAME[PAGE_GROUP[page]]); p = put_str(p, "  "); p = put_str(p, PAGE_NAME[page]); }
     *p = 0;
-    cv_text(200, 1, &FONT_S, s, running ? TH.hi : C_OFF);
+    cv_text(6, 2, &FONT_S, s, TH.hi);
+    p = put_num(s, bpm); *p = 0;
+    cv_text(234 - text_w(&FONT_S, s), 2, &FONT_S, s, running ? TH.hi : TH.mid);
     cv_blit(0, 0);
 }
 
-static void draw_cell(uint32_t k, const char *label, const char *value, uint32_t fill)
+static void draw_columns(void)                  /* the page's four values: a meter, the value, the label */
 {
-    uint32_t x = 4u + (k & 1u) * 120u, y = (page == P_HOME ? 0u : 104u) + (k >> 1) * 42u;
-    uint16_t col = page == P_MIX ? LANE_COLOUR(k) : TH.hi;
-    cv_begin(112, 40, TH.bg);
-    cv_text(0, 0, &FONT_S, label, C_OFF);
-    cv_text(0, 15, &FONT_S, value, col);
-    cv_rect(0, 33, 112, 3, C_REST);
-    cv_rect(0, 33, (int32_t)(fill * 112u / 255u), 3, page == P_MIX ? LANE_COLOUR(k) : C_ACC);
-    cv_blit(x, y);
-}
-
-static void draw_cells(void)
-{
-    uint32_t k;
     char value[24];
-    uint32_t fill;
-    lcd_fill(0, 102, 240, 84, TH.bg);
+    uint32_t k, fill;
+    uint16_t well = blend(TH.bg, TH.dim);
+    cv_begin(240, 82, TH.bg);
     for (k = 0; k < 4u; k++) {
+        int32_t x = 10 + (int32_t)k * 58;
+        uint16_t col = page == P_MIX ? LANE_COLOUR(k) : LANE_COLOUR(selected);
         if (!PAGE_LABEL[page][k][0]) continue;
         param_text(page, k, value, &fill);
-        draw_cell(k, PAGE_LABEL[page][k], value, fill);
+        cv_rect(x, 0, 46, 80, well);
+        cv_rect(x, 80 - (int32_t)(fill * 80u / 255u), 46, (int32_t)(fill * 80u / 255u), col);
     }
+    cv_blit(0, 90);
+    cv_begin(240, 36, TH.bg);
+    for (k = 0; k < 4u; k++) {
+        int32_t cx = 33 + (int32_t)k * 58;
+        if (!PAGE_LABEL[page][k][0]) continue;
+        param_text(page, k, value, &fill);
+        cv_text(cx - text_w(&FONT_S, value) / 2, 0, &FONT_S, value, TH.hi);
+        cv_text(cx - text_w(&FONT_S, PAGE_LABEL[page][k]) / 2, 18, &FONT_S, PAGE_LABEL[page][k], TH.mid);
+    }
+    cv_blit(0, 176);
 }
 
-static void draw_footer(void)
+static void draw_status(void)                   /* the patch on the left, the chosen lane's sound on the right */
 {
     char s[44], *p = s;
     const sound_t *snd = &cfg[selected].sound;
-    lcd_fill(0, 186, 240, 54, TH.bg);
-    p = put_str(p, patch_index >= NPATCHES ? "U" : "P"); p = put_num(p, patch_index >= NPATCHES ? patch_index - NPATCHES + 1u : patch_index + 1u);
+    cv_begin(240, 22, TH.dim);
+    p = put_str(s, patch_index >= NPATCHES ? "U" : "P");
+    p = put_num(p, patch_index >= NPATCHES ? patch_index - NPATCHES + 1u : patch_index + 1u);
     *p++ = ' '; p = put_str(p, patch_name); *p = 0;
-    text_box(0, 188, 240, &FONT_S, s, TH.hi, 1);
+    cv_text(6, 3, &FONT_S, s, TH.hi);
+    if (page == P_HOME && !running) { cv_blit(0, 218); return; }   /* Alfred stands there */
     p = s;
     *p++ = (char)('1' + selected); *p++ = ' ';
     p = put_str(p, SOUNDS[cfg[selected].preset].name);
     if (snd->timbre != SOUNDS[cfg[selected].preset].timbre || snd->color != SOUNDS[cfg[selected].preset].color ||
         snd->shape != SOUNDS[cfg[selected].preset].shape) *p++ = '*';
     *p = 0;
-    text_box(0, 206, 240, &FONT_S, s, LANE_COLOUR(selected), 1);
-    p = put_str(s, running ? "" : "STOP ");
-    p = put_str(p, PAGE_NAME[page]); p = put_str(p, "  KEY "); p = put_str(p, KEY_NAME[key]);
-    if (progression) { p = put_str(p, " CHORD "); p = put_str(p, KEY_NAME[(key + chord_root()) % 12u]); }
+    cv_text(234 - text_w(&FONT_S, s), 3, &FONT_S, s, LANE_COLOUR(selected));
+    cv_blit(0, 218);
+}
+
+static void draw_home_foot(void)                /* HOME: the key and the chord; Alfred's corner is left clear when stopped */
+{
+    char s[32], *p = s;
+    cv_begin(240, 40, TH.bg);
+    cv_rect(8, 0, 224, 1, TH.dim);
+    p = put_str(s, "KEY "); p = put_str(p, KEY_NAME[key]);
+    if (progression) { p = put_str(p, "  CHORD "); p = put_str(p, KEY_NAME[(key + chord_root()) % 12u]); }
     *p = 0;
-    text_box(0, 224, 240, &FONT_S, s, C_ACC, 1);
+    cv_text(8, 6, &FONT_S, s, TH.mid);
+    cv_text(8, 22, &FONT_S, running ? "PLAYING" : "STOPPED", running ? TH.acc : TH.mid);
+    cv_blit(0, 176);
 }
 
 static void draw_browser(void)
 {
     uint32_t row, rows = 9, first, count = browse_mode == 1u ? browse_count : NBROWSE;
     char s[44], *p = s;
-    lcd_fill(0, 20, 240, 220, TH.bg);
-    p = put_str(s, browse_mode == 1u ? "SOUNDS  " : "PATCHES  ");
+    cv_begin(240, BAR_H, TH.dim);
+    p = put_str(s, browse_mode == 1u ? "SOUNDS  " : "PATCHES");
     if (browse_mode == 1u) p = put_str(p, FAMILY_NAME[browse_family]);
     *p = 0;
-    text_box(0, 24, 240, &FONT_S, s, C_ACC, 1);
+    cv_text(6, 2, &FONT_S, s, TH.hi);
+    cv_blit(0, 0);
+    lcd_fill(0, BAR_H, 240, 218u - BAR_H, TH.bg);
     first = browse_pos < rows / 2u ? 0u : browse_pos - rows / 2u;
     if (first + rows > count) first = count > rows ? count - rows : 0u;
     for (row = 0; row < rows && first + row < count; row++) {
         uint32_t index = first + row;
         const char *name;
         char line[44], *q = line;
-        uint16_t col = index == browse_pos ? LANE_COLOUR(selected) : C_OFF;
+        uint16_t col = index == browse_pos ? LANE_COLOUR(selected) : TH.mid;
         if (browse_mode == 1u) name = SOUNDS[browse_list[index]].name;
         else if (index < NPATCHES) name = PATCHES[index].name;
         else name = "USER SLOT";
-        *q++ = index == browse_pos ? '>' : ' ';
         q = put_num(q, index + 1u); *q++ = ' ';
         q = put_str(q, name);
         if (browse_mode == 2u && index >= NPATCHES) { *q++ = ' '; q = put_num(q, index - NPATCHES + 1u); }
         *q = 0;
-        text_box(4, 48 + row * 20, 232, &FONT_S, line, col, 0);
+        cv_begin(240, 20, TH.bg);
+        if (index == browse_pos) cv_rect(0, 0, 3, 20, col);
+        cv_text(12, 2, &FONT_S, line, col);
+        cv_blit(0, 26 + row * 20);
     }
-    text_box(0, 226, 240, &FONT_S, browse_mode == 1u ? "PRESETS SCROLL  SELECT FAMILY" : "PRESETS SCROLL  SAVE KEEPS", C_REST, 1);
+    cv_begin(240, 22, TH.dim);
+    cv_text(6, 3, &FONT_S, browse_mode == 1u ? "PRESETS SCROLL  SELECT FAMILY" : "PRESETS SCROLL  SAVE KEEPS", TH.mid);
+    cv_blit(0, 218);
 }
 
 /* ---- MIDI in: notes play the chosen lane's sound; from the main loop and from app_idle while the screen draws */
@@ -729,7 +767,6 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
 
 
 /* ---- the startup screen: the title, Alfred, and a line from him. Any button or key skips it after a moment. */
-#define ALFRED_SCALE 4u
 #define BOOT_MS 3000u
 
 static uint16_t alfred_colour(uint32_t c)
@@ -747,12 +784,12 @@ static uint16_t alfred_colour(uint32_t c)
     }
 }
 
-/* Alfred at ALFRED_SCALE, his head `dip` sprite rows lower (a bow), eyes shut if `blink`. Drawn as a band of rows. */
-static void draw_alfred(uint32_t x, uint32_t y, uint32_t dip, int blink)
+/* Alfred `scale` pixels a sprite pixel, his head `dip` sprite rows lower (a bow), eyes shut if `blink`. Drawn as bands. */
+static void draw_alfred(uint32_t x, uint32_t y, uint32_t scale, uint32_t dip, int blink)
 {
     uint32_t row, col, band, rows_per_band = 8u;
     for (band = 0; band * rows_per_band < ALFRED_H + dip; band++) {
-        cv_begin(ALFRED_W * ALFRED_SCALE, rows_per_band * ALFRED_SCALE, TH.bg);
+        cv_begin(ALFRED_W * scale, rows_per_band * scale, TH.bg);
         for (row = 0; row < rows_per_band; row++) {
             uint32_t out_row = band * rows_per_band + row, src, dx, dy;
             if (out_row >= ALFRED_H + dip) break;
@@ -763,19 +800,19 @@ static void draw_alfred(uint32_t x, uint32_t y, uint32_t dip, int blink)
                 uint32_t c = ALFRED[src][col];
                 if (!c) continue;
                 if (c == A_EYE && blink) c = A_SKIN;
-                for (dy = 0; dy < ALFRED_SCALE; dy++)
-                    for (dx = 0; dx < ALFRED_SCALE; dx++)
-                        cv_pset((int32_t)(col * ALFRED_SCALE + dx), (int32_t)(row * ALFRED_SCALE + dy), alfred_colour(c));
+                for (dy = 0; dy < scale; dy++)
+                    for (dx = 0; dx < scale; dx++)
+                        cv_pset((int32_t)(col * scale + dx), (int32_t)(row * scale + dy), alfred_colour(c));
             }
         }
-        cv_blit(x, y + band * rows_per_band * ALFRED_SCALE);
+        cv_blit(x, y + band * rows_per_band * scale);
     }
 }
 
 static void boot_screen(void)
 {
     static const char LINE[] = "AT YOUR SERVICE";
-    uint32_t t0 = fm1_ms, shown = 0, skip_at = 700u, dip_drawn = ~0u, blink_drawn = ~0u, ax = (240u - ALFRED_W * ALFRED_SCALE) / 2u;
+    uint32_t t0 = fm1_ms, shown = 0, skip_at = 700u, dip_drawn = ~0u, blink_drawn = ~0u, ax = (240u - ALFRED_W * 4u) / 2u;
     uint32_t rel, k;
     char line[sizeof LINE];
     lcd_fill(0, 0, 240, 240, TH.bg);
@@ -792,7 +829,7 @@ static void boot_screen(void)
         if (t >= BOOT_MS) break;
         dip = t >= 1500u && t < 1900u ? 2u : t >= 1900u && t < 2100u ? 1u : 0u;      /* a short bow */
         blink = t >= 900u && t < 1050u;
-        if (dip != dip_drawn || blink != blink_drawn) { dip_drawn = dip; blink_drawn = blink; draw_alfred(ax, 82, dip, (int)blink); }
+        if (dip != dip_drawn || blink != blink_drawn) { dip_drawn = dip; blink_drawn = blink; draw_alfred(ax, 82, 4u, dip, (int)blink); }
         chars = t < 1700u ? 0u : (t - 1700u) / 40u;
         if (chars > sizeof LINE - 1u) chars = sizeof LINE - 1u;
         if (chars != shown) {
@@ -807,7 +844,7 @@ static void boot_screen(void)
 
 static void app_main(void)
 {
-    uint32_t prev = 0, k, t_change = 0, dirty = 0, shown = 0;
+    uint32_t prev = 0, k, t_change = 0, dirty = 0, shown = 0, alfred_shown = ~0u, stopped_ms = 0;
     uint32_t row_sig[NL];
     uint8_t held[27] = {0};                     /* the note each key plays */
     if (settings_load(&set, sizeof set) || (int8_t)set.oct < -2 || (int8_t)set.oct > 2 || set.ch > 16u || set.look >= NTHEMES)
@@ -838,7 +875,7 @@ static void app_main(void)
         if (b & ~(1u << BTN_PLAY)) browse_mode = 0;
         if (b & (1u << BTN_OCT_DOWN) && oct > -2) { set.oct = (uint8_t)(oct - 1); dirty = 1; t_change = fm1_ms; }
         if (b & (1u << BTN_OCT_UP) && oct < 2) { set.oct = (uint8_t)(oct + 1); dirty = 1; t_change = fm1_ms; }
-        if (b & (1u << BTN_PLAY)) { if (running) { running = 0; silence_lanes(); } else play_start(); }
+        if (b & (1u << BTN_PLAY)) { if (running) { running = 0; stopped_ms = fm1_ms; silence_lanes(); } else play_start(); }
         if (b & (1u << BTN_HOME)) goto_group(G_HOME);
         if (b & (1u << BTN_SEQ)) goto_group(G_SEQ);
         if (b & (1u << BTN_EDIT)) goto_group(G_EDIT);
@@ -885,17 +922,23 @@ static void app_main(void)
             if (browse_mode) draw_browser();
             else {
                 lcd_fill(0, 0, 240, 240, TH.bg);
-                draw_tabs();
-                draw_footer();
-                if (page != P_HOME) draw_cells();
+                draw_title();
+                draw_status();
+                if (page == P_HOME) draw_home_foot(); else draw_columns();
             }
             for (k = 0; k < NL; k++) row_sig[k] = ~0u;
+            alfred_shown = ~0u;
         }
         if (!browse_mode)
             for (k = 0; k < NL; k++) {
                 uint32_t sig = fm1_lane_step_of(lane[k]) + 1u;
                 if (sig != row_sig[k]) { row_sig[k] = sig; draw_lane(k); }
             }
+        if (!browse_mode && page == P_HOME && !running) {   /* Alfred waits in the corner: a bow on arrival, a blink now and then */
+            uint32_t since = fm1_ms - stopped_ms, dip = since >= 300u && since < 700u ? 2u : since >= 700u && since < 900u ? 1u : 0u;
+            uint32_t blink = (since % 4000u) >= 3000u && (since % 4000u) < 3150u, state = dip << 1 | blink;
+            if (state != alfred_shown) { alfred_shown = state; draw_alfred(ALFRED_X, ALFRED_Y, 2u, dip, (int)blink); }
+        }
         idle_ok = 0;
 
         if (dirty && quiet() && fm1_ms - t_change > 2000u) {   /* 2 s after the change, when silent (an erase stalls the sound) */
