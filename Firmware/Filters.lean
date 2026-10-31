@@ -12,11 +12,8 @@ Port of the matching engines of Braids (`digital_oscillator.cc`, Emilie Gillet, 
 /-- One entry of Braids' bell-shaped window (257 entries), looked up by C. Trusted data. -/
 @[extern "fm1_braids_lut_bell"] opaque Filters.bellTable (index : UInt32) : UInt16
 
-/-- The bell window at a phase, with the two nearest entries blended (Braids' unsigned `Interpolate824`). -/
-@[inline] def Filters.bellAt (phase : UInt32) : UInt32 :=
-  let a := (Filters.bellTable (phase >>> 24)).toUInt32
-  let b := (Filters.bellTable ((phase >>> 24) + 1)).toUInt32
-  (a + (((b - a) * ((phase >>> 8) &&& 0xFFFF)) >>> 16)).toUInt16.toUInt32
+/-- The bell window at a phase, with the two nearest entries blended. -/
+@[inline] def Filters.bellAt (phase : UInt32) : UInt32 := Digital.lutAt Filters.bellTable phase
 
 /-- The saw swarm's raw sample: seven saws (given as phases) added, then soft-clipped. -/
 @[inline] def Filters.swarmShape (p0 p1 p2 p3 p4 p5 p6 : UInt32) : Int32 :=

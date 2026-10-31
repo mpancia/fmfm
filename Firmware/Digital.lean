@@ -149,3 +149,9 @@ chooses which of four phases the carrier takes. -/
 /-- Braids' `Mix` of two signed 16-bit values by a 16-bit balance (0 is all `a`). -/
 @[inline] def Digital.mix (a b : Int32) (balance : UInt32) : Int32 :=
   ((a * (65535 - balance).toInt32 + b * balance.toInt32) >>> 16).toInt16.toInt32
+
+/-- An unsigned 16-bit table at a 32-bit phase, the two nearest entries blended (Braids' unsigned `Interpolate824`). -/
+@[inline] def Digital.lutAt (table : UInt32 → UInt16) (phase : UInt32) : UInt32 :=
+  let a := (table (phase >>> 24)).toUInt32
+  let b := (table ((phase >>> 24) + 1)).toUInt32
+  (a + (((b - a) * ((phase >>> 8) &&& 0xFFFF)) >>> 16)).toUInt16.toUInt32
