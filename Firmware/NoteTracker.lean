@@ -32,32 +32,32 @@ def Tracker.release (t : Tracker) (n : UInt8) : Tracker :=
 /-- How many notes are held. -/
 def Tracker.count (t : Tracker) : UInt32 := t.held.length.toUInt32
 
+/-- C entry: a tracker with no notes. -/
 @[export fm1_tracker_new]
 def trackerNew (_ : Unit) : Tracker := Tracker.empty
 
+/-- C entry: `Tracker.press`. -/
 @[export fm1_tracker_press]
 def trackerPress (t : Tracker) (n : UInt8) : Tracker := t.press n
 
+/-- C entry: `Tracker.release`. -/
 @[export fm1_tracker_release]
 def trackerRelease (t : Tracker) (n : UInt8) : Tracker := t.release n
 
+/-- C entry: the note played last, or 255. -/
 @[export fm1_tracker_last]
 def trackerLast (t : Tracker) : UInt8 := t.last
 
+/-- C entry: how many notes are held. -/
 @[export fm1_tracker_count]
 def trackerCount (t : Tracker) : UInt32 := t.count
-
-/-- The note just pressed is the last note played. -/
-theorem Tracker.press_last (t : Tracker) (n : UInt8) : (t.press n).last = n := rfl
-
-/-- Releasing never changes which note was played last. -/
-theorem Tracker.release_last (t : Tracker) (n : UInt8) : (t.release n).last = t.last := rfl
 
 /-- No note appears twice in the held list, whatever happens. -/
 theorem Tracker.press_nodup (t : Tracker) (n : UInt8) (h : t.held.Nodup) : (t.press n).held.Nodup := by
   simp only [Tracker.press, List.nodup_cons]
   exact ⟨by simp, h.filter _⟩
 
+/-- Releasing keeps the held list free of duplicates. -/
 theorem Tracker.release_nodup (t : Tracker) (n : UInt8) (h : t.held.Nodup) : (t.release n).held.Nodup :=
   h.filter _
 

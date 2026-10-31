@@ -171,6 +171,81 @@ Check each README for the supported subset, maturity and pinned Lean version
 - **Worked examples**: cedar-spec (model, proofs, differential testing against
   production Rust), SampCert.
 
+## 10. Code conventions
+
+Write code a stranger can read in one pass. `make lint` enforces the mechanical parts; the rest is judgment.
+
+- **Names carry the meaning.** `heldNotes`, not `l`. `pressNote`, not `handle`. If a name needs a comment to
+  explain it, rename it.
+- **Small functions, one job.** A function you cannot name without "and" does two jobs. Early returns over
+  nesting. No flag arguments that switch behaviour.
+- **Delete, don't disable.** No dead code, commented-out code, unused parameters, or "for later" hooks. Git
+  remembers. No `TODO` or `FIXME`: do it, or leave it out.
+- **One way to do each thing.** Reuse the helper that exists. Do not add a second convention, a wrapper that only
+  forwards, or an abstraction with one caller.
+- **Fail loudly at the boundary, trust the inside.** Check inputs where they enter (MIDI bytes, JS input, C to
+  Lean calls). Do not re-check them in every function after that.
+- **No speculative generality.** No options, configuration, or extension points nobody asked for.
+- **Match the layer.** Lean for logic worth proving. C only for hardware, the platform, and the thin call into
+  Lean. JS only for the page. Do not grow hand-written C that Lean could hold.
+- **Ownership at the C/Lean line.** Exported Lean functions take arguments owned. Write
+  `t = fm1_tracker_press(t, n)`. Keep that rule visible in `rt/fm1_lean.h`, not in scattered comments.
+- **Edit generated and vendored files never.** `fw/` is upstream Dinghy: keep local changes few and listed in
+  `fw/UPSTREAM.md`.
+
+## 11. Comments and prose
+
+Comments are for what the code cannot say: why, a hardware fact, a trap. They are not a second copy of the code.
+
+- **Do not narrate.** Cut `// loop over the keys`, `-- add one`, `/* returns the count */`. If the comment
+  restates the next line, delete it.
+- **Docstrings state a contract.** One or two plain sentences: what the function takes, what it returns, what
+  must hold. A docstring on a definition says what it means; it does not describe how it is built.
+- **Comment the surprise.** Chip limits (no FPU, no 64-bit division), units (Q15, milliseconds), ownership,
+  ordering, and why a stranger-looking line must stay.
+- **Write like a person.** Short, concrete sentences. Say what the thing does. Use "use", "show", "check", not
+  "leverage", "showcase", "ensure". No scene-setting intro, no recap outro, no "it's worth noting".
+- **Avoid these tells:** "robust", "seamless", "comprehensive", "crucial", "delve", "elegant", "powerful",
+  "best practices", "not just X but Y", stacked adjectives, em dashes as punctuation, bold labels at the start of
+  every bullet, emoji, and shouting words (`CRITICAL`, `IMPORTANT`). `make lint` flags the common ones.
+- **Do not claim what you did not run.** Say "tested in node" or "not tested on hardware". Never "verified"
+  unless a proof or a run backs it.
+- **Docs say what exists.** README and `docs/` describe the repo now: how to run it, what is trusted, what is not
+  done. No roadmaps, no marketing, no history of how it got here.
+
+## 12. Proofs: few, meaningful, readable
+
+A proof earns its place by ruling out a bug someone would care about. A proof that only passes is noise.
+
+- **Prove a property, not a restatement.** `t.last = n` after `press t n` is the definition. "No note is held twice"
+  or "release always reaches silence" is a property. If the theorem is `rfl` against a definition you just wrote,
+  delete it.
+- **Few theorems per definition.** More than about two per definition usually means restating. Keep the ones
+  stated in the spec; fold or drop the rest.
+- **Every theorem has a reason.** Its docstring says what could go wrong without it, in plain words. If you
+  cannot say that, delete the theorem.
+- **Do not prove the library.** No lemmas for facts Lean or Batteries already has. Search first (`exact?`).
+- **Specs are small and separate.** A spec file holds definitions and the main statements, nothing else. Helper
+  lemmas live next to the proofs, not in the spec.
+- **Do not weaken to pass.** If a proof stalls, the statement may be wrong. Test it with `plausible` or `#eval`
+  before adding hypotheses. Never add a hypothesis only to make the proof go through.
+- **No ceremony.** No `example` blocks that restate theorems, no `#print axioms` left in files, no proofs of
+  `True`, `x = x`, or `¬ False`. Keep an `example` only when it shows a hypothesis can be met (section 4).
+- **Proof style.** Short tactic scripts. Use `simp`, `omega`, `grind`, `decide` where they close the goal and say
+  so. Split a proof into lemmas when it passes about 15 lines, not before.
+- **Check the whole repo.** `make lint` rejects `sorry`, `admit`, new axioms, `native_decide`,
+  `maxHeartbeats 0`, `partial def`, `unsafe`, and `x = x` theorems, and warns on undocumented declarations and
+  theorem-heavy files. `make check` adds the kernel replay.
+
+## 13. Before you finish a change
+
+1. `make lint` shows no errors and no new warnings.
+2. `make test` passes if you touched firmware, the runtime, or the page. `make lean-check` if you touched
+   `Firmware/` or `rt/`.
+3. `lake build` shows no `sorry` warnings. `make check` before a commit that adds or changes a theorem.
+4. Read your diff as a reviewer. Delete every comment, helper, and theorem you would not miss.
+5. Say what was and was not run. Hardware is not tested unless a unit was used.
+
 ## Appendix: snippets
 
 Tested on Lean v4.30 with core only. `#spec_surface` lists definitions from the

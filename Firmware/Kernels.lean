@@ -5,7 +5,7 @@ Everything in this file is compiled to C by Lean and linked into the firmware
 (`make lean-check` checks that it links for the chip). Rules:
 
 * Only fixed-width integers and `Bool`, so these functions need no Lean runtime at all and are safe
-  to call from the audio interrupt. (Code that allocates, like `NoteTracker.lean`, must stay in the main loop.)
+  to call from the audio interrupt. Code that allocates, like `NoteTracker.lean`, stays in the main loop.
 * The chip has no FPU and no 64-bit division.
 * `extract_closed false` stops Lean from hoisting constants into lazily initialised globals,
   which would need module initialisation.

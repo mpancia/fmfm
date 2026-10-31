@@ -7,7 +7,7 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
 
-.PHONY: install run web test build check lean-check fw flash-deps clean
+.PHONY: install run web test build check lean-check fw flash-deps clean lint
 
 
 install:
@@ -42,8 +42,12 @@ fw:
 lean-check:
 	sh tools/check_lean_fw.sh
 
-# Lean kernel replay (Linux, bubblewrap) + the chip link check.
-check: lean-check
+# Style checks: sorry/axioms, undocumented or pointless theorems, excess comments, machine-sounding prose.
+lint:
+	python3 tools/lint.py
+
+# Lint, then Lean kernel replay (Linux, bubblewrap) + the chip link check.
+check: lint lean-check
 	lake check
 
 # Only needed to flash from this computer: python MIDI libs for fw/tools/fm1_install.py.
