@@ -2,4 +2,4 @@ Vendored from https://github.com/zvenson/dinghy at commit 22acb9165ebc8baa712af3
 with `.git` and `.github` removed. GPL-3.0-only, see LICENSE and LICENSING.md.
 
 Local changes: `firmware/src/platform.c` includes `web/web_host.c` when `DINGHY_WEB` is defined (the browser simulator).
-`firmware/src/dinghy.c` keeps its last-note state in the Lean `Tracker` (Firmware/NoteTracker.lean); `tools/build.py` links extra objects from `DINGHY_LINK`.
+`firmware/src/dinghy.c` is rewritten as the generative music box (FM-1 only; the SMK-37 code is gone) and calls the Lean lanes in Firmware/Lane.lean; `tools/build.py` links extra objects from `DINGHY_LINK`.

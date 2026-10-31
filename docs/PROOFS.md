@@ -20,19 +20,39 @@ Why it matters: the counter is a small number for good, so it can never grow int
 
 Why it matters: the pattern has the density you asked for, with no missing or extra notes.
 
-## NoteTracker
+## Lane
 
-**`tracker_press_no_duplicates`**: With no duplicates before, pressing a note leaves no duplicates.
+**`lane_make_valid`**: Whatever settings are asked for, `make` gives a consistent lane.
 
-Why it matters: a note that is pressed twice cannot end up held twice, so one release always silences it.
+Why it matters: bad numbers from the screen or a saved file cannot put a lane into a state the rest of the code does not expect.
 
-**`tracker_release_no_duplicates`**: With no duplicates before, releasing a note leaves no duplicates.
+**`lane_reconfigure_valid`**: `reconfigure` keeps a consistent lane consistent, even for nonsense settings.
 
-Why it matters: no sequence of presses and releases can ever build up a duplicate.
+Why it matters: turning a knob mid-song can never leave the lane with a position or timer out of range.
 
-**`tracker_release_not_held`**: A released note is no longer held.
+**`lane_tick_valid`**: A tick keeps a consistent lane consistent.
 
-Why it matters: after the key comes up the note is not in the list, so nothing keeps it sounding.
+Why it matters: however long the music runs, the counters stay in range and the sounding note and its timer stay in step.
+
+**`lane_gate_end_stops_note`**: When a sounding note's gate runs out, the tick reports it as stopped.
+
+Why it matters: no note stays on after its gate, so no stuck notes.
+
+**`lane_new_note_stops_old`**: A tick that starts a note also stops the one sounding before it.
+
+Why it matters: a lane never has two notes on at once, so every note-on has exactly one note-off.
+
+**`lane_note_in_scale`**: A note a tick starts is a valid MIDI note and is in the lane's scale.
+
+Why it matters: the lane can never play a note the voices reject, or a note outside the key you chose.
+
+**`lane_silence_valid`**: Silencing a consistent lane leaves it consistent.
+
+Why it matters: stopping the clock cannot leave the lane with a timer and no note, or a note and no timer.
+
+**`lane_silence_stops_note`**: Silencing reports the sounding note as stopped and leaves nothing sounding.
+
+Why it matters: pressing stop never leaves a note hanging.
 
 ## Quantizer
 

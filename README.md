@@ -7,9 +7,21 @@ See `docs/FM1.md` for research, hardware facts and flash safety.
 make install && make run
 ```
 
-Then open http://localhost:8000/ and click **Power on**. The simulator runs the real firmware app
-(`fw/firmware/src/dinghy.c`) compiled to WebAssembly, with the FM-1's screen, keys, buttons, knobs, audio and
-(in Chrome/Edge) MIDI in. No FM-1 needed. See `docs/SIMULATOR.md`.
+Then open http://localhost:8000/ and click **Power on**. Four lanes start playing at once.
+
+| Control | Does |
+|---|---|
+| PLAY | start or stop the clock (stopping silences every lane) |
+| SELECT | choose a lane |
+| KNOB 1, 2, 3, 4 | hits per bar, steps per bar, speed, scale of the chosen lane |
+| ALGORITHM | tempo |
+| keys, OCT- OCT+ | play the sines by hand |
+
+Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
+snaps it to the scale. That logic is Lean, and `docs/PROOFS.md` lists what is proved about it.
+
+The simulator runs the real firmware app (`fw/firmware/src/dinghy.c`) compiled to WebAssembly, with the FM-1's
+screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed. See `docs/SIMULATOR.md`.
 
 ## System prerequisites
 

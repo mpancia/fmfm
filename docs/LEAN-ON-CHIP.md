@@ -16,7 +16,7 @@ dinghy.c (hand-written C) ---------------------┘
 | | Example | May use | Where it may run |
 |---|---|---|---|
 | Scalar | `Firmware/Kernels.lean` | `UInt8..64`, `Int8..32`, `Bool` | anywhere, including the audio interrupt (no runtime needed) |
-| Ordinary | `Firmware/NoteTracker.lean` | structures, `List`, `Array`, closures | the main loop only (it allocates) |
+| Ordinary | `Firmware/Lane.lean` | structures, `Option`, `Nat` below 2^31, closures | the main loop only (it allocates) |
 
 ## What the runtime (`rt/lean_rt.c`) provides
 A fixed pool (64 KiB by default, `FM1_LEAN_POOL_BYTES`), size-class free lists, reference-counted freeing, arrays,
@@ -26,7 +26,7 @@ external objects. If the pool runs out, the firmware stops ("Lean pool exhausted
 illegal instruction, which Dinghy's crash screen reports; in the simulator the page shows the message.
 
 ## Rules for the C side
-- Every `@[export]` function takes its arguments **owned**. `t = fm1_tracker_press(t, n)` is right. To read
+- Every `@[export]` function takes its arguments **owned**. `lane = fm1_lane_tick(lane)` is right. To read
   without losing `t`, use the `_of` wrappers in `rt/fm1_lean.h` (they `lean_inc` first).
 - New export? Add its prototype to `rt/fm1_lean.h`.
 - Do not call Lean from interrupts. Keep the audio path scalar.
@@ -36,7 +36,7 @@ illegal instruction, which Dinghy's crash screen reports; in the simulator the p
 ## Checks
 - `make lean-check`: links the Lean code for the chip with only the runtime and `Init`. Fails on any missing
   symbol, i.e. any Lean feature the runtime lacks.
-- `make test`: boots the web build in node and checks the screen reflects the Lean tracker.
+- `make test`: boots the web build in node, checks the lanes make sound, PLAY stops every note, and the screen moves.
 - Proofs: `lake build` (and `make check` for the kernel replay).
 
 ## Trusted, not proved
@@ -45,6 +45,7 @@ The runtime, Lean's C generator, JieLi's clang, and the C that calls the Lean co
 link would fail loudly if firmware code needed anything from them.
 
 ## Status
-- Tested: a 200,000-event random run of the tracker in wasm matched a JavaScript model with no mismatches and no
-  growth of the pool (all objects freed). The simulator and the chip link both build.
-- Not tested: the chip build on a real FM-1. Not measured: time and RAM cost of Lean calls on the chip.
+- Tested: `make test` runs the web build in node (sound, PLAY, screen) and the chip link builds. The lane code is
+  proved in `Proofs/Lane.lean`.
+- Not tested: the chip build on a real FM-1. Not measured: time and RAM cost of Lean calls on the chip, or whether
+  the 64 KiB pool is enough for four lanes (the simulator reports no pool trouble).

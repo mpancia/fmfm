@@ -189,7 +189,7 @@ Write code a stranger can read in one pass. `make lint` enforces the mechanical 
 - **Match the layer.** Lean for logic worth proving. C only for hardware, the platform, and the thin call into
   Lean. JS only for the page. Do not grow hand-written C that Lean could hold.
 - **Ownership at the C/Lean line.** Exported Lean functions take arguments owned. Write
-  `t = fm1_tracker_press(t, n)`. Keep that rule visible in `rt/fm1_lean.h`, not in scattered comments.
+  `lane = fm1_lane_tick(lane)`. Keep that rule visible in `rt/fm1_lean.h`, not in scattered comments.
 - **Edit generated and vendored files never.** `fw/` is upstream Dinghy: keep local changes few and listed in
   `fw/UPSTREAM.md`.
 
