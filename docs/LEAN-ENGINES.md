@@ -79,7 +79,16 @@ glue draws the numbers and passes them in, so the sequence is the one Braids pro
 
 ## What is not done
 
-- No proofs about the engines beyond the four analog ones (`Proofs/Analog.lean`). The guarantee for the rest is
-  the differential test.
+- The proofs about the engines (`make proofs`, `docs/PROOFS.md`) cover arithmetic facts, not sound: the blep
+  corrections' range and the triangle's (`Proofs/Analog.lean`); every table index the Lean code hands to the
+  `extern` accessors stays inside its table (`Proofs/Tables.lean`: 257-entry tables at any phase, the 129-entry
+  resonator tables thanks to the pitch clamp, the 129-byte waves thanks to the halved phase, the shapers for any
+  16-bit index, and the swarm's unmasked sum by its range); a harmonic glides to its target without overshoot;
+  an exciter's pulse and a particle burst only decay between hits; one step of the plucked string's loop never
+  gains; a wavetable sample is the sum of its halves (`Proofs/Filters.lean`, `Noise.lean`, `Percussion.lean`,
+  `Physical.lean`, `Wavetables.lean`). The guarantee that the engines sound like Braids is the differential test.
+- Indexes that depend on C data are not proved: the comb zone (0 to 14), the formant amplitude (0 to 15), the
+  grain envelope phase (reset per block by C++), the bowing and blowing envelope pointers (clamped per block by
+  C++) and the question mark's position in its code table (bounded by the stop symbol in the data).
 - The chip's CPU cost of the Lean path is unmeasured; on x86 the analog oscillators run at about 1.3 times the
   original's time per sample.
