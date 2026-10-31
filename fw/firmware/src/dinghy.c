@@ -19,7 +19,7 @@ static void app_idle(void);
 #include "theme.h"
 #include "alfred.h"
 #ifndef ALFRED_LOOK
-#define ALFRED_LOOK 0                           /* the look a fresh unit starts with (index into THEMES) */
+#define ALFRED_LOOK 5                           /* the look a fresh unit starts with (index into THEMES) */
 #endif
 
 /* ---- the sound (audio ISR: keep it short, no flash, no screen) */
