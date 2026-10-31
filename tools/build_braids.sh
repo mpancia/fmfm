@@ -7,7 +7,10 @@ cd "$(dirname "$0")/.."
 T=${1:?target: wasm32 or pi32v2}
 . tools/target_env.sh
 O=build/braids/$T
-rm -rf "$O"; mkdir -p "$O"
+rm -rf "$O"; mkdir -p "$O" build/lean_gen
+lake build Firmware.AnalogApi
+cp .lake/build/ir/Firmware/AnalogApi.c build/lean_gen/AnalogApi.c      # the oscillator arithmetic, in Lean
+$CC -Os -ffunction-sections -w -Ibuild/lean_gen -c voices/analog_glue.c -o "$O/voices_analog_glue.o"
 for src in voices/braids/*.cc voices/stmlib/utils/random.cc voices/voice.cc; do
     $CXX -std=c++11 -O2 -fno-exceptions -fno-rtti -Ivoices/shim -Ivoices -DTEST -w \
         -c "$src" -o "$O/$(basename "$(dirname "$src")")_$(basename "$src" .cc).o"

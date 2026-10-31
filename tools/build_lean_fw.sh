@@ -10,7 +10,8 @@ lake build Firmware
 sh tools/build_lean_init.sh "$T"
 O=build/lean/$T
 rm -rf "$O"; mkdir -p "$O"
-for c in .lake/build/ir/Firmware/*.c rt/lean_rt.c; do
+# Analog.c and AnalogApi.c are not built here: voices/analog_glue.c includes them as inline functions.
+for c in $(ls .lake/build/ir/Firmware/*.c | grep -v "/Analog") rt/lean_rt.c; do
     $CC -Os -ffunction-sections -Wall -Wno-unused-parameter -c "$c" -o "$O/$(basename "$(dirname "$c")")_$(basename "$c" .c).o"
 done
 echo "lean: $(ls "$O"/*.o | wc -l) objects in $O"

@@ -190,6 +190,9 @@ Write code a stranger can read in one pass. `make lint` enforces the mechanical 
   Lean. JS only for the page. Do not grow hand-written C that Lean could hold.
 - **Ownership at the C/Lean line.** Exported Lean functions take arguments owned. Write
   `lane = fm1_lane_tick(lane)`. Keep that rule visible in `rt/fm1_lean.h`, not in scattered comments.
+- **Lean is not C.** Shifts bind tighter than `*` and `+` (`t * t >>> 18` is `t * (t >>> 18)`), `/` by zero is 0,
+  and `-` at the start of a line continues the line above. Parenthesize shifted products and sums, and check a
+  port against the original, sample for sample (`make test-lean`), before trusting it.
 - **Edit generated and vendored files never.** `fw/` is upstream Dinghy: keep local changes few and listed in
   `fw/UPSTREAM.md`.
 

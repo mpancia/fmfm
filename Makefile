@@ -7,7 +7,7 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
 
-.PHONY: install run web test audit build check lean-check fw flash-deps clean lint proofs
+.PHONY: install run web test test-lean audit build check lean-check fw flash-deps clean lint proofs
 
 
 install:
@@ -42,6 +42,10 @@ fw:
 lean-check:
 	sh tools/check_lean_fw.sh
 
+# The engines ported to Lean against Braids' original C++, sample for sample (tests/reference is Braids unchanged).
+test-lean:
+	sh tools/test_lean_engines.sh
+
 # Renders every factory sound on this computer: each must be audible, not clip, and keep its level across octaves.
 audit:
 	python3 tools/audit_voices.py --check
@@ -56,7 +60,7 @@ lint:
 	python3 tools/lint.py
 
 # Lint, then Lean kernel replay (Linux, bubblewrap) + the chip link check.
-check: lint lean-check
+check: lint lean-check test-lean
 	lake check
 
 # Only needed to flash from this computer: python MIDI libs for fw/tools/fm1_install.py.

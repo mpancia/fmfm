@@ -94,7 +94,9 @@ Proofs cover the Lean code in `Firmware/`. They do not cover:
 
 - `rt/lean_rt.c`: the small Lean runtime (allocator, freeing, arrays, panics). See `docs/LEAN-ON-CHIP.md`.
 - Lean's compiler (Lean to C) and JieLi's clang (C to chip code).
-- `voices/`: Braids (C++, unchanged, tables regenerated for 44.1 kHz) and our wrapper. Not proved. `make audit` checks levels; nobody has listened to it on hardware.
+- `voices/`: Braids (C++, tables regenerated for 44.1 kHz) and our wrapper. The analog saw, square, triangle and sine
+  are Lean (`Firmware/Analog.lean`), checked sample for sample against the original by `make test-lean`; the rest is
+  still C++ and unproved (`docs/LEAN-ENGINES.md`). `make audit` checks levels; nobody has listened to it on hardware.
 - `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
 - The hardware, and `web/web_host.c` for the simulator.
 - Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.

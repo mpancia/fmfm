@@ -33,6 +33,9 @@ const imports = { env: {
   },
 } };
 
+// 0-0.8 s: the startup screen; a button press at 0.8 s skips it. Then it plays on its own until 4 s.
+at(800, press(BTN.HOME));
+at(400, shot('boot'));
 // 0-4 s: it plays on its own. 4-6 s: stopped, so screens can be compared.
 at(4000, press(BTN.PLAY));
 at(4100, press(BTN.HOME)); at(4150, shot('home'));
@@ -71,7 +74,8 @@ const row = (f, r) => region(f, 22 + r * 38, 22 + r * 38 + 36);
 const sameRows = (a, b, rows) => rows.every((r) => changed(row(a, r), row(b, r)) === 0);
 const audible = (from, to) => { let n = 0, all = 0; for (let t = from; t < to; t += 500) { all++; if (peak(t, t + 500) > 200) n++; } return [n, all]; };
 
-ok('lanes make sound with no key pressed', peak(500, 4000) > 1000);
+ok('the startup screen draws Alfred and the title', changed(shots.boot, new Uint16Array(240 * 240)) > 3000);
+ok('lanes make sound with no key pressed', peak(1000, 4000) > 1000);
 ok('PLAY stops all sound (no stuck note)', peak(4500, 6000) === 0);
 ok('the preset browser opens over the page', changed(shots['sound page'], shots['sound browser']) > 1500);
 ok('SELECT in the browser chooses another family', changed(shots['sound browser'], shots.family) > 500);

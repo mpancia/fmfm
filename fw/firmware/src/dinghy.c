@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Generative music box for the FM-1: four lanes, each a clock divider driving a Euclidean rhythm; a note
+/* FORMALFRED: a generative music box for the FM-1 (Alfred the butler is its mascot): four lanes, each a clock divider driving a Euclidean rhythm; a note
  * algorithm picks the pitches inside a range, a scale (or a chord) adjusts them, and Braids voices (voices/,
  * Mutable Instruments, MIT) play them. The lane logic is Lean (Firmware/Lane.lean, proved in Proofs/); this file
  * holds the sound, the controls and the screen. Derived from Dinghy (see UPSTREAM.md).
@@ -16,6 +16,11 @@ static void app_idle(void);
 #include "fm1_lean.h"
 #include "voice.h"
 #include "presets.h"
+#include "theme.h"
+#include "alfred.h"
+#ifndef ALFRED_LOOK
+#define ALFRED_LOOK 0                           /* the look a fresh unit starts with (index into THEMES) */
+#endif
 
 /* ---- the sound (audio ISR: keep it short, no flash, no screen) */
 #define NV 6u                                   /* voices */
@@ -314,14 +319,15 @@ static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "NOTES", "RA
 static const char *const PAGE_LABEL[NPAGES][4] = {
     {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"ALGORITHM", "AMOUNT", "MUTATE", "RANGE"},
     {"SCALE", "LOW NOTE", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV>TIMBRE", ""},
-    {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"KEY", "SCALE LOCK", "CHORDS", "CHANGE"}, {"TEMPO", "KEYS OCTAVE", "", ""},
+    {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"KEY", "SCALE LOCK", "CHORDS", "CHANGE"}, {"TEMPO", "KEYS OCTAVE", "LOOK", ""},
     {"MIDI IN", "MIDI OUT", "", ""}, {"PATCH", "SAVE TO", "", ""}};
 static uint32_t page = P_HOME, group_page[4] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
 static uint8_t browse_list[NSOUNDS];
 static uint32_t browse_count;
 
-static struct { uint8_t oct, ch; } set = {0, 0};   /* what survives a power-off */
+static struct { uint8_t oct, ch, look; } set = {0, 0, ALFRED_LOOK};   /* what survives a power-off */
+#define TH (THEMES[set.look < NTHEMES ? set.look : 0])
 
 static int32_t clamp(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
 static uint32_t frac(int32_t v, int32_t max) { return max > 0 ? (uint32_t)(clamp(v, 0, max) * 255 / max) : 0u; }
@@ -401,6 +407,7 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         break;
     case P_SYSTEM:
         if (k == 0) { p = put_num(p, bpm); p = put_str(p, " BPM"); *fill = frac((int32_t)bpm - 40, 200); }
+        if (k == 2) { p = put_str(p, TH.name); *fill = frac(set.look, NTHEMES - 1u); }
         if (k == 1) { *p++ = set.oct & 0x80u ? '-' : '+'; p = put_num(p, (int8_t)set.oct < 0 ? (uint32_t)-(int8_t)set.oct : set.oct); *fill = frac((int8_t)set.oct + 2, 4); }
         break;
     case P_MIDI:
@@ -473,6 +480,7 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
     case P_SYSTEM:
         if (k == 0) bpm = (uint32_t)clamp((int32_t)bpm + 2 * d, 40, 240);
         if (k == 1) set.oct = (uint8_t)clamp((int8_t)set.oct + d, -2, 2);
+        if (k == 2) set.look = (uint8_t)clamp(set.look + d, 0, (int32_t)NTHEMES - 1);
         break;
     case P_MIDI:
         if (k == 0) set.ch = (uint8_t)clamp(set.ch + d, 0, 16);
@@ -549,11 +557,22 @@ static void browse_family_turn(int32_t d)       /* SELECT while sounds are open:
 }
 
 /* ---- the screen */
-#define C_ACC RGB(180, 140, 255)                /* lilac */
-#define C_OFF RGB(90, 90, 90)
-#define C_REST RGB(50, 50, 60)
-#define C_BAR RGB(70, 70, 90)
-#define LANE_COLOUR(i) ((uint16_t[]){RGB(255, 120, 120), RGB(255, 190, 90), RGB(120, 220, 140), RGB(110, 170, 255)}[i])
+#define C_ACC TH.acc
+#define C_OFF TH.mid
+#define C_REST TH.dim
+#define LANE_COLOUR(i) TH.lane[i]
+/* text on the look's background: draw_text_box (gfx.c) always clears to black */
+static void text_box(uint32_t x, uint32_t y, uint32_t w, const felucca_font_t *f, const char *s, uint16_t c, int align)
+{
+    int32_t tw = text_w(f, s), tx = 0;
+    cv_begin(w, f->h, TH.bg);
+    if (align == 1) tx = ((int32_t)w - tw) / 2;
+    else if (align == 2) tx = (int32_t)w - tw;
+    cv_text(tx, 0, f, s, c);
+    cv_blit(x, y);
+    lcd_sync();
+}
+
 #define STRIP_Y 22u
 static uint32_t row_h(void) { return page == P_HOME ? 38u : 20u; }
 
@@ -562,11 +581,11 @@ static void draw_lane(uint32_t i)
     uint32_t k, steps = cfg[i].steps, cur = fm1_lane_step_of(lane[i]), h = row_h(), x0 = page == P_HOME ? (240u - steps * 7u) / 2u : 16u;
     uint16_t col = cfg[i].muted || !cfg[i].level ? C_REST : LANE_COLOUR(i);
     char s[40], *p = s;
-    cv_begin(240, h, C_BLACK);
+    cv_begin(240, h, TH.bg);
     for (k = 0; k < steps; k++) {
         int32_t x = (int32_t)(x0 + k * 7u);
-        if (fm1_lane_hit_at_of(lane[i], k)) cv_rect(x, 2, 6, page == P_HOME ? 12 : 10, k == cur ? C_WHITE : col);
-        else cv_rect(x + 2, page == P_HOME ? 8 : 6, 2, 2, k == cur ? C_WHITE : C_REST);
+        if (fm1_lane_hit_at_of(lane[i], k)) cv_rect(x, 2, 6, page == P_HOME ? 12 : 10, k == cur ? TH.hi : col);
+        else cv_rect(x + 2, page == P_HOME ? 8 : 6, 2, 2, k == cur ? TH.hi : C_REST);
     }
     if (i == selected) cv_rect(0, 0, 2, (int32_t)h, col);
     if (page == P_HOME) {
@@ -588,24 +607,24 @@ static void draw_tabs(void)
 {
     uint32_t g;
     char s[12], *p = s;
-    cv_begin(240, 18, C_BLACK);
+    cv_begin(240, 18, TH.bg);
     for (g = 0; g < 4u; g++) {
         uint16_t on = PAGE_GROUP[page] == g;
         int32_t x = (int32_t)(g * 48u);
         if (on) cv_rect(x, 0, 46, 18, C_ACC);
-        cv_text(x + (int32_t)(23u - 4u * (g == 0u ? 4u : g == 2u ? 4u : g == 1u ? 3u : 3u)), 1, &FONT_S, GROUP_NAME[g], on ? C_BLACK : C_OFF);
+        cv_text(x + (int32_t)(23u - 4u * (g == 0u ? 4u : g == 2u ? 4u : g == 1u ? 3u : 3u)), 1, &FONT_S, GROUP_NAME[g], on ? TH.bg : C_OFF);
     }
     p = put_num(p, bpm);
     *p = 0;
-    cv_text(200, 1, &FONT_S, s, running ? C_WHITE : C_OFF);
+    cv_text(200, 1, &FONT_S, s, running ? TH.hi : C_OFF);
     cv_blit(0, 0);
 }
 
 static void draw_cell(uint32_t k, const char *label, const char *value, uint32_t fill)
 {
     uint32_t x = 4u + (k & 1u) * 120u, y = (page == P_HOME ? 0u : 104u) + (k >> 1) * 42u;
-    uint16_t col = page == P_MIX ? LANE_COLOUR(k) : C_WHITE;
-    cv_begin(112, 40, C_BLACK);
+    uint16_t col = page == P_MIX ? LANE_COLOUR(k) : TH.hi;
+    cv_begin(112, 40, TH.bg);
     cv_text(0, 0, &FONT_S, label, C_OFF);
     cv_text(0, 15, &FONT_S, value, col);
     cv_rect(0, 33, 112, 3, C_REST);
@@ -618,7 +637,7 @@ static void draw_cells(void)
     uint32_t k;
     char value[24];
     uint32_t fill;
-    lcd_fill(0, 102, 240, 84, C_BLACK);
+    lcd_fill(0, 102, 240, 84, TH.bg);
     for (k = 0; k < 4u; k++) {
         if (!PAGE_LABEL[page][k][0]) continue;
         param_text(page, k, value, &fill);
@@ -630,33 +649,33 @@ static void draw_footer(void)
 {
     char s[44], *p = s;
     const sound_t *snd = &cfg[selected].sound;
-    lcd_fill(0, 186, 240, 54, C_BLACK);
+    lcd_fill(0, 186, 240, 54, TH.bg);
     p = put_str(p, patch_index >= NPATCHES ? "U" : "P"); p = put_num(p, patch_index >= NPATCHES ? patch_index - NPATCHES + 1u : patch_index + 1u);
     *p++ = ' '; p = put_str(p, patch_name); *p = 0;
-    draw_text_box(0, 188, 240, &FONT_S, s, C_WHITE, 1);
+    text_box(0, 188, 240, &FONT_S, s, TH.hi, 1);
     p = s;
     *p++ = (char)('1' + selected); *p++ = ' ';
     p = put_str(p, SOUNDS[cfg[selected].preset].name);
     if (snd->timbre != SOUNDS[cfg[selected].preset].timbre || snd->color != SOUNDS[cfg[selected].preset].color ||
         snd->shape != SOUNDS[cfg[selected].preset].shape) *p++ = '*';
     *p = 0;
-    draw_text_box(0, 206, 240, &FONT_S, s, LANE_COLOUR(selected), 1);
+    text_box(0, 206, 240, &FONT_S, s, LANE_COLOUR(selected), 1);
     p = put_str(s, running ? "" : "STOP ");
     p = put_str(p, PAGE_NAME[page]); p = put_str(p, "  KEY "); p = put_str(p, KEY_NAME[key]);
     if (progression) { p = put_str(p, " CHORD "); p = put_str(p, KEY_NAME[(key + chord_root()) % 12u]); }
     *p = 0;
-    draw_text_box(0, 224, 240, &FONT_S, s, C_ACC, 1);
+    text_box(0, 224, 240, &FONT_S, s, C_ACC, 1);
 }
 
 static void draw_browser(void)
 {
     uint32_t row, rows = 9, first, count = browse_mode == 1u ? browse_count : NBROWSE;
     char s[44], *p = s;
-    lcd_fill(0, 20, 240, 220, C_BLACK);
+    lcd_fill(0, 20, 240, 220, TH.bg);
     p = put_str(s, browse_mode == 1u ? "SOUNDS  " : "PATCHES  ");
     if (browse_mode == 1u) p = put_str(p, FAMILY_NAME[browse_family]);
     *p = 0;
-    draw_text_box(0, 24, 240, &FONT_S, s, C_ACC, 1);
+    text_box(0, 24, 240, &FONT_S, s, C_ACC, 1);
     first = browse_pos < rows / 2u ? 0u : browse_pos - rows / 2u;
     if (first + rows > count) first = count > rows ? count - rows : 0u;
     for (row = 0; row < rows && first + row < count; row++) {
@@ -672,9 +691,9 @@ static void draw_browser(void)
         q = put_str(q, name);
         if (browse_mode == 2u && index >= NPATCHES) { *q++ = ' '; q = put_num(q, index - NPATCHES + 1u); }
         *q = 0;
-        draw_text_box(4, 48 + row * 20, 232, &FONT_S, line, col, 0);
+        text_box(4, 48 + row * 20, 232, &FONT_S, line, col, 0);
     }
-    draw_text_box(0, 226, 240, &FONT_S, browse_mode == 1u ? "PRESETS SCROLL  SELECT FAMILY" : "PRESETS SCROLL  SAVE KEEPS", C_REST, 1);
+    text_box(0, 226, 240, &FONT_S, browse_mode == 1u ? "PRESETS SCROLL  SELECT FAMILY" : "PRESETS SCROLL  SAVE KEEPS", C_REST, 1);
 }
 
 /* ---- MIDI in: notes play the chosen lane's sound; from the main loop and from app_idle while the screen draws */
@@ -702,10 +721,88 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
     const uint8_t *b = (const uint8_t *)cfg;
     uint32_t h = 2166136261u, i;
     uint32_t g[] = {page, selected, patch_index, bpm, key, progression, rate_bars, scale_lock, running, browse_mode, browse_pos,
-                    browse_family, chord_index, save_slot, midi_out_base, set.oct, set.ch};
+                    browse_family, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
     for (i = 0; i < sizeof g / sizeof g[0]; i++) h = (h ^ g[i]) * 16777619u;
     return h;
+}
+
+
+/* ---- the startup screen: the title, Alfred, and a line from him. Any button or key skips it after a moment. */
+#define ALFRED_SCALE 4u
+#define BOOT_MS 3000u
+
+static uint16_t alfred_colour(uint32_t c)
+{
+    switch (c) {
+    case A_OUTLINE: return TH.outline;
+    case A_SKIN: return RGB(238, 190, 150);
+    case A_SHADE: return RGB(205, 150, 115);
+    case A_EYE: return RGB(20, 20, 30);
+    case A_WHITE: return RGB(240, 236, 226);
+    case A_GREY: return RGB(150, 150, 160);
+    case A_SUIT: return TH.suit;
+    case A_SUIT_LIGHT: return TH.suit_light;
+    default: return TH.acc;
+    }
+}
+
+/* Alfred at ALFRED_SCALE, his head `dip` sprite rows lower (a bow), eyes shut if `blink`. Drawn as a band of rows. */
+static void draw_alfred(uint32_t x, uint32_t y, uint32_t dip, int blink)
+{
+    uint32_t row, col, band, rows_per_band = 8u;
+    for (band = 0; band * rows_per_band < ALFRED_H + dip; band++) {
+        cv_begin(ALFRED_W * ALFRED_SCALE, rows_per_band * ALFRED_SCALE, TH.bg);
+        for (row = 0; row < rows_per_band; row++) {
+            uint32_t out_row = band * rows_per_band + row, src, dx, dy;
+            if (out_row >= ALFRED_H + dip) break;
+            if (out_row < dip) continue;                                     /* blank above the dipped head */
+            src = out_row - dip < ALFRED_HEAD_ROWS ? out_row - dip : out_row;   /* the head rides down over the collar */
+            if (src >= ALFRED_H) continue;
+            for (col = 0; col < ALFRED_W; col++) {
+                uint32_t c = ALFRED[src][col];
+                if (!c) continue;
+                if (c == A_EYE && blink) c = A_SKIN;
+                for (dy = 0; dy < ALFRED_SCALE; dy++)
+                    for (dx = 0; dx < ALFRED_SCALE; dx++)
+                        cv_pset((int32_t)(col * ALFRED_SCALE + dx), (int32_t)(row * ALFRED_SCALE + dy), alfred_colour(c));
+            }
+        }
+        cv_blit(x, y + band * rows_per_band * ALFRED_SCALE);
+    }
+}
+
+static void boot_screen(void)
+{
+    static const char LINE[] = "AT YOUR SERVICE";
+    uint32_t t0 = fm1_ms, shown = 0, skip_at = 700u, dip_drawn = ~0u, blink_drawn = ~0u, ax = (240u - ALFRED_W * ALFRED_SCALE) / 2u;
+    uint32_t rel, k;
+    char line[sizeof LINE];
+    lcd_fill(0, 0, 240, 240, TH.bg);
+    text_box(0, 14, 240, &FONT_L, "FORMALFRED", TH.hi, 1);
+    cv_begin(240, 2, TH.bg);
+    cv_rect(60, 0, 120, 2, TH.acc);
+    cv_blit(0, 50);
+    text_box(0, 58, 240, &FONT_S, "a generative sequencer", TH.mid, 1);
+    for (;;) {
+        uint32_t t, dip, blink, chars;
+        platform_poll();
+        t = fm1_ms - t0;
+        if (t > skip_at && (fm1_input_edges(&rel) || fm1_in.notes)) break;
+        if (t >= BOOT_MS) break;
+        dip = t >= 1500u && t < 1900u ? 2u : t >= 1900u && t < 2100u ? 1u : 0u;      /* a short bow */
+        blink = t >= 900u && t < 1050u;
+        if (dip != dip_drawn || blink != blink_drawn) { dip_drawn = dip; blink_drawn = blink; draw_alfred(ax, 82, dip, (int)blink); }
+        chars = t < 1700u ? 0u : (t - 1700u) / 40u;
+        if (chars > sizeof LINE - 1u) chars = sizeof LINE - 1u;
+        if (chars != shown) {
+            shown = chars;
+            for (k = 0; k < chars; k++) line[k] = LINE[k];
+            line[chars] = 0;
+            text_box(0, 220, 240, &FONT_S, line, TH.acc, 1);
+        }
+    }
+    lcd_fill(0, 0, 240, 240, TH.bg);
 }
 
 static void app_main(void)
@@ -713,12 +810,13 @@ static void app_main(void)
     uint32_t prev = 0, k, t_change = 0, dirty = 0, shown = 0;
     uint32_t row_sig[NL];
     uint8_t held[27] = {0};                     /* the note each key plays */
-    if (settings_load(&set, sizeof set) || (int8_t)set.oct < -2 || (int8_t)set.oct > 2 || set.ch > 16u)
-        set.oct = 0, set.ch = 0;
+    if (settings_load(&set, sizeof set) || (int8_t)set.oct < -2 || (int8_t)set.oct > 2 || set.ch > 16u || set.look >= NTHEMES)
+        set.oct = 0, set.ch = 0, set.look = ALFRED_LOOK;
     for (k = 0; k < NV; k++) braids_voice_init(vmem[k]);
     for (k = 0; k < NL; k++) lane[k] = fm1_lane_make(1, 1, 1, 1, 36, 1, 1u);
     patch_load(0);
-    lcd_fill(0, 0, 240, 240, C_BLACK);
+    boot_screen();
+    lcd_fill(0, 0, 240, 240, TH.bg);
 
     for (;;) {
         uint32_t keys, down, up, rel, b, lit = 0, h;
@@ -786,7 +884,7 @@ static void app_main(void)
             shown = h;
             if (browse_mode) draw_browser();
             else {
-                lcd_fill(0, 0, 240, 240, C_BLACK);
+                lcd_fill(0, 0, 240, 240, TH.bg);
                 draw_tabs();
                 draw_footer();
                 if (page != P_HOME) draw_cells();
