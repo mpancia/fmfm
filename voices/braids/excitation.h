@@ -31,6 +31,8 @@
 
 #include "stmlib/stmlib.h"
 
+#include "percussion_glue.h"
+
 namespace braids {
 
 class Excitation {
@@ -62,6 +64,19 @@ class Excitation {
     return counter_ == 0;
   }
   
+  // The exciter as plain numbers, for the sample loops in voices/percussion_glue.c (the arithmetic is Lean).
+  void Export(fm1_excite_regs* r) {
+    r->decay = decay_;
+    r->counter = counter_;
+    r->state = state_;
+    r->level = level_;
+  }
+
+  void Import(const fm1_excite_regs& r) {
+    counter_ = r.counter;
+    state_ = r.state;
+  }
+
   inline int32_t Process() {
     state_ = (state_ * decay_ >> 12);
     if (counter_ > 0) {

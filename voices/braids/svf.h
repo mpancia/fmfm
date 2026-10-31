@@ -33,6 +33,7 @@
 
 #include "braids/resources.h"
 #include "stmlib/utils/dsp.h"
+#include "percussion_glue.h"
 
 namespace braids {
 
@@ -73,6 +74,27 @@ class Svf {
   
   void set_mode(SvfMode mode) {
     mode_ = mode;
+  }
+
+  // The filter as plain numbers, for the sample loops in voices/percussion_glue.c (the arithmetic is Lean).
+  void Export(fm1_svf_regs* r) {
+    if (dirty_) {
+      f_ = fm1_svf_cutoff_of(frequency_);
+      damp_ = fm1_svf_damp_of(resonance_);
+      dirty_ = false;
+    }
+    r->f = f_;
+    r->damp = damp_;
+    r->punch = punch_;
+    r->lp = lp_;
+    r->bp = bp_;
+    r->mode = mode_ == SVF_MODE_LP ? 0 : (mode_ == SVF_MODE_BP ? 1 : 2);
+  }
+
+  void Import(const fm1_svf_regs& r) {
+    f_ = r.f;
+    lp_ = r.lp;
+    bp_ = r.bp;
   }
 
   inline int32_t Process(int32_t in) {

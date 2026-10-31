@@ -155,3 +155,6 @@ chooses which of four phases the carrier takes. -/
   let a := (table (phase >>> 24)).toUInt32
   let b := (table ((phase >>> 24) + 1)).toUInt32
   (a + (((b - a) * ((phase >>> 8) &&& 0xFFFF)) >>> 16)).toUInt16.toUInt32
+
+/-- The next state of Braids' linear congruential random generator. -/
+@[inline] def Digital.lcg (state : UInt32) : UInt32 := state * 1664525 + 1013904223

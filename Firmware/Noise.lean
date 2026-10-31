@@ -74,7 +74,7 @@ generator restarts from `seed` when its own period (`cycleInc`) wraps. -/
     (sync : UInt8) : ClockedStep :=
   let p0 := if sync != 0 then 0 else phase + inc
   let tick := p0 < inc
-  let rng1 := rng * 1664525 + 1013904223
+  let rng1 := Digital.lcg rng
   let cycle1 := cycle + cycleInc
   let restart := cycle1 < cycleInc
   let rng2 := if restart then seed else rng1

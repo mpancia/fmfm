@@ -617,30 +617,12 @@ void DigitalOscillator::RenderStruckBell(
   // its maximum value
   if (parameter_[0] < 32000) {
     for (size_t i = 0; i < kNumBellPartials; ++i) {
-      int32_t decay_long = kBellPartialDecayLong[i];
-      int32_t decay_short = kBellPartialDecayShort[i];
-      int16_t balance = (32767 - parameter_[0]) >> 8;
-      balance = balance * balance >> 7;
-      int32_t decay = decay_long - ((decay_long - decay_short) * balance >> 7);
-      state_.add.partial_amplitude[i] = \
-          state_.add.partial_amplitude[i] * decay >> 16;
+      state_.add.partial_amplitude[i] = fm1_percussion_decay(
+          state_.add.partial_amplitude[i], kBellPartialDecayLong[i], kBellPartialDecayShort[i], parameter_[0]);
     }
   }
-  
-  int16_t previous_sample = state_.add.previous_sample;
-  while (size--) {
-    int32_t out = 0;
-    for (size_t i = 0; i < kNumBellPartials; ++i) {
-      state_.add.partial_phase[i] += state_.add.partial_phase_increment[i];
-      int32_t partial = Interpolate824(wav_sine, state_.add.partial_phase[i]);
-      out += partial * state_.add.partial_amplitude[i] >> 17;
-    }
-    CLIP(out)
-    *buffer++ = (out + previous_sample) >> 1;
-    *buffer++ = out; size--;
-    previous_sample = out;
-  }
-  state_.add.previous_sample = previous_sample;
+  fm1_percussion_render_bell(state_.add.partial_phase, state_.add.partial_phase_increment,
+                             state_.add.partial_amplitude, &state_.add.previous_sample, buffer, size);
 }
 
 void DigitalOscillator::RenderHarmonics(
@@ -701,13 +683,8 @@ void DigitalOscillator::RenderStruckDrum(
   } else {
     if (parameter_[0] < 32000) {
       for (size_t i = 0; i < kNumDrumPartials; ++i) {
-        int32_t decay_long = kDrumPartialDecayLong[i];
-        int32_t decay_short = kDrumPartialDecayShort[i];
-        int16_t balance = (32767 - parameter_[0]) >> 8;
-        balance = balance * balance >> 7;
-        int32_t decay = decay_long - ((decay_long - decay_short) * balance >> 7);
-        state_.add.target_partial_amplitude[i] = \
-            state_.add.partial_amplitude[i] * decay >> 16;
+        state_.add.target_partial_amplitude[i] = fm1_percussion_decay(
+            state_.add.partial_amplitude[i], kDrumPartialDecayLong[i], kDrumPartialDecayShort[i], parameter_[0]);
       }
     }
   }
@@ -717,7 +694,6 @@ void DigitalOscillator::RenderStruckDrum(
     state_.add.partial_phase_increment[i] = ComputePhaseIncrement(partial_pitch) << 1;
   }
   
-  int16_t previous_sample = state_.add.previous_sample;
   int32_t cutoff = (pitch_ - 12 * 128) + (parameter_[1] >> 2);
   if (cutoff < 0) {
     cutoff = 0;
@@ -725,57 +701,12 @@ void DigitalOscillator::RenderStruckDrum(
     cutoff = 32767;
   }
   int32_t f = Interpolate824(lut_svf_cutoff, cutoff << 16);
-  int32_t lp_state_0 = state_.add.lp_noise[0];
-  int32_t lp_state_1 = state_.add.lp_noise[1];
-  int32_t lp_state_2 = state_.add.lp_noise[2];
   int32_t harmonics_gain = parameter_[1] < 12888 ? (parameter_[1] + 4096) : 16384;
   int32_t noise_mode_gain = parameter_[1] < 16384 ? 0 : parameter_[1] - 16384;
   noise_mode_gain = noise_mode_gain * 12888 >> 14;
-
-  int32_t fade_increment = 65536 / size;
-  int32_t fade = 0;
-  while (size--) {
-    fade += fade_increment;
-    int32_t harmonics = 0;
-
-    int32_t noise = Random::GetSample();
-    if (noise > 16384) {
-      noise = 16384;
-    }
-    if (noise < -16384) {
-      noise = -16384;
-    }
-    lp_state_0 += (noise - lp_state_0) * f >> 15;
-    lp_state_1 += (lp_state_0 - lp_state_1) * f >> 15;
-    lp_state_2 += (lp_state_1 - lp_state_2) * f >> 15;
-
-    int32_t partials[kNumDrumPartials];
-    for (size_t i = 0; i < kNumDrumPartials; ++i) {
-      AdditiveState* a = &state_.add;
-      a->partial_phase[i] += a->partial_phase_increment[i];
-      int32_t partial = Interpolate824(wav_sine, a->partial_phase[i]);
-      int32_t amplitude = a->partial_amplitude[i] + \
-          (((a->target_partial_amplitude[i] - a->partial_amplitude[i]) * fade) >> 15);
-      partial = partial * amplitude >> 16;
-      harmonics += partial;
-      partials[i] = partial;
-    }
-    int32_t sample = partials[0];
-    int32_t noise_mode_1 = partials[1] * lp_state_2 >> 8;
-    int32_t noise_mode_2 = partials[3] * lp_state_2 >> 9;
-    sample += noise_mode_1 * (12288 - noise_mode_gain) >> 14;
-    sample += noise_mode_2 * noise_mode_gain >> 14;
-    sample += harmonics * harmonics_gain >> 14;
-    CLIP(sample)
-    //sample = Interpolate88(ws_moderate_overdrive, sample + 32768);
-    *buffer++ = (sample + previous_sample) >> 1;
-    *buffer++ = sample; size--;
-    previous_sample = sample;
-  }
-  state_.add.previous_sample = previous_sample;
-  state_.add.lp_noise[0] = lp_state_0;
-  state_.add.lp_noise[1] = lp_state_1;
-  state_.add.lp_noise[2] = lp_state_2;
+  fm1_percussion_render_drum(state_.add.partial_phase, state_.add.partial_phase_increment,
+                             state_.add.partial_amplitude, state_.add.target_partial_amplitude, state_.add.lp_noise,
+                             f, noise_mode_gain, harmonics_gain, &state_.add.previous_sample, buffer, size);
   for (size_t i = 0; i < kNumBellPartials; ++i) {
     AdditiveState* a = &state_.add;
     a->partial_amplitude[i] = a->target_partial_amplitude[i];
@@ -1578,28 +1509,17 @@ void DigitalOscillator::RenderKick(
   coefficient = coefficient * coefficient >> 15;
   coefficient = coefficient * coefficient >> 15;
   int32_t lp_coefficient = 128 + (coefficient >> 1) * 3;
-  int32_t lp_state = state_.svf.lp;
-  
-  while (size) {
-    int32_t excitation = 0;
-    excitation += pulse_[0].Process();
-    excitation += !pulse_[1].done() ? 16384 : 0;
-    excitation += pulse_[1].Process();
-    pulse_[2].Process();
-    svf_[0].set_frequency(pitch_ + (pulse_[2].done() ? 0 : 17 << 7));
-    
-    for (int32_t j = 0; j < 2; ++j) {
-      int32_t resonator_output, output;
-      resonator_output = (excitation >> 4) + svf_[0].Process(excitation);
-      lp_state += (resonator_output - lp_state) * lp_coefficient >> 15;
-      CLIP(lp_state);
-      output = lp_state;
-      *buffer++ = output;
-    }
-    size -= 2;
+  fm1_excite_regs pulse[3];
+  fm1_svf_regs svf;
+  for (size_t i = 0; i < 3; ++i) {
+    pulse_[i].Export(&pulse[i]);
   }
-  
-  state_.svf.lp = lp_state;
+  svf_[0].Export(&svf);
+  fm1_percussion_render_kick(pulse, &svf, &state_.svf.lp, pitch_, lp_coefficient, buffer, size);
+  for (size_t i = 0; i < 3; ++i) {
+    pulse_[i].Import(pulse[i]);
+  }
+  svf_[0].Import(svf);
 }
 
 void DigitalOscillator::RenderSnare(
@@ -1660,28 +1580,20 @@ void DigitalOscillator::RenderSnare(
   
   int32_t g_1 = 22000 - (parameter_[0] >> 1);
   int32_t g_2 = 22000 + (parameter_[0] >> 1);
-
-  while (size) {
-    int32_t excitation_1 = 0;
-    excitation_1 += pulse_[0].Process();
-    excitation_1 += pulse_[1].Process();
-    excitation_1 += !pulse_[1].done() ? 2621 : 0;
-    
-    int32_t excitation_2 = 0;
-    excitation_2 += pulse_[2].Process();
-    excitation_2 += !pulse_[2].done() ? 13107 : 0;
-    
-    int32_t noise_sample = Random::GetSample() * pulse_[3].Process() >> 15;
-    
-    int32_t sd = 0;
-    sd += (svf_[0].Process(excitation_1) + (excitation_1 >> 4)) * g_1 >> 15;
-    sd += (svf_[1].Process(excitation_2) + (excitation_2 >> 4)) * g_2 >> 15;
-    sd += svf_[2].Process(noise_sample);
-    CLIP(sd);
-    
-    *buffer++ = sd;
-    *buffer++ = sd;
-    size -= 2;
+  fm1_excite_regs pulse[4];
+  fm1_svf_regs svf[3];
+  for (size_t i = 0; i < 4; ++i) {
+    pulse_[i].Export(&pulse[i]);
+  }
+  for (size_t i = 0; i < 3; ++i) {
+    svf_[i].Export(&svf[i]);
+  }
+  fm1_percussion_render_snare(pulse, svf, g_1, g_2, buffer, size);
+  for (size_t i = 0; i < 4; ++i) {
+    pulse_[i].Import(pulse[i]);
+  }
+  for (size_t i = 0; i < 3; ++i) {
+    svf_[i].Import(svf[i]);
   }
 }
 
@@ -1716,37 +1628,12 @@ void DigitalOscillator::RenderCymbal(
   int32_t xfade = parameter_[1];
   svf_[0].set_frequency(parameter_[0] >> 1);
   svf_[1].set_frequency(parameter_[0] >> 1);
-  
-  while (size--) {
-    phase_ += increments[6];
-    if (phase_ < increments[6]) {
-      hat->rng_state = hat->rng_state * 1664525L + 1013904223L;
-    }
-    hat->phase[0] += increments[0];
-    hat->phase[1] += increments[1];
-    hat->phase[2] += increments[2];
-    hat->phase[3] += increments[3];
-    hat->phase[4] += increments[4];
-    hat->phase[5] += increments[5];
-    
-    int32_t hat_noise = 0;
-    hat_noise += hat->phase[0] >> 31;
-    hat_noise += hat->phase[1] >> 31;
-    hat_noise += hat->phase[2] >> 31;
-    hat_noise += hat->phase[3] >> 31;
-    hat_noise += hat->phase[4] >> 31;
-    hat_noise += hat->phase[5] >> 31;
-    hat_noise -= 3;
-    hat_noise *= 5461;
-    hat_noise = svf_[0].Process(hat_noise);
-    CLIP(hat_noise)
-    
-    int32_t noise = (hat->rng_state >> 16) - 32768;
-    noise = svf_[1].Process(noise >> 1);
-    CLIP(noise)
-    
-    *buffer++ = hat_noise + ((noise - hat_noise) * xfade >> 15);
-  }
+  fm1_svf_regs svf[2];
+  svf_[0].Export(&svf[0]);
+  svf_[1].Export(&svf[1]);
+  fm1_percussion_render_cymbal(&phase_, hat->phase, &hat->rng_state, increments, svf, xfade, buffer, size);
+  svf_[0].Import(svf[0]);
+  svf_[1].Import(svf[1]);
 }
 
 /*
