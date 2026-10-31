@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FORMALFRED</title>
+<style>
+  :root { --bg: #1a0f1c; --ink: #f7e8ee; --mid: #a88aa0; --acc: #ff8fb1; --line: #43284a; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 system-ui, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 48px 20px 64px; }
+  h1 { font-size: 2.4rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--mid); margin: 0 0 32px; }
+  .rule { height: 2px; width: 96px; background: var(--acc); margin: 0 0 28px; }
+  a { color: var(--acc); }
+  .cards { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; margin: 0 0 36px; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 18px; text-decoration: none; color: var(--ink); }
+  .card:hover { border-color: var(--acc); }
+  .card b { display: block; font-size: 1.15rem; margin-bottom: 4px; }
+  .card span { color: var(--mid); font-size: 0.95rem; }
+  img.alfred { image-rendering: pixelated; width: 96px; float: right; margin: -8px 0 0 16px; }
+  h2 { font-size: 1.15rem; margin: 28px 0 8px; }
+  ul { padding-left: 20px; } li { margin: 4px 0; }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; padding-top: 16px; color: var(--mid); font-size: 0.9rem; }
+  @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <img class="alfred" src="alfred.png" alt="Alfred, the butler">
+  <h1>FORMALFRED</h1>
+  <p class="sub">A generative sequencer for the M-VAVE FM-1, with its sequencing logic proved in Lean 4.</p>
+  <div class="rule"></div>
+  <div class="cards">
+    <a class="card" href="installer.html"><b>Install</b><span>Flash the latest release over USB from Chrome or Edge. Back up first.</span></a>
+    <a class="card" href="sim/"><b>Try it in your browser</b><span>The real firmware, compiled to WebAssembly, with the screen, keys and knobs.</span></a>
+  </div>
+  <h2>What it is</h2>
+  <ul>
+    <li>Four lanes, each a clock divider driving a Euclidean rhythm. A note algorithm (random, walk, up, down, bounce, loop) picks pitches inside a range, and a scale or chord adjusts them.</li>
+    <li>All 48 oscillator shapes of Mutable Instruments' Braids, 199 sounds, 122 patches, a preset browser, chord progressions and six looks.</li>
+    <li>Alfred, the butler. He bows at startup and waits in the corner when the clock stops.</li>
+  </ul>
+  <h2>What is proved</h2>
+  <p>The lane logic is Lean, checked by Lean's kernel with only the standard axioms. Among the theorems: a bar with <i>k</i> hits plays exactly <i>k</i> notes, every note is in the chosen scale, a rest never plays, and no note is left sounding when its gate ends or the clock stops. The full list, with why each matters, is in <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a>. The voices, the screen and the C that calls the Lean code are not proved; the README lists what is trusted.</p>
+  <h2>Before you flash</h2>
+  <ul>
+    <li>Put the unit on official V15 first, and take a full-flash backup. Steps in <a href="https://github.com/mpancia/fmfm/blob/main/docs/FM1.md">docs/FM1.md</a>.</li>
+    <li>Nothing here has been tested on a physical FM-1 yet. Use at your own risk.</li>
+  </ul>
+  <footer>GPL-3.0-only. Built on <a href="https://github.com/zvenson/dinghy">Dinghy</a>, Felucca and <a href="https://github.com/pichenettes/eurorack">Braids</a>. Installer after <a href="https://github.com/dspaudio/orbit">ORBIT</a>. <a href="https://github.com/mpancia/fmfm">Source</a>.</footer>
+</main>
+</body>
+</html>

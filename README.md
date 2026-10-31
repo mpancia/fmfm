@@ -1,6 +1,10 @@
-# fmfm
+# FORMALFRED
 
-Custom firmware for the M-VAVE FM-1 pocket synth, with the core logic in Lean 4 (Vibecheck hackathon).
+A generative sequencer for the M-VAVE FM-1 pocket synth, with its sequencing logic proved in Lean 4 (Vibecheck
+hackathon). Alfred the butler is the mascot.
+
+**Site:** https://mpancia.github.io/fmfm/ has the web installer and the browser simulator. It is rebuilt from `main`
+by `.github/workflows/site.yml` (`tools/make_site.py` assembles `site/` + `build/web` + the package).
 See `docs/FM1.md` for research, hardware facts and flash safety.
 
 ```

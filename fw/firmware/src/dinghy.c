@@ -11,6 +11,8 @@
  *
  * Rules of the chip (no FPU, no 64-bit division): docs/RULES.md. Platform calls: docs/API.md. */
 static void app_idle(void);
+#define APP_NAME "FORMALFRED"              /* the rescue and the crash screen say this */
+#define STORE_MAGIC 0x44524C41u                /* "ALRD": our settings never read as another firmware's */
 #define LCD_IDLE app_idle
 #include "platform.c"
 #include "fm1_lean.h"
