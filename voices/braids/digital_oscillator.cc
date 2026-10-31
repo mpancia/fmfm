@@ -28,6 +28,21 @@
 
 #include "braids/digital_oscillator.h"
 
+extern "C" {
+void fm1_digital_render_fm(uint32_t*, uint32_t*, uint32_t, uint32_t, int32_t, int32_t, const uint8_t*, int16_t*,
+                           uint32_t);
+void fm1_digital_render_feedback_fm(uint32_t*, uint32_t*, int16_t*, uint32_t, uint32_t, int32_t, int32_t, int32_t,
+                                    const uint8_t*, int16_t*, uint32_t);
+void fm1_digital_render_chaotic_fm(uint32_t*, uint32_t*, int16_t*, uint32_t, uint32_t, int32_t, int32_t,
+                                   const uint8_t*, int16_t*, uint32_t);
+void fm1_digital_render_ring_mod(uint32_t*, uint32_t*, uint32_t*, uint32_t, uint32_t, uint32_t, const uint8_t*,
+                                 int16_t*, uint32_t);
+void fm1_digital_render_toy(uint32_t*, uint8_t*, uint16_t*, uint32_t, uint16_t, uint8_t, const uint8_t*, int16_t*,
+                            uint32_t);
+void fm1_digital_render_modulation(uint32_t*, uint32_t*, uint16_t*, int32_t*, uint8_t*, uint32_t, uint32_t, int32_t,
+                                   int16_t*, uint32_t);
+}
+
 #include <algorithm>
 #include <cstdio>
 
@@ -45,8 +60,6 @@ static const uint16_t kHighestNote = 140 * 128;
 static const uint16_t kPitchTableStart = 128 * 128;
 static const uint16_t kOctave = 12 * 128;
 
-static const uint32_t kFIR4Coefficients[4] = { 10530, 14751, 16384, 14751 };
-static const uint32_t kFIR4DcOffset = 28208;
 
 uint32_t DigitalOscillator::ComputePhaseIncrement(int16_t midi_pitch) {
   if (midi_pitch >= kPitchTableStart) {
@@ -130,35 +143,10 @@ void DigitalOscillator::RenderTripleRingMod(
     const uint8_t* sync,
     int16_t* buffer,
     size_t size) {
-  uint32_t phase = phase_ + (1L << 30);
-  uint32_t increment = phase_increment_;
-  uint32_t modulator_phase = state_.vow.formant_phase[0];
-  uint32_t modulator_phase_2 = state_.vow.formant_phase[1];
-  uint32_t modulator_phase_increment = ComputePhaseIncrement(
-    pitch_ + ((parameter_[0] - 16384) >> 2)
-  );
-  uint32_t modulator_phase_increment_2 = ComputePhaseIncrement(
-    pitch_ + ((parameter_[1] - 16384) >> 2)
-  );
-  
-  while (size--) {
-    phase += increment;
-    if (*sync++) {
-      phase = 0;
-      modulator_phase = 0;
-      modulator_phase_2 = 0;
-    }
-    modulator_phase += modulator_phase_increment;
-    modulator_phase_2 += modulator_phase_increment_2;
-    int16_t result = Interpolate824(wav_sine, phase);
-    result = result * Interpolate824(wav_sine, modulator_phase) >> 16;
-    result = result * Interpolate824(wav_sine, modulator_phase_2) >> 16;
-    result = Interpolate88(ws_moderate_overdrive, result + 32768);
-    *buffer++ = result;
-  }
-  phase_ = phase - (1L << 30);
-  state_.vow.formant_phase[0] = modulator_phase;
-  state_.vow.formant_phase[1] = modulator_phase_2;
+  uint32_t increment_1 = ComputePhaseIncrement(pitch_ + ((parameter_[0] - 16384) >> 2));
+  uint32_t increment_2 = ComputePhaseIncrement(pitch_ + ((parameter_[1] - 16384) >> 2));
+  fm1_digital_render_ring_mod(&phase_, &state_.vow.formant_phase[0], &state_.vow.formant_phase[1], phase_increment_,
+                              increment_1, increment_2, sync, buffer, size);
 }
 
 void DigitalOscillator::RenderSawSwarm(
@@ -288,34 +276,8 @@ void DigitalOscillator::RenderToy(
     size_t size) {
   // 4 times oversampling.
   phase_increment_ >>= 2;
-  
-  uint32_t phase_increment = phase_increment_;
-  uint32_t phase = phase_;
-  
-  uint16_t decimation_counter = state_.toy.decimation_counter;
-  uint16_t decimation_count = 512 - (parameter_[0] >> 6);
-
-  uint8_t held_sample = state_.toy.held_sample;
-  while (size--) {
-    int32_t filtered_sample = 0;
-    if (*sync++) {
-      phase = 0;
-    } 
-    for (size_t tap = 0; tap < 4; ++tap) {
-      phase += phase_increment;
-      if (decimation_counter >= decimation_count) {
-        uint8_t x = parameter_[1] >> 8;
-        held_sample = (((phase >> 24) ^ (x << 1)) & (~x)) + (x >> 1);
-        decimation_counter = 0;
-      }
-      filtered_sample += kFIR4Coefficients[tap] * held_sample;
-      ++decimation_counter;
-    }
-    *buffer++ = (filtered_sample >> 8) - kFIR4DcOffset;
-  }
-  state_.toy.held_sample = held_sample;
-  state_.toy.decimation_counter = decimation_counter;
-  phase_ = phase;
+  fm1_digital_render_toy(&phase_, &state_.toy.held_sample, &state_.toy.decimation_counter, phase_increment_,
+                         512 - (parameter_[0] >> 6), parameter_[1] >> 8, sync, buffer, size);
 }
  
 const uint32_t kPhaseReset[] = {
@@ -721,71 +683,27 @@ void DigitalOscillator::RenderFm(
     const uint8_t* sync,
     int16_t* buffer,
     size_t size) {
-  uint32_t modulator_phase = state_.modulator_phase;
   uint32_t modulator_phase_increment = ComputePhaseIncrement(
       (12 << 7) + pitch_ + ((parameter_[1] - 16384) >> 1)) >> 1;
-  
-  BEGIN_INTERPOLATE_PARAMETER_0    
-  
-  while (size--) {
-    INTERPOLATE_PARAMETER_0
-    
-    phase_ += phase_increment_;
-    if (*sync++) {
-      phase_ = modulator_phase = 0;
-    }
-    modulator_phase += modulator_phase_increment;
-
-    uint32_t pm = (
-        Interpolate824(wav_sine, modulator_phase) * parameter_0) << 2;
-    *buffer++ = Interpolate824(wav_sine, phase_ + pm);
-  }
-  
-  END_INTERPOLATE_PARAMETER_0
-  
-  state_.modulator_phase = modulator_phase;
+  fm1_digital_render_fm(&phase_, &state_.modulator_phase, phase_increment_, modulator_phase_increment,
+                        previous_parameter_[0], parameter_[0], sync, buffer, size);
+  previous_parameter_[0] = parameter_[0];
 }
 
 void DigitalOscillator::RenderFeedbackFm(
     const uint8_t* sync,
     int16_t* buffer,
     size_t size) {
-  int16_t previous_sample = state_.ffm.previous_sample;
-  uint32_t modulator_phase = state_.ffm.modulator_phase;
-
   int32_t attenuation = pitch_ - (72 << 7) + ((parameter_[1] - 16384) >> 1);
   attenuation = 32767 - attenuation * 4;
   if (attenuation < 0) attenuation = 0;
   if (attenuation > 32767) attenuation = 32767;
-  
   uint32_t modulator_phase_increment = ComputePhaseIncrement(
       (12 << 7) + pitch_ + ((parameter_[1] - 16384) >> 1)) >> 1;
-  
-  BEGIN_INTERPOLATE_PARAMETER_0    
-  
-  while (size--) {
-    INTERPOLATE_PARAMETER_0
-    
-    phase_ += phase_increment_;
-    if (*sync++) {
-      phase_ = modulator_phase = 0;
-    }
-    
-    modulator_phase += modulator_phase_increment;
-
-    int32_t pm;
-    int32_t p = parameter_0 * attenuation >> 15;
-    pm = previous_sample << 14;
-    pm = (
-        Interpolate824(wav_sine, modulator_phase + pm) * p) << 1;
-    previous_sample = Interpolate824(wav_sine, phase_ + pm);
-    *buffer++ = previous_sample;
-  }
-  
-  END_INTERPOLATE_PARAMETER_0
-  
-  state_.ffm.previous_sample = previous_sample;
-  state_.ffm.modulator_phase = modulator_phase;
+  fm1_digital_render_feedback_fm(&phase_, &state_.ffm.modulator_phase, &state_.ffm.previous_sample, phase_increment_,
+                                 modulator_phase_increment, attenuation, previous_parameter_[0], parameter_[0],
+                                 sync, buffer, size);
+  previous_parameter_[0] = parameter_[0];
 }
 
 void DigitalOscillator::RenderChaoticFeedbackFm(
@@ -794,31 +712,9 @@ void DigitalOscillator::RenderChaoticFeedbackFm(
     size_t size) {
   uint32_t modulator_phase_increment = ComputePhaseIncrement(
       (12 << 7) + pitch_ + ((parameter_[1] - 16384) >> 1)) >> 1;
-  int16_t previous_sample = state_.ffm.previous_sample;
-  uint32_t modulator_phase = state_.ffm.modulator_phase;
-  
-  BEGIN_INTERPOLATE_PARAMETER_0
-  
-  while (size--) {
-    INTERPOLATE_PARAMETER_0
-    
-    phase_ += phase_increment_;
-    if (*sync++) {
-      phase_ = modulator_phase = 0;
-    }
-    
-    int32_t pm;
-    pm = (Interpolate824(wav_sine, modulator_phase) * parameter_0) << 1;
-    previous_sample = Interpolate824(wav_sine, phase_ + pm);
-    *buffer++ = previous_sample;
-    modulator_phase += (modulator_phase_increment >> 8) * \
-        (129 + (previous_sample >> 9));
-  }
-  
-  END_INTERPOLATE_PARAMETER_0
-  
-  state_.ffm.previous_sample = previous_sample;
-  state_.ffm.modulator_phase = modulator_phase;
+  fm1_digital_render_chaotic_fm(&phase_, &state_.ffm.modulator_phase, &state_.ffm.previous_sample, phase_increment_,
+                                modulator_phase_increment, previous_parameter_[0], parameter_[0], sync, buffer, size);
+  previous_parameter_[0] = parameter_[0];
 }
 
 
@@ -2178,58 +2074,20 @@ void DigitalOscillator::RenderParticleNoise(
   state_.pno.filter_coefficient[2] = c3;
 }
 
-static const int32_t kConstellationQ[] = { 23100, -23100, -23100, 23100 };
-static const int32_t kConstellationI[] = { 23100, 23100, -23100, -23100 };
 
 void DigitalOscillator::RenderDigitalModulation(
     const uint8_t* sync,
     int16_t* buffer,
     size_t size) {
-  uint32_t phase = phase_;
-  uint32_t increment = phase_increment_;
-  
-  uint32_t symbol_stream_phase = state_.dmd.symbol_phase;
   uint32_t symbol_stream_phase_increment = ComputePhaseIncrement(
       pitch_ - 1536 + ((parameter_[0] - 32767) >> 3));
-  uint8_t data_byte = state_.dmd.data_byte;
-  
   if (strike_) {
     state_.dmd.symbol_count = 0;
     strike_ = false;
   }
-  
-  while (size--) {
-    phase += increment;
-    symbol_stream_phase += symbol_stream_phase_increment;
-    if (symbol_stream_phase < symbol_stream_phase_increment) {
-      ++state_.dmd.symbol_count;
-      if (!(state_.dmd.symbol_count & 3)) {
-        if (state_.dmd.symbol_count >= (64 + 4 * 256)) {
-          state_.dmd.symbol_count = 0;
-        }
-        if (state_.dmd.symbol_count < 32) {
-          data_byte = 0x00;
-        } else if (state_.dmd.symbol_count < 48) {
-          data_byte = 0x99;
-        } else if (state_.dmd.symbol_count < 64) {
-          data_byte = 0xcc;
-        } else {
-          state_.dmd.filter_state = (state_.dmd.filter_state * 3 + \
-              static_cast<int32_t>(parameter_[1])) >> 2;
-          data_byte = state_.dmd.filter_state >> 7;
-        }
-      } else {
-        data_byte >>= 2;
-      }
-    }
-    int16_t i = Interpolate824(wav_sine, phase);
-    int16_t q = Interpolate824(wav_sine, phase + (1 << 30));
-    *buffer++ = (kConstellationQ[data_byte & 3] * q >> 15) + \
-        (kConstellationI[data_byte & 3] * i >> 15);
-  }
-  phase_ = phase;
-  state_.dmd.symbol_phase = symbol_stream_phase;
-  state_.dmd.data_byte = data_byte;
+  fm1_digital_render_modulation(&phase_, &state_.dmd.symbol_phase, &state_.dmd.symbol_count,
+                                &state_.dmd.filter_state, &state_.dmd.data_byte, phase_increment_,
+                                symbol_stream_phase_increment, parameter_[1], buffer, size);
 }
 
 void DigitalOscillator::RenderQuestionMark(
@@ -2565,3 +2423,7 @@ DigitalOscillator::RenderFn DigitalOscillator::fn_table_[] = {
 };
 
 }  // namespace braids
+
+extern "C" uint16_t fm1_braids_ws_moderate_overdrive(uint32_t index) {
+  return static_cast<uint16_t>(braids::ws_moderate_overdrive[index]);
+}

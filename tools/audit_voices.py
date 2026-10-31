@@ -25,20 +25,26 @@ def build():
     BIN.parent.mkdir(exist_ok=True)
     sources = [ROOT / "tests/voice_render.cc", ROOT / "voices/voice.cc", ROOT / "voices/stmlib/utils/random.cc",
                *sorted((ROOT / "voices/braids").glob("*.cc"))]
-    subprocess.run(["lake", "build", "Firmware.AnalogApi"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["lake", "build", "Firmware.AnalogApi", "Firmware.DigitalApi"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     generated = ROOT / ".lake/build/ir/Firmware/AnalogApi.c"
     gen_dir = ROOT / "build/native_gen"
     gen_dir.mkdir(parents=True, exist_ok=True)
+    digital = ROOT / ".lake/build/ir/Firmware/DigitalApi.c"
     (gen_dir / "AnalogApi.c").write_bytes(generated.read_bytes())          # the oscillator arithmetic, from Lean
-    newest = max(p.stat().st_mtime for p in [*sources, generated, ROOT / "voices/analog_glue.c"])
+    (gen_dir / "DigitalApi.c").write_bytes(digital.read_bytes())
+    glues = [ROOT / "voices/analog_glue.c", ROOT / "voices/digital_glue.c"]
+    newest = max(p.stat().st_mtime for p in [*sources, generated, digital, *glues])
     if BIN.exists() and BIN.stat().st_mtime > newest:
         return
     prefix = subprocess.check_output(["lean", "--print-prefix"], text=True).strip()
-    glue = ROOT / "build/native_gen/analog_glue.o"
-    subprocess.run(["gcc", "-O2", "-w", "-I", f"{prefix}/include", "-I", str(gen_dir), "-c",
-                    str(ROOT / "voices/analog_glue.c"), "-o", str(glue)], check=True)
+    objects = []
+    for glue_source in glues:
+        glue = gen_dir / (glue_source.stem + ".o")
+        subprocess.run(["gcc", "-O2", "-w", "-I", f"{prefix}/include", "-I", str(gen_dir), "-c",
+                        str(glue_source), "-o", str(glue)], check=True)
+        objects.append(str(glue))
     subprocess.run(["g++", "-O2", "-std=c++11", "-DTEST", "-w", "-I", str(ROOT / "voices"), "-o", str(BIN),
-                    *map(str, sources), str(glue)], check=True)
+                    *map(str, sources), *objects], check=True)
 
 
 def render(shape, timbre, color, note, seconds=1.0):

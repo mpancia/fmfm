@@ -8,3 +8,5 @@ import Firmware.Lane
 import Firmware.LaneApi
 import Firmware.Analog
 import Firmware.AnalogApi
+import Firmware.Digital
+import Firmware.DigitalApi

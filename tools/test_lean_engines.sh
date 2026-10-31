@@ -8,10 +8,11 @@ set -eu
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.elan/bin:$PATH"
 PREFIX=$(lean --print-prefix)
-lake build Firmware.AnalogApi
+lake build Firmware.AnalogApi Firmware.DigitalApi
 T=build/lean_test
 rm -rf $T; mkdir -p $T/gen
 cp .lake/build/ir/Firmware/AnalogApi.c $T/gen/AnalogApi.c
+cp .lake/build/ir/Firmware/DigitalApi.c $T/gen/DigitalApi.c
 CXX="g++ -O2 -std=c++11 -w -DTEST"
 REF="-Dbraids=braids_ref -Dstmlib=stmlib_ref -Itests/reference"
 for f in analog_oscillator digital_oscillator macro_oscillator resources; do
@@ -23,6 +24,7 @@ for f in analog_oscillator digital_oscillator macro_oscillator resources; do
 done
 $CXX -Ivoices -c voices/stmlib/utils/random.cc -o $T/lean_random.o
 gcc -O2 -w -I"$PREFIX/include" -I$T/gen -c voices/analog_glue.c -o $T/glue.o
+gcc -O2 -w -I"$PREFIX/include" -I$T/gen -c voices/digital_glue.c -o $T/dglue.o
 for t in analog_diff voice_diff; do
     $CXX -c tests/$t.cc -o $T/$t.o
 done
@@ -30,7 +32,7 @@ $CXX $REF -c tests/analog_ref_adapter.cc -o $T/analog_ref_adapter.o
 $CXX $REF -c tests/voice_ref_adapter.cc -o $T/voice_ref_adapter.o
 $CXX -Ivoices -c tests/analog_lean_adapter.cc -o $T/analog_lean_adapter.o
 $CXX -Ivoices -c tests/voice_lean_adapter.cc -o $T/voice_lean_adapter.o
-SHARED="$T/ref_*.o $T/lean_*.o $T/glue.o"
+SHARED="$T/ref_*.o $T/lean_*.o $T/glue.o $T/dglue.o"
 g++ -o $T/analog_diff $T/analog_diff.o $T/analog_ref_adapter.o $T/analog_lean_adapter.o $SHARED
 g++ -o $T/voice_diff $T/voice_diff.o $T/voice_ref_adapter.o $T/voice_lean_adapter.o $SHARED
 $T/analog_diff

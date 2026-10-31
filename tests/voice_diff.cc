@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Differential test of the whole Braids voice: the firmware's (voices/braids, parts of it in Lean) against Braids'
-// own C++ (tests/reference/, unchanged), all 48 shapes, random pitch and timbre, with note strikes. Every output
+// own C++ (tests/reference/, unchanged), all 48 shapes, random pitch and timbre with note strikes, then a long run at a steady pitch. Every output
 // sample must be identical. This is the guard for every engine ported to Lean. Run by `make test-lean`.
 #include <stdint.h>
 #include <stdio.h>
@@ -21,8 +21,6 @@ static uint32_t rng = 777;
 static uint32_t rnd() { return rng = rng * 1664525u + 1013904223u; }
 
 int main() {
-  const char *ported = "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15";      // for the report only
-  (void)ported;
   long samples = 0, mismatches = 0;
   int shapes_differing = 0;
   for (int shape = 0; shape < 48; shape++) {
@@ -35,6 +33,22 @@ int main() {
       int16_t a[16], b[16];
       ref_voice_set(ref, shape, pitch, timbre, color);
       lean_voice_set(lean, shape, pitch, timbre, color);
+      ref_voice_render(ref, a, 16);
+      lean_voice_render(lean, b, 16);
+      for (int i = 0; i < 16; i++) {
+        samples++;
+        if (a[i] != b[i]) { if (bad++ == 0) printf("shape %d first difference at block %d sample %d: %d vs %d\n", shape, block, i, a[i], b[i]); mismatches++; }
+      }
+    }
+    // Then a long run at a steady high pitch, so the slow engines (the digital modulation's symbol stream) get
+    // through whole cycles.
+    for (int block = 0; block < 30000; block++) {
+      if (block % 10000 == 0) { ref_voice_strike(ref); lean_voice_strike(lean); }
+      static int timbre = 1000, color = 20000;
+      if (block % 200 == 0) { timbre = static_cast<int>(rnd() % 32768); color = static_cast<int>(rnd() % 32768); }
+      int16_t a[16], b[16];
+      ref_voice_set(ref, shape, 84 * 128, timbre, color);
+      lean_voice_set(lean, shape, 84 * 128, timbre, color);
       ref_voice_render(ref, a, 16);
       lean_voice_render(lean, b, 16);
       for (int i = 0; i < 16; i++) {

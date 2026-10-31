@@ -23,7 +23,8 @@ structure. `make test-lean` fails to link if any Lean runtime symbol is left.
 | Engine | Lean | Notes |
 |---|---|---|
 | all nine analog oscillators: saw, variable saw, CSAW, square, triangle, sine, triangle fold, sine fold, buzz | yes | including sync in and out |
-| digital engines (FM, vowels, strings, drums, wavetables, noise, 30 more) | no | C++ |
+| FM, feedback FM, chaotic FM, triple ring mod, toy, digital modulation | yes | `Firmware/Digital.lean`; no sync out |
+| other digital engines (vowels, strings, drums, wavetables, noise, about 25 more) | no | C++ |
 
 The 48 macro shapes are built from these. A shape is only as ported as the oscillators it uses.
 
@@ -33,7 +34,7 @@ The 48 macro shapes are built from these. A shape is only as ported as the oscil
   side by side, with the original's namespace renamed, and compares every output sample.
   - `tests/analog_diff.cc`: the nine oscillators, 6000 blocks each, random pitch and parameter, random sync pulses,
     with and without the sync output. Also prints the time per sample of both.
-  - `tests/voice_diff.cc`: the whole voice, all 48 shapes, 1.15 million samples. This is the guard for every
+  - `tests/voice_diff.cc` (24 million samples; a long steady-pitch run lets the digital modulation reach its whole symbol cycle): the whole voice, all 48 shapes, 1.15 million samples. This is the guard for every
     port: a shape that is still C++ must stay identical, and a ported one must too.
 - `make proofs` lists what is proved about the Lean arithmetic (see `docs/PROOFS.md`): the edge corrections stay in
   range, and the triangle's sample is exactly the sum of its halves, so it cannot wrap.
@@ -57,7 +58,6 @@ The 48 macro shapes are built from these. A shape is only as ported as the oscil
 
 ## Order of the rest
 
-1. Digital engines with scalar state: FM, feedback FM, chaotic FM, digital modulation, toy, triple ring mod.
-2. Engines with tables and filters: vosim, vowels, digital filters, saw swarm, harmonics.
-3. Engines with delay lines and big state (comb, plucked, bowed, blown, fluted, bells, drums, granular): these need
+1. Engines with tables and filters: vosim, vowels, digital filters, saw swarm, harmonics.
+2. Engines with delay lines and big state (comb, plucked, bowed, blown, fluted, bells, drums, granular): these need
    arrays, so they need either a runtime that is safe in the interrupt or state kept in C memory.

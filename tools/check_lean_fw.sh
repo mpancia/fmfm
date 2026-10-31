@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 T=pi32v2
 sh tools/build_lean_fw.sh $T
 . tools/target_env.sh
-EXPORTS=$(sed -n 's/^@\[export \([A-Za-z0-9_]*\)\].*/\1/p' $(ls Firmware/*.lean | grep -v Analog))
+EXPORTS=$(sed -n 's/^@\[export \([A-Za-z0-9_]*\)\].*/\1/p' $(ls Firmware/*.lean | grep -v -e Analog -e Digital))
 [ -n "$EXPORTS" ] || { echo "no @[export] functions in Firmware/"; exit 1; }
 $CC -Os -ffunction-sections -w -include stdint.h -c fw/firmware/src/libc.c -o build/lean/$T/libc.o     # memcpy etc., as in the real firmware
 set --; for e in $EXPORTS; do set -- "$@" -u "$e"; done
