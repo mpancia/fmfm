@@ -142,3 +142,10 @@ chooses which of four phases the carrier takes. -/
   let q := Analog.sineAt (p + 0x40000000)
   { phase := p, symbolPhase := sp, count := count2, filter := filter', data := data',
     out := (((qi * q) >>> 15) + ((ii * i) >>> 15)).toInt16 }
+
+/-- Braids' `CLIP`: limit to the symmetric 16-bit range, -32767 to 32767. -/
+@[inline] def Digital.clip (x : Int32) : Int32 := if x < -32767 then -32767 else if x > 32767 then 32767 else x
+
+/-- Braids' `Mix` of two signed 16-bit values by a 16-bit balance (0 is all `a`). -/
+@[inline] def Digital.mix (a b : Int32) (balance : UInt32) : Int32 :=
+  ((a * (65535 - balance).toInt32 + b * balance.toInt32) >>> 16).toInt16.toInt32

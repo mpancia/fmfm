@@ -191,48 +191,8 @@ void DigitalOscillator::RenderSawSwarm(
   
   int32_t f = Interpolate824(lut_svf_cutoff, hp_cutoff << 17);
   int32_t damp = lut_svf_damp[0];
-  int32_t bp = state_.saw.bp;
-  int32_t lp = state_.saw.lp;
-
-  while (size--) {
-    if (*sync++) {
-      for (size_t i = 0; i < 6; ++i) {
-        state_.saw.phase[i] = 0;
-      }
-    }
-    int32_t notch, hp, sample;
-    
-    phase_ += increments[0];
-    state_.saw.phase[0] += increments[1];
-    state_.saw.phase[1] += increments[2];
-    state_.saw.phase[2] += increments[3];
-    state_.saw.phase[3] += increments[4];
-    state_.saw.phase[4] += increments[5];
-    state_.saw.phase[5] += increments[6];
-    
-    // Compute a sample.
-    sample = -28672;
-    sample += phase_ >> 19;
-    sample += state_.saw.phase[0] >> 19;
-    sample += state_.saw.phase[1] >> 19;
-    sample += state_.saw.phase[2] >> 19;
-    sample += state_.saw.phase[3] >> 19;
-    sample += state_.saw.phase[4] >> 19;
-    sample += state_.saw.phase[5] >> 19;
-    sample = Interpolate88(ws_moderate_overdrive, sample + 32768);
-    
-    notch = sample - (bp * damp >> 15);
-    lp += f * bp >> 15;
-    CLIP(lp)
-    hp = notch - lp;
-    bp += f * hp >> 15;
-    
-    int32_t result = hp;
-    CLIP(result)
-    *buffer++ = result;
-  }
-  state_.saw.lp = lp;
-  state_.saw.bp = bp;
+  fm1_filters_render_swarm(&phase_, state_.saw.phase, increments, f, damp, &state_.saw.bp, &state_.saw.lp,
+                           sync, buffer, size);
 }
 
 void DigitalOscillator::RenderComb(
@@ -301,78 +261,19 @@ void DigitalOscillator::RenderDigitalFilter(
   if (shifted_pitch > 16383) {
     shifted_pitch = 16383;
   }
-  uint32_t modulator_phase = state_.res.modulator_phase;
-  uint32_t square_modulator_phase = state_.res.square_modulator_phase;
-  int32_t square_integrator = state_.res.integrator;
-  
   uint8_t filter_type = shape_ - OSC_SHAPE_DIGITAL_FILTER_LP;
-  
   uint32_t modulator_phase_increment = state_.res.modulator_phase_increment;
   uint32_t target_increment = ComputePhaseIncrement(shifted_pitch);
-  uint32_t modulator_phase_increment_increment = 
+  uint32_t modulator_phase_increment_increment =
     modulator_phase_increment < target_increment
     ? (target_increment - modulator_phase_increment) / size
     : ~((modulator_phase_increment - target_increment) / size);
-    
-  while (size--) {
-    phase_ += phase_increment_;
-    modulator_phase_increment += modulator_phase_increment_increment;
-    modulator_phase += modulator_phase_increment;
-    uint16_t integrator_gain = (modulator_phase_increment >> 14);
-    
-    if (*sync++) {
-      state_.res.polarity = 1;
-      phase_ = 0;
-      modulator_phase = 0;
-      square_modulator_phase = 0;
-      square_integrator = 0;
-    }
-    
-    square_modulator_phase += modulator_phase_increment;
-    if (phase_ < phase_increment_) {
-      modulator_phase = kPhaseReset[filter_type];
-    }
-    if ((phase_ << 1) < (phase_increment_ << 1)) {
-      state_.res.polarity = !state_.res.polarity;
-      square_modulator_phase = kPhaseReset[(filter_type & 1) + 2];
-    }
-    
-    int32_t carrier = Interpolate824(wav_sine, modulator_phase);
-    int32_t square_carrier = Interpolate824(wav_sine, square_modulator_phase);
-    
-    uint16_t saw = ~(phase_ >> 16);
-    uint16_t double_saw = ~(phase_ >> 15);
-    uint16_t triangle = (phase_ >> 15) ^ (phase_ & 0x80000000 ? 0xffff : 0x0000);
-    uint16_t window = parameter_[1] < 16384 ? saw : triangle;
-
-    int32_t pulse = (square_carrier * double_saw) >> 16;
-    if (state_.res.polarity) {
-      pulse = -pulse;
-    }
-    square_integrator += (pulse * integrator_gain) >> 16;
-    CLIP(square_integrator)
-    
-    int16_t saw_tri_signal;
-    int16_t square_signal;
-    
-    if (filter_type & 2) {
-      saw_tri_signal = (carrier * window) >> 16;
-      square_signal = pulse;
-    } else {
-      saw_tri_signal = (window * (carrier + 32768) >> 16) - 32768;
-      square_signal = square_integrator;
-      if (filter_type == 1) {
-        square_signal = (pulse + square_integrator) >> 1;
-      }
-    }
-    uint16_t balance = (parameter_[1] < 16384 ? 
-                        parameter_[1] : ~parameter_[1]) << 2;
-    *buffer++ = Mix(saw_tri_signal, square_signal, balance);
-  }
-  state_.res.modulator_phase = modulator_phase;
-  state_.res.square_modulator_phase = square_modulator_phase;
-  state_.res.integrator = square_integrator;
-  state_.res.modulator_phase_increment = modulator_phase_increment;
+  uint8_t polarity = state_.res.polarity;
+  fm1_filters_render_digital_filter(&phase_, phase_increment_, &state_.res.modulator_phase,
+                                    &state_.res.modulator_phase_increment, modulator_phase_increment_increment,
+                                    &state_.res.square_modulator_phase, &state_.res.integrator, &polarity,
+                                    filter_type, parameter_[1], sync, buffer, size);
+  state_.res.polarity = polarity;
 }
 
 void DigitalOscillator::RenderVosim(
@@ -382,27 +283,8 @@ void DigitalOscillator::RenderVosim(
   for (size_t i = 0; i < 2; ++i) {
     state_.vow.formant_increment[i] = ComputePhaseIncrement(parameter_[i] >> 1);
   }
-  while (size--) {
-    phase_ += phase_increment_;
-    if (*sync++) {
-      phase_ = 0;
-    }
-    int32_t sample = 16384 + 8192;
-    state_.vow.formant_phase[0] += state_.vow.formant_increment[0];
-    sample += Interpolate824(wav_sine, state_.vow.formant_phase[0]) >> 1;
-    
-    state_.vow.formant_phase[1] += state_.vow.formant_increment[1];
-    sample += Interpolate824(wav_sine, state_.vow.formant_phase[1]) >> 2;
-    
-    sample = sample * (Interpolate824(lut_bell, phase_) >> 1) >> 15;
-    if (phase_ < phase_increment_) {
-      state_.vow.formant_phase[0] = 0;
-      state_.vow.formant_phase[1] = 0;
-      sample = 0;
-    }
-    sample -= 16384 + 8192;
-    *buffer++ = sample;
-  }
+  fm1_filters_render_vosim(&phase_, phase_increment_, state_.vow.formant_phase, state_.vow.formant_increment,
+                           sync, buffer, size);
 }
 
 struct PhonemeDefinition {
@@ -825,11 +707,8 @@ void DigitalOscillator::RenderHarmonics(
     const uint8_t* sync,
     int16_t* buffer,
     size_t size) {
-  uint32_t phase = phase_;
-  int16_t previous_sample = state_.add.previous_sample;
   uint32_t phase_increment = phase_increment_ << 1;
   int32_t target_amplitude[kNumAdditiveHarmonics];
-  int32_t amplitude[kNumAdditiveHarmonics];
   
   int32_t peak = (kNumAdditiveHarmonics * parameter_[0]) >> 7;
   int32_t second_peak = (peak >> 1) + kNumAdditiveHarmonics * 128;
@@ -860,32 +739,9 @@ void DigitalOscillator::RenderHarmonics(
     } else {
       target_amplitude[i] = target_amplitude[i] * attenuation >> 16;
     }
-    amplitude[i] = state_.hrm.amplitude[i];
   }
-  
-  while (size) {
-    int32_t out;
-    
-    phase += phase_increment;
-    if (*sync++ || *sync++) {
-      phase = 0;
-    }
-    out = 0;
-    for (size_t i = 0; i < kNumAdditiveHarmonics; ++i) {
-      out += Interpolate824(wav_sine, phase * (i + 1)) * amplitude[i] >> 15;
-      amplitude[i] += (target_amplitude[i] - amplitude[i]) >> 8;
-    }
-    CLIP(out)
-    *buffer++ = (out + previous_sample) >> 1;
-    *buffer++ = out;
-    previous_sample = out;
-    size -= 2;
-  }
-  state_.add.previous_sample = previous_sample;
-  phase_ = phase;
-  for (size_t i = 0; i < kNumAdditiveHarmonics; ++i) {
-    state_.hrm.amplitude[i] = amplitude[i];
-  }
+  fm1_filters_render_harmonics(&phase_, &state_.add.previous_sample, phase_increment, state_.hrm.amplitude,
+                               target_amplitude, sync, buffer, size);
 }
 
 void DigitalOscillator::RenderStruckDrum(
