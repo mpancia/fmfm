@@ -45,7 +45,8 @@ theorem lfo_modulate_in_range (base depth phase : UInt32) : (lfoModulate base de
         _ < 2 ^ 32 := by decide
     have swing : (d * t / 32768).toNat = d.toNat * t.toNat / 32768 := by rw [UInt32.toNat_div, prod]; rfl
     have swingLe : d.toNat * t.toNat / 32768 ≤ 2 * d.toNat := by
-      calc d.toNat * t.toNat / 32768 ≤ d.toNat * 65535 / 32768 := Nat.div_le_div_right (Nat.mul_le_mul_left _ tri)
+      calc d.toNat * t.toNat / 32768
+          ≤ d.toNat * 65535 / 32768 := Nat.div_le_div_right (Nat.mul_le_mul_left _ tri)
         _ ≤ 2 * d.toNat := by omega
     have raised : (b + d * t / 32768).toNat = b.toNat + d.toNat * t.toNat / 32768 := by
       rw [UInt32.toNat_add, swing, Nat.mod_eq_of_lt]; omega
@@ -58,3 +59,58 @@ theorem lfo_modulate_in_range (base depth phase : UInt32) : (lfoModulate base de
       rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le, raised]; omega), raised] at h ⊢
       generalize d.toNat * t.toNat / 32768 = q at *
       simp at h; omega
+
+/-- The triangle is the same on the way up as on the way down: mirroring the phase mirrors nothing.
+Why it matters: the modulator rises and falls by the same path, so a one-bar LFO repeats exactly every bar
+with no step or jump at the turn. -/
+theorem lfo_triangle_symmetric (phase : UInt32) : Lfo.triangle (~~~phase) = Lfo.triangle phase := by
+  have bound := phase.toNat_lt
+  have half : (phase >>> 15).toNat < 131072 := by
+    simp [UInt32.toNat_shiftRight, Nat.shiftRight_eq_div_pow]; omega
+  have mirror : (~~~phase >>> 15).toNat = 131071 - (phase >>> 15).toNat := by
+    simp [UInt32.toNat_shiftRight, UInt32.toNat_not, Nat.shiftRight_eq_div_pow]; omega
+  rw [← UInt32.toNat_inj]
+  simp only [Lfo.triangle]
+  generalize phase >>> 15 = p at *
+  generalize ~~~phase >>> 15 = q at *
+  have pLe : p ≤ 131071 := by rw [UInt32.le_iff_toNat_le]; simp; omega
+  have qLe : q ≤ 131071 := by rw [UInt32.le_iff_toNat_le]; simp; omega
+  split <;> split <;> rename_i a b <;>
+    simp only [UInt32.lt_iff_toNat_lt] at a b <;>
+    (try rw [UInt32.toNat_sub_of_le _ _ pLe]) <;> (try rw [UInt32.toNat_sub_of_le _ _ qLe]) <;>
+    simp at a b ⊢ <;> omega
+
+/-- At the middle of its swing the modulator leaves the setting exactly as it is; and a depth of zero never
+changes anything.
+Why it matters: the knob's own value is the centre of the motion, not its top or bottom, so adding an LFO does
+not shift the average sound; and switching depth to zero returns exactly the sound you set. -/
+theorem lfo_modulate_centred (base depth phase : UInt32) (small : base.toNat ≤ 100)
+    (deep : depth.toNat ≤ 100) :
+    lfoModulate base depth 1073741824 = base ∧ lfoModulate base 0 phase = base := by
+  have capB : min base 100 = base := by
+    rw [UInt32.min_def, ite_eq_left (by rw [UInt32.le_iff_toNat_le]; simpa)]
+  have capD : min depth 100 = depth := by
+    rw [UInt32.min_def, ite_eq_left (by rw [UInt32.le_iff_toNat_le]; simpa)]
+  have keep : ∀ x : UInt32, x.toNat ≤ 100 → min 100 x = x := fun x h => by
+    rw [UInt32.min_def]
+    by_cases le : 100 ≤ x
+    · rw [ite_eq_left le, ← UInt32.toNat_inj]; rw [UInt32.le_iff_toNat_le] at le; simp at le ⊢; omega
+    · rw [ite_eq_right le]
+  constructor
+  · unfold lfoModulate Lfo.modulate Lfo.triangle
+    rw [capB, capD]
+    rw [show (1073741824 : UInt32) >>> 15 = 32768 by decide,
+      ite_eq_left (show (32768 : UInt32) < 65536 by decide)]
+    have product : (depth * 32768).toNat = depth.toNat * 32768 := by
+      rw [UInt32.toNat_mul, Nat.mod_eq_of_lt]; simp; simp; omega
+    have swing : depth * 32768 / 32768 = depth := by
+      rw [← UInt32.toNat_inj, UInt32.toNat_div, product]; simp
+    rw [swing]
+    have sum : (base + depth).toNat = base.toNat + depth.toNat := by
+      rw [UInt32.toNat_add, Nat.mod_eq_of_lt]; omega
+    have notLow : ¬ (base + depth < depth) := by
+      rw [UInt32.not_lt, UInt32.le_iff_toNat_le, sum]; omega
+    rw [ite_eq_right notLow, UInt32.add_sub_cancel, keep base small]
+  · unfold lfoModulate Lfo.modulate
+    rw [capB, show min (0 : UInt32) 100 = 0 by decide]
+    simp [keep base small]

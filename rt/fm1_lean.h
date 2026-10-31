@@ -14,6 +14,9 @@ lean_object *fm1_lane_reconfigure(lean_object *lane, uint32_t hits, uint32_t ste
 lean_object *fm1_lane_set_notes(lean_object *lane, uint32_t algo, uint32_t prob, uint32_t amount, uint32_t mutate);
 lean_object *fm1_lane_silence(lean_object *lane);
 
+/* Firmware/Harmony.lean: the scale a lane plays in (scale index, key, chord root, follow 0/1/2); never empty */
+uint32_t fm1_harmony_mask(uint32_t scale, uint32_t key, uint32_t chord_root, uint32_t follow);
+
 /* Firmware/Lfo.lean: scalar, safe in any context */
 uint32_t fm1_lfo_advance(uint32_t phase, uint32_t step);
 uint32_t fm1_lfo_modulate(uint32_t base, uint32_t depth, uint32_t phase);   /* base and depth in percent; the result too */

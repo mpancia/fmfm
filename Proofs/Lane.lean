@@ -148,3 +148,28 @@ theorem lane_silence_valid (l : Lane) (valid : Lane.Valid l) : Lane.Valid l.sile
 Why it matters: pressing stop never leaves a note hanging. -/
 theorem lane_silence_stops_note (l : Lane) : l.silence.off = l.playing ∧ l.silence.playing = none := by
   simp [Lane.silence]
+
+/-- Applying a lane's own settings back to it changes nothing, for a consistent lane whose settings are the
+ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 5, mutation up to 100 percent)
+and whose gate is the one its speed gives. `make`, `reconfigure` and `setNotes` only ever produce such lanes.
+Why it matters: saving a patch and loading it again, or redrawing a knob at its current value, cannot alter
+the music by a tick: the lane is exactly where it was. -/
+theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.steps ≤ 32)
+    (divMax : l.div ≤ 96) (algoMax : l.rule.algo ≤ 5) (mutateMax : l.rule.mutate ≤ 100) (gate : l.gate = Lane.gateFor l.div) :
+    l.reconfigure l.hits l.steps l.div l.mask = l ∧
+      l.setNotes l.rule.algo l.prob l.rule.amount l.rule.mutate = l := by
+  obtain ⟨steps, hits, div, maskNe, maskSmall, _, _, _, _, _, prob, amount, amountFits, ⟨_, slot, _, _⟩,
+    count, step, _, within⟩ := valid
+  have clampSteps : Lane.clamp 1 32 l.steps = l.steps := by unfold Lane.clamp; omega
+  have clampDiv : Lane.clamp 1 96 l.div = l.div := by unfold Lane.clamp; omega
+  have clampAmount : Lane.clamp 1 Notes.regLen l.rule.amount = l.rule.amount := by
+    unfold Lane.clamp Notes.regLen at *; omega
+  have mask : Lane.cleanMask l.mask = l.mask := by
+    unfold Lane.cleanMask; rw [Nat.mod_eq_of_lt maskSmall]; simp [maskNe]
+  constructor
+  · unfold Lane.reconfigure
+    simp only [clampSteps, clampDiv, mask, ← gate]
+    rw [Nat.min_eq_left hits, Nat.mod_eq_of_lt count, Nat.mod_eq_of_lt step, Nat.min_eq_left within]
+  · unfold Lane.setNotes
+    simp only [clampAmount, Nat.min_eq_left prob, Nat.min_eq_left algoMax, Nat.min_eq_left mutateMax,
+      Nat.mod_eq_of_lt slot]

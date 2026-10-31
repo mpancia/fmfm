@@ -130,11 +130,9 @@ static int quiet(void)                          /* nothing sounds, not even a re
 
 /* ---- the lanes and the patch */
 #define NL 4u
-static const uint16_t SCALE_MASK[] = {0xAB5, 0x5AD, 0x295, 0x4A9, 0x6AD, 0x9AD, 0x555, 0xFFF,
-                                      0x5AB, 0xAD5, 0x4E9, 0x6CD, 0x9B3, 0x9B5};
 static const char *const SCALE_NAME[] = {"MAJOR", "MINOR", "PENT+", "PENT-", "DORIAN", "H.MIN", "WHOLE", "CHROM",
                                          "PHRYG", "LYDIAN", "BLUES", "UKR.D", "DBL.H", "H.MAJ"};
-#define NSCALE (sizeof SCALE_MASK / sizeof SCALE_MASK[0])
+#define NSCALE (sizeof SCALE_NAME / sizeof SCALE_NAME[0])
 static const uint8_t SPEED[] = {2, 3, 4, 6, 8, 12, 16, 24};   /* clock ticks per step: 6 = sixteenth notes */
 static const char *const SPEED_NAME[] = {"1/48", "1/32", "1/24", "1/16", "1/12", "1/8", "1/6", "1/4"};
 #define NSPEED (sizeof SPEED / sizeof SPEED[0])
@@ -187,30 +185,13 @@ typedef struct {
 } user_patch_t;
 #define USER_MAGIC 0xA7u
 
-static uint32_t rotate12(uint32_t m, uint32_t r)
-{
-    r %= 12u;
-    return ((m << r) | (m >> (12u - r))) & 0xFFFu;
-}
-
-static uint32_t triad(uint32_t m, uint32_t root)   /* the 1st, 3rd and 5th degree of the scale from the root */
-{
-    uint32_t tone[12], n = 0, d, out = 0;
-    for (d = 0; d < 12u; d++)
-        if (m >> ((root + d) % 12u) & 1u) tone[n++] = (root + d) % 12u;
-    if (!n) return m;
-    for (d = 0; d < 3u; d++) out |= 1u << tone[(d * 2u) % n];
-    return out;
-}
-
 static uint32_t chord_root(void) { return progression ? PROGRESSION[progression][chord_index & 3u] : 0u; }
 
-static uint32_t lane_mask(uint32_t i)           /* the scale, turned to the key and the current chord */
+static uint32_t lane_mask(uint32_t i)           /* the scale, turned to the key and the current chord: Firmware/Harmony.lean */
 {
     uint32_t scale = scale_lock ? scale_lock - 1u : cfg[i].scale;
-    uint32_t root = key + (cfg[i].chord && progression ? chord_root() : 0u);
-    uint32_t m = rotate12(SCALE_MASK[scale], root);
-    return cfg[i].chord == 2u ? triad(m, root % 12u) : m;
+    uint32_t follow = progression ? cfg[i].chord : 0u;
+    return fm1_harmony_mask(scale, key, chord_root(), follow);
 }
 
 static void lane_apply(uint32_t i)

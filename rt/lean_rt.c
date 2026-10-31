@@ -231,6 +231,25 @@ int32_t lean_int32_of_big_int(b_lean_obj_arg a) { (void)a; die(NOBIG); }
 int64_t lean_int64_of_big_int(b_lean_obj_arg a) { (void)a; die(NOBIG); }
 ptrdiff_t lean_isize_of_big_int(b_lean_obj_arg a) { (void)a; die(NOBIG); }
 
+/* Shifts and powers of small numbers; anything that would not fit a small number stops the firmware. */
+lean_obj_res lean_nat_shiftl(b_lean_obj_arg a, b_lean_obj_arg b)
+{
+    size_t x, n;
+    if (!lean_is_scalar(a) || !lean_is_scalar(b)) die(NOBIG);
+    x = lean_unbox(a); n = lean_unbox(b);
+    if (n >= 31 || (x >> (31 - n)) != 0) die(NOBIG);
+    return lean_box(x << n);
+}
+
+lean_obj_res lean_nat_pow(b_lean_obj_arg a, b_lean_obj_arg b)
+{
+    size_t x, n, r = 1;
+    if (!lean_is_scalar(a) || !lean_is_scalar(b)) die(NOBIG);
+    x = lean_unbox(a); n = lean_unbox(b);
+    while (n--) { if (x && r > LEAN_MAX_SMALL_NAT / x) die(NOBIG); r *= x; }
+    return lean_box(r);
+}
+
 /* On the chip there are no atomic instructions; objects are never shared between threads, so the
  * atomic paths in lean.h are never taken. These satisfy the linker. */
 #ifdef FM1_CHIP

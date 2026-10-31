@@ -23,7 +23,8 @@ private theorem notes_fill_shape (span : Nat) (positive : 0 < span) (small : spa
     · exact first
     · exact below x mem
 
-/-- A fresh note memory is consistent for any range from 1 to 65535 positions and any loop length from 1 to 16.
+/-- A fresh note memory is consistent for any range from 1 to 65535 positions and any loop length from 1 to
+16.
 Why it matters: the lane starts in a state the algorithms can rely on, whatever the seed. -/
 theorem notes_start_valid (span amount : Nat) (seed : UInt32) (positive : 0 < span) (small : span ≤ 65535)
     (loopLength : 0 < amount) : NoteState.Valid span amount (Notes.start span seed) := by
@@ -65,3 +66,77 @@ theorem notes_choose_stays_in_range (rule : NoteRule) (span : Nat) (s : NoteStat
     obtain ⟨len, mem⟩ := notes_set_keeps_memory span s full below s.slot _ value
     exact ⟨value, pos, Nat.mod_lt _ loopLength, len, mem⟩
   · exact ⟨anyBelow, anyBelow, slot, full, below⟩
+
+/-- UP climbs one position a note and wraps at the top, so from position `p` the `i`-th note is at
+`(p + i) % span`: the first `span` notes visit every position once.
+Why it matters: an UP lane is a rising scale that covers its whole range with no position skipped or
+repeated. -/
+theorem notes_up_visits_every_position (span p : Nat) (positive : 0 < span) (start : p < span) (s : NoteState)
+    (atStart : s.pos = p) (n : Nat) :
+    (Notes.picks ⟨2, 1, 0⟩ span n s).1 = (List.range n).map (fun i => (p + i + 1) % span) := by
+  induction n generalizing s p with
+  | zero => simp [Notes.picks]
+  | succ n ih =>
+    simp only [Notes.picks, Notes.choose, atStart, List.range_succ_eq_map, List.map_cons, List.map_map]
+    rw [ih ((p + 1) % span) (Nat.mod_lt _ positive) _ rfl]
+    simp only [List.cons.injEq, true_and]
+    apply List.map_congr_left
+    intro i _
+    simp only [Function.comp]
+    rw [Nat.add_assoc ((p + 1) % span), Nat.mod_add_mod]
+    congr 1; omega
+
+/-- DOWN falls one position a note and wraps at the bottom: from `p` the `i`-th note is at
+`(p + (span - 1) * (i + 1)) % span`, so the first `span` notes visit every position once.
+Why it matters: a DOWN lane is a falling scale over its whole range with no position skipped or repeated. -/
+theorem notes_down_visits_every_position (span p : Nat) (positive : 0 < span) (start : p < span)
+    (s : NoteState)
+    (atStart : s.pos = p) (n : Nat) :
+    (Notes.picks ⟨3, 1, 0⟩ span n s).1 = (List.range n).map (fun i => (p + (span - 1) * (i + 1)) % span) := by
+  induction n generalizing s p with
+  | zero => simp [Notes.picks]
+  | succ n ih =>
+    simp only [Notes.picks, Notes.choose, atStart, List.range_succ_eq_map, List.map_cons, List.map_map]
+    rw [ih ((p + span - 1) % span) (Nat.mod_lt _ positive) _ rfl]
+    simp only [List.cons.injEq, Nat.zero_add]
+    constructor
+    · congr 1; omega
+    · apply List.map_congr_left
+      intro i _
+      simp only [Function.comp]
+      rw [Nat.mod_add_mod]
+      congr 1
+      have grow : (span - 1) * (i + 1 + 1) = (span - 1) * (i + 1) + (span - 1) := Nat.mul_succ _ _
+      rw [grow]
+      omega
+
+/-- BOUNCE never jumps: each note is at most one position from the last, in a range of at least two.
+Why it matters: a BOUNCE lane is a smooth up-and-down line; it can never leap across its range. -/
+theorem notes_bounce_moves_one (span : Nat) (s : NoteState) (wide : 2 ≤ span) (inside : s.pos < span)
+    (any step chance : Nat) :
+    (Notes.choose ⟨4, 1, 0⟩ span s any step chance).offset + 1 = s.pos ∨
+      (Notes.choose ⟨4, 1, 0⟩ span s any step chance).offset = s.pos + 1 := by
+  simp only [Notes.choose]
+  split <;> (try split) <;> (try dsimp only) <;> omega
+
+/-- WALK moves at most `amount` positions a note (the lane draws its step below `2 * amount + 1`, and the
+position is inside the range).
+Why it matters: the AMOUNT knob is a real limit on how far a WALK lane can jump between two notes. -/
+theorem notes_walk_bounded (amount span : Nat) (s : NoteState) (step any chance : Nat) (inside : s.pos < span)
+    (drawn : step ≤ 2 * amount) :
+    (Notes.choose ⟨1, amount, 0⟩ span s any step chance).offset ≤ s.pos + amount ∧
+      s.pos ≤ (Notes.choose ⟨1, amount, 0⟩ span s any step chance).offset + amount := by
+  simp only [Notes.choose]
+  split <;> (try dsimp only) <;> omega
+
+/-- LOOP with no mutation plays the same note again every `amount` picks: the memory never changes, and the
+slot goes round.
+Why it matters: MUTATE at zero is an exact loop, the hook a listener can hold on to. -/
+theorem notes_loop_repeats (amount span : Nat) (s : NoteState)
+    (fits : amount ≤ s.reg.length) (slot : s.slot < amount) (any step chance : Nat) :
+    (Notes.choose ⟨5, amount, 0⟩ span s any step chance).state.reg = s.reg ∧
+      (Notes.choose ⟨5, amount, 0⟩ span s any step chance).state.slot = (s.slot + 1) % amount ∧
+      (Notes.choose ⟨5, amount, 0⟩ span s any step chance).offset = s.reg.getD s.slot 0 := by
+  have inRange : s.slot < s.reg.length := by omega
+  simp only [Notes.choose, Nat.not_lt_zero, ite_false, and_true]
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem inRange, Option.getD_some, List.set_getElem_self]

@@ -7,6 +7,8 @@ import Proofs.Lane
 import Proofs.Analog
 import Proofs.Reverb
 import Proofs.Lfo
+import Proofs.Harmony
+import Proofs.Run
 import Proofs.Tables
 import Proofs.Filters
 import Proofs.Noise
