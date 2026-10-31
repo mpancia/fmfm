@@ -117,10 +117,13 @@ the next. -/
 C. This is trusted: the table is data, and the contract is only that it is that table. -/
 @[extern "fm1_braids_wav_sine"] opaque Analog.sineTable (index : UInt32) : Int16
 
+/-- Which entry of a 257-entry table a 32-bit phase falls on: its top 8 bits. The entry after it is blended in. -/
+@[inline] def Analog.tableIndex (phase : UInt32) : UInt32 := phase >>> 24
+
 /-- The sine table at a phase, with the two nearest entries blended. -/
 @[inline] def Analog.sineAt (phase : UInt32) : Int32 :=
-  let a := (Analog.sineTable (phase >>> 24)).toInt32
-  let b := (Analog.sineTable ((phase >>> 24) + 1)).toInt32
+  let a := (Analog.sineTable (Analog.tableIndex phase)).toInt32
+  let b := (Analog.sineTable (Analog.tableIndex phase + 1)).toInt32
   (a + (((b - a) * ((phase >>> 8) &&& 0xFFFF).toInt32) >>> 16)).toInt16.toInt32
 
 /-- A sine wave. `syncIn` non-zero restarts the cycle. -/
@@ -141,9 +144,12 @@ C. This is trusted: the table is data, and the contract is only that it is that 
 @[inline] def Analog.blend88 (a b : Int32) (index : UInt32) : Int32 :=
   (a + (((b - a) * (index &&& 0xFF).toInt32) >>> 8)).toInt16.toInt32
 
+/-- Which entry of a 257-entry wave shaper a 16-bit index falls on: its top 8 bits. -/
+@[inline] def Analog.shapeIndex (index : UInt32) : UInt32 := index >>> 8
+
 /-- The wave-shaper table at a 16-bit index (Braids' `Interpolate88`). -/
 @[inline] def Analog.shape (table : UInt32 → Int16) (index : UInt32) : Int32 :=
-  Analog.blend88 (table (index >>> 8)).toInt32 (table ((index >>> 8) + 1)).toInt32 index
+  Analog.blend88 (table (Analog.shapeIndex index)).toInt32 (table (Analog.shapeIndex index + 1)).toInt32 index
 
 /-- The drive of a wave folder: 2048 plus the parameter (0 to 32767) scaled up to 30720. -/
 @[inline] def Analog.foldGain (parameter : Int32) : Int32 :=
@@ -178,10 +184,10 @@ how hard the wave is driven into the folds. -/
 /-- A buzz: two band-limited comb tables (`zone` and `zone2`, usually neighbours) crossfaded by `crossfade`. -/
 @[inline] def Analog.buzz (phase inc zone zone2 crossfade : UInt32) (syncIn : UInt8) : Step :=
   let p := if syncIn != 0 then 0 else phase + inc
-  let a := (Analog.combTable zone (p >>> 24)).toInt32
-  let a1 := (Analog.combTable zone ((p >>> 24) + 1)).toInt32
-  let b := (Analog.combTable zone2 (p >>> 24)).toInt32
-  let b1 := (Analog.combTable zone2 ((p >>> 24) + 1)).toInt32
+  let a := (Analog.combTable zone (Analog.tableIndex p)).toInt32
+  let a1 := (Analog.combTable zone (Analog.tableIndex p + 1)).toInt32
+  let b := (Analog.combTable zone2 (Analog.tableIndex p)).toInt32
+  let b1 := (Analog.combTable zone2 (Analog.tableIndex p + 1)).toInt32
   let fraction := ((p >>> 8) &&& 0xFFFF).toInt32
   let x := (a + (((a1 - a) * fraction) >>> 16)).toInt16.toInt32
   let y := (b + (((b1 - b) * fraction) >>> 16)).toInt16.toInt32

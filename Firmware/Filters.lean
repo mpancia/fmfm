@@ -15,11 +15,14 @@ Port of the matching engines of Braids (`digital_oscillator.cc`, Emilie Gillet, 
 /-- The bell window at a phase, with the two nearest entries blended. -/
 @[inline] def Filters.bellAt (phase : UInt32) : UInt32 := Digital.lutAt Filters.bellTable phase
 
-/-- The saw swarm's raw sample: seven saws (given as phases) added, then soft-clipped. -/
-@[inline] def Filters.swarmShape (p0 p1 p2 p3 p4 p5 p6 : UInt32) : Int32 :=
-  let sum : Int32 := (-28672 : Int32) + (p0 >>> 19).toInt32 + (p1 >>> 19).toInt32 + (p2 >>> 19).toInt32 +
+/-- Seven saws (given as phases) added, centred on zero. -/
+@[inline] def Filters.swarmSum (p0 p1 p2 p3 p4 p5 p6 : UInt32) : Int32 :=
+  (-28672 : Int32) + (p0 >>> 19).toInt32 + (p1 >>> 19).toInt32 + (p2 >>> 19).toInt32 +
     (p3 >>> 19).toInt32 + (p4 >>> 19).toInt32 + (p5 >>> 19).toInt32 + (p6 >>> 19).toInt32
-  (Analog.shape Digital.overdriveTable ((sum + 32768).toUInt32)).toInt16.toInt32
+
+/-- The saw swarm's raw sample: the seven saws, soft-clipped. -/
+@[inline] def Filters.swarmShape (p0 p1 p2 p3 p4 p5 p6 : UInt32) : Int32 :=
+  (Analog.shape Digital.overdriveTable ((Filters.swarmSum p0 p1 p2 p3 p4 p5 p6 + 32768).toUInt32)).toInt16.toInt32
 
 /-- The result of one state-variable filter step: low-pass, band-pass and the high-pass output. -/
 structure SvfStep where

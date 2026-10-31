@@ -7,3 +7,9 @@ import Proofs.Lane
 import Proofs.Analog
 import Proofs.Reverb
 import Proofs.Lfo
+import Proofs.Tables
+import Proofs.Filters
+import Proofs.Noise
+import Proofs.Percussion
+import Proofs.Physical
+import Proofs.Wavetables

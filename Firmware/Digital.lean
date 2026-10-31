@@ -152,8 +152,8 @@ chooses which of four phases the carrier takes. -/
 
 /-- An unsigned 16-bit table at a 32-bit phase, the two nearest entries blended (Braids' unsigned `Interpolate824`). -/
 @[inline] def Digital.lutAt (table : UInt32 → UInt16) (phase : UInt32) : UInt32 :=
-  let a := (table (phase >>> 24)).toUInt32
-  let b := (table ((phase >>> 24) + 1)).toUInt32
+  let a := (table (Analog.tableIndex phase)).toUInt32
+  let b := (table (Analog.tableIndex phase + 1)).toUInt32
   (a + (((b - a) * ((phase >>> 8) &&& 0xFFFF)) >>> 16)).toUInt16.toUInt32
 
 /-- The next state of Braids' linear congruential random generator. -/
