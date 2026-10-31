@@ -22,6 +22,26 @@ Why it matters: the two halves can be added without ever leaving the range of a 
 
 Why it matters: the triangle can never click from an overflow, at any pitch or phase.
 
+**`analog_sine_between_entries`**: The sine at any phase lies between the two table entries it blends, as long as neighbouring entries are at most 32767 apart (the sine table's neighbours differ by at most about 800).
+
+Why it matters: the sine, and everything FM-modulated through it, can never put out more than the table holds; the cut to 16 bits in `Analog.sineAt` never changes a value.
+
+## Blend
+
+**`blend_eight_between`**: Blending two 16-bit entries by an 8-bit fraction (`Interpolate88`, `Analog.blend88`) lands between the two.
+
+Why it matters: a wave shaper can never put out more than its table holds, whatever the index; its output is 16-bit without relying on the cut.
+
+**`blend_sixteen_between`**: Blending two 16-bit values at most 32767 apart by a 16-bit fraction (`Interpolate824`) lands between them, with no wrap on the way.
+
+Why it matters: this is the blend inside every table read and every wave crossfade; the result can never exceed what it blends.
+
+## Digital
+
+**`digital_mix_between_inputs`**: A crossfade of two 16-bit values never leaves the range between them (give or take one rounding step toward zero), for any balance up to 65535.
+
+Why it matters: every macro shape mixes its oscillators with this, as do the wavetable engines; a crossfade can never be louder than its louder input, so it cannot wrap.
+
 ## Divider
 
 **`divider_pulse_count`**: A divide-by-`div` counter that starts at 0 and gets `ticks` ticks gives exactly `ticks / div` pulses.
@@ -257,3 +277,7 @@ Why it matters: Braids' waves are 129 bytes, half the table size the phase could
 **`wavetables_wavetable_never_wraps`**: A wavetable sample is exactly the sum of its two half-rate readings, each halved: nothing wraps around.
 
 Why it matters: the wavetable engine cannot click from an overflow, for any waves, phase or morph position.
+
+**`wavetables_crossfade_between_waves`**: A crossfade of two waves at the same phase lies between the two waves' values there, as long as they are at most 32767 apart.
+
+Why it matters: morphing between waves can never be louder than the louder wave, at any morph position.
