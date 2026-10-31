@@ -1,2 +1,6 @@
 .env
 .lake/
+.venv/
+vendor/
+build/
+backups/

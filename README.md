@@ -1,10 +1,15 @@
 # fmfm
 
-Lean 4 project for the Vibecheck hackathon.
+Custom firmware for the M-VAVE FM-1 pocket synth, with the core logic in Lean 4 (Vibecheck hackathon).
+See `docs/FM1.md` for research, hardware facts and flash safety.
 
 ```
 make install && make run
 ```
+
+Then open http://localhost:8000/ and click **Power on**. The simulator runs the real firmware app
+(`fw/firmware/src/dinghy.c`) compiled to WebAssembly, with the FM-1's screen, keys, buttons, knobs, audio and
+(in Chrome/Edge) MIDI in. No FM-1 needed. See `docs/SIMULATOR.md`.
 
 ## System prerequisites
 
@@ -15,13 +20,14 @@ make install && make run
 | Need | Why |
 | --- | --- |
 | `git`, `curl` | elan installer, Lake dependency fetches |
-| a C toolchain + libc headers | Lean links native executables |
+| a C toolchain + libc headers | Lean and the firmware host simulator link native executables |
+| `python3` with `venv` | firmware build scripts (Pillow is installed into `.venv`) |
+| Linux x86-64 | JieLi's compiler is a Linux x86-64 binary (macOS/Windows: not supported here) |
 | `bubblewrap` (Linux only) | sandbox used by `lake check` / `lake comparator` |
 
-Arch / CachyOS: `sudo pacman -S --needed git curl base-devel bubblewrap`
-Debian / Ubuntu: `sudo apt install git curl build-essential bubblewrap`
-Fedora: `sudo dnf install git curl gcc make bubblewrap`
-macOS: `xcode-select --install` (no bubblewrap; `lake check` is Linux-only)
+Arch / CachyOS: `sudo pacman -S --needed git curl base-devel python bubblewrap`
+Debian / Ubuntu: `sudo apt install git curl build-essential python3 python3-venv bubblewrap`
+Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 
 `bubblewrap` also needs unprivileged user namespaces
 (`sysctl kernel.unprivileged_userns_clone` must not be `0`).
@@ -30,12 +36,18 @@ macOS: `xcode-select --install` (no bubblewrap; `lake check` is Linux-only)
 
 | Target | Does |
 | --- | --- |
-| `make install` | install elan if missing, fetch pinned toolchain, `lake build` |
-| `make run` | `lake exe fmfm` |
-| `make check` | `lake check`: kernel replay, standard axioms only (Linux) |
+| `make install` | elan + Lean, `.venv`, JieLi toolchain (SHA-256 pinned, into `vendor/`), `lake build` |
+| `make run` | build the web simulator and serve it at http://localhost:8000/ (Power on, then play) |
+| `make web` | build only: `build/web/` |
+| `make run-host` | headless run of the app: `fw/build/host/dinghy.wav` + screen PNGs |
+| `make fw` | build `fw/build/dinghy.fwsc` (does not flash) |
+| `make kernels` | check the Lean kernels compile for the chip with no Lean runtime |
+| `make check` | `make kernels` + `lake check` (kernel replay, standard axioms only) |
+| `make flash-deps` | optional: MIDI libraries for `fw/tools/fm1_install.py` |
 
 ## Reproducibility
 
+- `fw/` is Dinghy vendored at a fixed commit (`fw/UPSTREAM.md`), GPL-3.0.
 - `lean-toolchain` pins Lean. `lakefile.toml` + `lake-manifest.json` pin
   dependencies (currently none: core Lean only). Never run `lake update`
   except on purpose.
