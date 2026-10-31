@@ -12,6 +12,9 @@ lean_object *fm1_lane_make(uint32_t hits, uint32_t steps, uint32_t div, uint32_t
 lean_object *fm1_lane_tick(lean_object *lane);
 lean_object *fm1_lane_reconfigure(lean_object *lane, uint32_t hits, uint32_t steps, uint32_t div, uint32_t mask);
 lean_object *fm1_lane_set_notes(lean_object *lane, uint32_t algo, uint32_t prob, uint32_t amount, uint32_t mutate);
+lean_object *fm1_lane_set_rhythm(lean_object *lane, uint32_t kind, uint32_t rotate, uint32_t accents, uint32_t rule,
+                                 uint32_t ratchet, uint32_t subhits, uint32_t reseed);
+lean_object *fm1_lane_learn(lean_object *lane, uint32_t note);   /* a key the player pressed: STEP writes it, MARKOV counts it */
 lean_object *fm1_lane_silence(lean_object *lane);
 
 /* Firmware/Harmony.lean: the scale a lane plays in (scale index, key, chord root, follow 0/1/2); never empty */
@@ -34,12 +37,16 @@ uint32_t fm1_lane_on(lean_object *lane);            /* note the last tick starte
 uint32_t fm1_lane_off(lean_object *lane);           /* note the last tick stopped, 255 for none */
 uint32_t fm1_lane_step(lean_object *lane);
 uint32_t fm1_lane_hit_at(lean_object *lane, uint32_t index);
+uint32_t fm1_lane_accent_at(lean_object *lane, uint32_t index);
+uint32_t fm1_lane_loud(lean_object *lane);         /* 1 if the note the last tick started is accented */
 
 /* the same, keeping the lane */
 static inline uint32_t fm1_lane_on_of(lean_object *l) { lean_inc(l); return fm1_lane_on(l); }
 static inline uint32_t fm1_lane_off_of(lean_object *l) { lean_inc(l); return fm1_lane_off(l); }
 static inline uint32_t fm1_lane_step_of(lean_object *l) { lean_inc(l); return fm1_lane_step(l); }
 static inline uint32_t fm1_lane_hit_at_of(lean_object *l, uint32_t i) { lean_inc(l); return fm1_lane_hit_at(l, i); }
+static inline uint32_t fm1_lane_accent_at_of(lean_object *l, uint32_t i) { lean_inc(l); return fm1_lane_accent_at(l, i); }
+static inline uint32_t fm1_lane_loud_of(lean_object *l) { lean_inc(l); return fm1_lane_loud(l); }
 
 /* Firmware/PatchApi.lean: a user patch as 74 bytes for a flash slot (Proofs/Patch.lean: a patch the knobs can
  * produce loads back unchanged; anything else decodes to none). Every call consumes its object arguments. */

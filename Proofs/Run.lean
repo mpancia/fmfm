@@ -18,6 +18,8 @@ private theorem run_settings_keep_sounding (l : Lane) (op : Lane.Op) (notTick : 
   | tick => exact absurd rfl notTick
   | reconfigure h s d m => rfl
   | setNotes a p n m => rfl
+  | setRhythm k r a u t s re => rfl
+  | learn n => rfl
 
 /-- On-count and off-count of a trace, one pair at a time. -/
 private theorem run_counts_cons (x : Option Nat × Option Nat) (t : List (Option Nat × Option Nat)) :
@@ -51,6 +53,18 @@ private theorem run_balance (ops : List Lane.Op) : ∀ l : Lane,
       have keep := run_settings_keep_sounding l (.setNotes a p n m) (by simp)
       simp only [Lane.trace, Lane.run]
       rw [show l.soundingCount = (l.apply (.setNotes a p n m)).soundingCount by
+        simp [Lane.soundingCount, keep]]
+      exact ih _
+    | setRhythm k r a u t s re =>
+      have keep := run_settings_keep_sounding l (.setRhythm k r a u t s re) (by simp)
+      simp only [Lane.trace, Lane.run]
+      rw [show l.soundingCount = (l.apply (.setRhythm k r a u t s re)).soundingCount by
+        simp [Lane.soundingCount, keep]]
+      exact ih _
+    | learn n =>
+      have keep := run_settings_keep_sounding l (.learn n) (by simp)
+      simp only [Lane.trace, Lane.run]
+      rw [show l.soundingCount = (l.apply (.learn n)).soundingCount by
         simp [Lane.soundingCount, keep]]
       exact ih _
 

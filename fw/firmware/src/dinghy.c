@@ -137,7 +137,17 @@ static const char *const SCALE_NAME[] = {"MAJOR", "MINOR", "PENT+", "PENT-", "DO
 static const uint8_t SPEED[] = {2, 3, 4, 6, 8, 12, 16, 24};   /* clock ticks per step: 6 = sixteenth notes */
 static const char *const SPEED_NAME[] = {"1/48", "1/32", "1/24", "1/16", "1/12", "1/8", "1/6", "1/4"};
 #define NSPEED (sizeof SPEED / sizeof SPEED[0])
-static const char *const ALGO_NAME[] = {"RANDOM", "WALK", "UP", "DOWN", "BOUNCE", "LOOP"};
+static const char *const ALGO_NAME[] = {"RANDOM", "WALK", "UP", "DOWN", "BOUNCE", "LOOP", "TURING", "STEP", "MARKOV", "GRAMMAR", "CHORD"};
+/* what the NOTES page's second and third knobs mean for each algorithm ("" hides the knob) */
+static const char *const ALGO_LABEL[][2] = {{"", ""}, {"STEP", ""}, {"", ""}, {"", ""}, {"", ""}, {"LENGTH", "MUTATE"},
+                                            {"LENGTH", "FLIP"}, {"LENGTH", "MUTATE"}, {"STYLE", "JUMP"}, {"GRAMMAR", "DEPTH"},
+                                            {"TONES", "OCTAVE"}};
+static const char *const STYLE_NAME[] = {"STEPS", "LEAPS", "REPEATS", "ARCS"};
+static const char *const GRAMMAR_NAME[] = {"FIBO", "CANTOR", "THUE", "ROUND"};
+/* the rhythm sources (the FEEL page) and what its three other knobs mean for each */
+static const char *const FEEL_NAME[] = {"EUCLID", "ROTATE", "AUTOMAT", "RATCHET"};
+#define NFEEL (sizeof FEEL_NAME / sizeof FEEL_NAME[0])
+static const char *const FEEL_LABEL[NFEEL][3] = {{"", "", ""}, {"ROTATE", "ACCENTS", ""}, {"RULE", "", ""}, {"RATCHET", "SUBHITS", ""}};
 #define NALGO (sizeof ALGO_NAME / sizeof ALGO_NAME[0])
 static const char *const CHORD_NAME[] = {"OFF", "SCALE", "TRIAD"};
 static const char *const KEY_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
@@ -157,6 +167,7 @@ static const uint8_t FAMILY_FIRST[] = {0, 0, 17, 21, 25, 28, 32, 37, 41}, FAMILY
 static lean_object *lane[NL];
 static struct {
     uint8_t hits, steps, speed, scale, low, span, preset, muted, algo, chance, amount, mutate, chord, level, send;
+    uint8_t feel, rotate, accents, rule, ratchet, subhits;   /* the rhythm source: not in patches yet */
     uint16_t seed;
     sound_t sound;                              /* the lane's sound: a preset, then whatever the knobs changed */
 } cfg[NL];
@@ -192,6 +203,7 @@ static void lane_apply(uint32_t i)
 {
     lane[i] = fm1_lane_reconfigure(lane[i], cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i));
     lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, lfo[i].target ? lfo[i].chance : cfg[i].chance, cfg[i].amount, cfg[i].mutate);
+    lane[i] = fm1_lane_set_rhythm(lane[i], cfg[i].feel, cfg[i].rotate, cfg[i].accents, cfg[i].rule, cfg[i].ratchet, cfg[i].subhits, 0);
 }
 
 static void lane_report(uint32_t i)             /* play what the lane just started, stop what it stopped */
@@ -200,6 +212,7 @@ static void lane_report(uint32_t i)             /* play what the lane just start
     if (off < 128u) { stop(off); midi_send(0x80u | (midi_out_base + i), off, 0); }
     if (on < 128u && !cfg[i].muted && lfo[i].level) {
         uint32_t vel = lfo[i].level;
+        if (cfg[i].feel == 1u && cfg[i].accents) vel = fm1_lane_loud_of(lane[i]) ? vel : vel * 5u / 8u;   /* accents stand out */
         play(on, vel ? vel : 1u, &lfo[i].sound, cfg[i].send);
         midi_send(0x90u | (midi_out_base + i), on, vel ? vel : 1u);
     }
@@ -228,6 +241,7 @@ static void lane_remake(uint32_t i)             /* a new lane from the settings:
     lane[i] = fm1_lane_make(cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i), cfg[i].low, cfg[i].span,
                             0x9E3779B9u * (cfg[i].seed + 1u));
     lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, cfg[i].chance, cfg[i].amount, cfg[i].mutate);
+    lane[i] = fm1_lane_set_rhythm(lane[i], cfg[i].feel, cfg[i].rotate, cfg[i].accents, cfg[i].rule, cfg[i].ratchet, cfg[i].subhits, 1);
 }
 
 static void lanes_remask(void)                  /* the key, scale lock or chord changed */
@@ -396,19 +410,19 @@ static void play_start(void)
 
 /* ---- pages: four values on screen, four knobs under them */
 enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO };
-enum { P_HOME, P_RHYTHM, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_REVERB, P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS, P_LFO,
+enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_REVERB, P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS, P_LFO,
        NPAGES };
 #define NGROUPS 6u
 static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO"};
-static const uint8_t GROUP_PAGE[NGROUPS][4] = {{P_HOME, 255, 255, 255}, {P_RHYTHM, P_NOTES, P_RANGE, 255},
+static const uint8_t GROUP_PAGE[NGROUPS][4] = {{P_HOME, 255, 255, 255}, {P_RHYTHM, P_FEEL, P_NOTES, P_RANGE},
                                                {P_SOUND, P_ENVELOPE, P_MIX, 255}, {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS},
                                                {P_REVERB, 255, 255, 255}, {P_LFO, 255, 255, 255}};
-static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_FX, G_GLO, G_GLO, G_GLO, G_GLO,
+static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_FX, G_GLO, G_GLO, G_GLO, G_GLO,
                                            G_LFO};
-static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "REVERB", "HARMONY",
+static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "REVERB", "HARMONY",
                                               "SYSTEM", "MIDI", "BANKS", "LANE"};
 static const char *const PAGE_LABEL[NPAGES][4] = {
-    {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
+    {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"FEEL", "", "", ""}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
     {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"}, {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", ""},
     {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "", ""}, {"TARGET", "RATE", "DEPTH", ""}};
@@ -445,6 +459,14 @@ static char *put_note(char *p, uint32_t note)
     return p;
 }
 
+/* the label of value `k` on page `pg`: the FEEL and NOTES pages name their knobs after the source chosen */
+static const char *page_label(uint32_t pg, uint32_t k)
+{
+    if (pg == P_FEEL && k > 0u) return FEEL_LABEL[cfg[selected].feel % NFEEL][k - 1u];
+    if (pg == P_NOTES && (k == 1u || k == 2u)) return ALGO_LABEL[cfg[selected].algo % NALGO][k - 1u];
+    return PAGE_LABEL[pg][k];
+}
+
 /* the text and the bar fill (0..255) of value `k` on page `pg` for the chosen lane */
 static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
 {
@@ -459,16 +481,35 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         if (k == 2) { p = put_str(p, SPEED_NAME[cfg[selected].speed]); *fill = frac(cfg[selected].speed, NSPEED - 1u); }
         if (k == 3) { p = put_num(p, cfg[selected].chance); *p++ = '%'; *fill = frac(cfg[selected].chance, 100); }
         break;
-    case P_NOTES:
-        if (k == 0) { p = put_str(p, ALGO_NAME[cfg[selected].algo]); *fill = frac(cfg[selected].algo, NALGO - 1u); }
-        if (k == 1) {
-            if (cfg[selected].algo == 1u) p = put_str(p, "STEP ");
-            else if (cfg[selected].algo == 5u) p = put_str(p, "LOOP ");
-            p = put_num(p, cfg[selected].amount); *fill = frac(cfg[selected].amount, 16);
+    case P_FEEL: {
+        uint32_t feel = cfg[selected].feel % NFEEL;
+        if (k == 0) { p = put_str(p, FEEL_NAME[feel]); *fill = frac(feel, NFEEL - 1u); }
+        if (feel == 1u) {
+            if (k == 1) { p = put_num(p, cfg[selected].rotate); *fill = frac(cfg[selected].rotate, cfg[selected].steps - 1); }
+            if (k == 2) { p = put_num(p, cfg[selected].accents); *fill = frac(cfg[selected].accents, cfg[selected].hits); }
+        } else if (feel == 2u) {
+            if (k == 1) { p = put_num(p, cfg[selected].rule); *fill = frac(cfg[selected].rule, 255); }
+        } else if (feel == 3u) {
+            if (k == 1) { p = put_num(p, cfg[selected].ratchet); *fill = frac(cfg[selected].ratchet, 4); }
+            if (k == 2) { p = put_num(p, cfg[selected].subhits); *fill = frac(cfg[selected].subhits, cfg[selected].ratchet); }
         }
-        if (k == 2) { p = put_num(p, cfg[selected].mutate); *p++ = '%'; *fill = frac(cfg[selected].mutate, 100); }
+        break;
+    }
+    case P_NOTES: {
+        uint32_t algo = cfg[selected].algo % NALGO;
+        if (k == 0) { p = put_str(p, ALGO_NAME[algo]); *fill = frac(algo, NALGO - 1u); }
+        if (k == 1) {
+            if (algo == 8u) { p = put_str(p, STYLE_NAME[(cfg[selected].amount - 1u) % 4u]); *fill = frac((cfg[selected].amount - 1u) % 4u, 3); }
+            else if (algo == 9u) { p = put_str(p, GRAMMAR_NAME[(cfg[selected].amount - 1u) % 4u]); *fill = frac((cfg[selected].amount - 1u) % 4u, 3); }
+            else { p = put_num(p, cfg[selected].amount); *fill = frac(cfg[selected].amount, 16); }
+        }
+        if (k == 2) {
+            if (algo == 9u) { p = put_num(p, cfg[selected].mutate / 25u); *fill = frac(cfg[selected].mutate / 25u, 4); }
+            else { p = put_num(p, cfg[selected].mutate); *p++ = '%'; *fill = frac(cfg[selected].mutate, 100); }
+        }
         if (k == 3) { p = put_num(p, cfg[selected].span); p = put_str(p, " ST"); *fill = frac(cfg[selected].span, 36); }
         break;
+    }
     case P_RANGE:
         if (k == 0) { p = put_str(p, scale_lock ? "LOCKED" : SCALE_NAME[cfg[selected].scale]); *fill = frac(cfg[selected].scale, NSCALE - 1u); }
         if (k == 1) { p = put_note(p, cfg[selected].low); *fill = frac(cfg[selected].low - 12, 84); }
@@ -536,11 +577,25 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
         if (k == 1) {
             cfg[selected].steps = (uint8_t)clamp(cfg[selected].steps + d, 1, 32);
             if (cfg[selected].hits > cfg[selected].steps) cfg[selected].hits = cfg[selected].steps;
+            if (cfg[selected].rotate >= cfg[selected].steps) cfg[selected].rotate = (uint8_t)(cfg[selected].steps - 1u);
         }
+        if (cfg[selected].accents > cfg[selected].hits) cfg[selected].accents = cfg[selected].hits;
         if (k == 2) cfg[selected].speed = (uint8_t)clamp(cfg[selected].speed + d, 0, (int32_t)NSPEED - 1);
         if (k == 3) cfg[selected].chance = (uint8_t)clamp(cfg[selected].chance + 5 * d, 0, 100);
         lane_apply(selected);
         break;
+    case P_FEEL: {
+        uint32_t feel = cfg[selected].feel % NFEEL;
+        if (k == 0) cfg[selected].feel = (uint8_t)clamp(cfg[selected].feel + d, 0, (int32_t)NFEEL - 1);
+        if (feel == 1u && k == 1) cfg[selected].rotate = (uint8_t)clamp(cfg[selected].rotate + d, 0, cfg[selected].steps - 1);
+        if (feel == 1u && k == 2) cfg[selected].accents = (uint8_t)clamp(cfg[selected].accents + d, 0, cfg[selected].hits);
+        if (feel == 2u && k == 1) cfg[selected].rule = (uint8_t)clamp(cfg[selected].rule + d, 0, 255);
+        if (feel == 3u && k == 1) cfg[selected].ratchet = (uint8_t)clamp(cfg[selected].ratchet + d, 1, 4);
+        if (feel == 3u && k == 2) cfg[selected].subhits = (uint8_t)clamp(cfg[selected].subhits + d, 1, cfg[selected].ratchet);
+        if (cfg[selected].subhits > cfg[selected].ratchet) cfg[selected].subhits = cfg[selected].ratchet;
+        lane_apply(selected);
+        break;
+    }
     case P_NOTES:
         if (k == 0) cfg[selected].algo = (uint8_t)clamp(cfg[selected].algo + d, 0, (int32_t)NALGO - 1);
         if (k == 1) cfg[selected].amount = (uint8_t)clamp(cfg[selected].amount + d, 1, 16);
@@ -781,10 +836,11 @@ static void draw_circle(void)
     }
     if (first != ~0u && last != first) cv_line(px, py, fx, fy, faint);
     for (k = 0; k < steps; k++) {
-        int hit = fm1_lane_hit_at_of(lane[selected], k);
+        int hit = fm1_lane_hit_at_of(lane[selected], k), loud = fm1_lane_accent_at_of(lane[selected], k);
         uint16_t c = k == cur ? TH.hi : hit ? col : TH.dim;
         circle_point(k, steps, &x, &y);
-        if (hit || k == cur) cv_rect(x - 2, y - 2, 5, 5, c);
+        if (loud) cv_rect(x - 3, y - 3, 7, 7, c);
+        else if (hit || k == cur) cv_rect(x - 2, y - 2, 5, 5, c);
         else cv_rect(x - 1, y - 1, 2, 2, c);
     }
     cv_blit(4, 90);
@@ -799,21 +855,21 @@ static void draw_columns(void)                  /* the page's four values: a met
     for (k = 0; k < 4u; k++) {
         int32_t x = 10 + (int32_t)k * 58;
         uint16_t col = page == P_MIX ? LANE_COLOUR(k) : LANE_COLOUR(selected);
-        if (!PAGE_LABEL[page][k][0]) continue;
-        if (page == P_RHYTHM && k < 2u) continue;           /* the circle stands in for these two meters */
+        if (!page_label(page, k)[0]) continue;
+        if ((page == P_RHYTHM || page == P_FEEL) && k < 2u) continue;           /* the circle stands in for these two meters */
         param_text(page, k, value, &fill);
         cv_rect(x, 0, 46, 80, well);
         cv_rect(x, 80 - (int32_t)(fill * 80u / 255u), 46, (int32_t)(fill * 80u / 255u), col);
     }
     cv_blit(0, 90);
-    if (page == P_RHYTHM) draw_circle();
+    if (page == P_RHYTHM || page == P_FEEL) draw_circle();
     cv_begin(240, 36, TH.bg);
     for (k = 0; k < 4u; k++) {
         int32_t cx = 33 + (int32_t)k * 58;
-        if (!PAGE_LABEL[page][k][0]) continue;
+        if (!page_label(page, k)[0]) continue;
         param_text(page, k, value, &fill);
         cv_text(cx - text_w(&FONT_S, value) / 2, 0, &FONT_S, value, TH.hi);
-        cv_text(cx - text_w(&FONT_S, PAGE_LABEL[page][k]) / 2, 18, &FONT_S, PAGE_LABEL[page][k], TH.mid);
+        cv_text(cx - text_w(&FONT_S, page_label(page, k)) / 2, 18, &FONT_S, page_label(page, k), TH.mid);
     }
     cv_blit(0, 176);
 }
@@ -1024,7 +1080,10 @@ static void app_main(void)
         up = prev & ~keys;
         prev = keys;
         for (k = 0; k < 27u; k++) {             /* a key stops the note it started: the octave may change meanwhile */
-            if (down >> k & 1u) { held[k] = (uint8_t)(base + k); play(held[k], 100, &cfg[selected].sound, cfg[selected].send); midi_send(0x90u | 15u, held[k], 100); }
+            if (down >> k & 1u) {
+                held[k] = (uint8_t)(base + k); play(held[k], 100, &cfg[selected].sound, cfg[selected].send); midi_send(0x90u | 15u, held[k], 100);
+                if (cfg[selected].algo == 7u || cfg[selected].algo == 8u) lane[selected] = fm1_lane_learn(lane[selected], held[k]);   /* STEP writes it, MARKOV counts it */
+            }
             if (up >> k & 1u) { stop(held[k]); midi_send(0x80u | 15u, held[k], 0); }
         }
 
@@ -1098,7 +1157,7 @@ static void app_main(void)
                 if (sig != row_sig[k]) {
                     row_sig[k] = sig;
                     draw_lane(k);
-                    if (k == selected && page == P_RHYTHM) draw_circle();
+                    if (k == selected && (page == P_RHYTHM || page == P_FEEL)) draw_circle();
                 }
             }
         if (!browse_mode && page == P_HOME && !running) {   /* Alfred waits in the corner: a bow on arrival, a blink now and then */

@@ -16,8 +16,17 @@ def laneTick (lane : Lane) : Lane := lane.tick
 def laneReconfigure (lane : Lane) (hits steps div mask : UInt32) : Lane :=
   lane.reconfigure hits.toNat steps.toNat div.toNat mask.toNat
 
-/-- C entry: change how the lane picks notes (algorithm 0 to 5, play chance, walk size or loop length, loop
-mutation chance). -/
+/-- C entry: change the rhythm source: kind (0 Euclid, 1 rotate and accent, 2 automaton, 3 ratchet), rotation,
+accents, automaton rule, ratchet and sub-hits; `reseed` 1 restarts the automaton from the pattern. -/
+@[export fm1_lane_set_rhythm]
+def laneSetRhythm (lane : Lane) (kind rotate accents rule ratchet subHits reseed : UInt32) : Lane :=
+  lane.setRhythm kind.toNat rotate.toNat accents.toNat rule.toNat ratchet.toNat subHits.toNat (reseed != 0)
+
+/-- C entry: a key the player pressed, for the algorithms that learn (step, markov). -/
+@[export fm1_lane_learn]
+def laneLearn (lane : Lane) (note : UInt32) : Lane := lane.learn note.toNat
+
+/-- C entry: change how the lane picks notes (algorithm 0 to 10, play chance, amount, mutation chance). -/
 @[export fm1_lane_set_notes]
 def laneSetNotes (lane : Lane) (algo prob amount mutate : UInt32) : Lane :=
   lane.setNotes algo.toNat prob.toNat amount.toNat mutate.toNat
@@ -37,6 +46,10 @@ def laneOn (lane : Lane) : UInt32 := Lane.noteOrNone lane.on
 @[export fm1_lane_off]
 def laneOff (lane : Lane) : UInt32 := Lane.noteOrNone lane.off
 
+/-- C entry: is the note the last tick started accented (1) or not (0)? -/
+@[export fm1_lane_loud]
+def laneLoud (lane : Lane) : UInt32 := if lane.loud then 1 else 0
+
 /-- C entry: the step the lane is on. -/
 @[export fm1_lane_step]
 def laneStep (lane : Lane) : UInt32 := lane.step.toUInt32
@@ -44,4 +57,9 @@ def laneStep (lane : Lane) : UInt32 := lane.step.toUInt32
 /-- C entry: does step `index` of the bar play a note (1) or rest (0)? -/
 @[export fm1_lane_hit_at]
 def laneHitAt (lane : Lane) (index : UInt32) : UInt32 :=
-  if Euclid.hit lane.hits lane.steps index.toNat then 1 else 0
+  if Rhythm.hit lane.rhythm lane.hits lane.steps index.toNat then 1 else 0
+
+/-- C entry: is step `index` of the bar an accented hit (1) or not (0)? -/
+@[export fm1_lane_accent_at]
+def laneAccentAt (lane : Lane) (index : UInt32) : UInt32 :=
+  if Rhythm.accent lane.rhythm lane.hits lane.steps index.toNat then 1 else 0

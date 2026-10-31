@@ -65,9 +65,13 @@ private theorem lane_moved_counters (l : Lane) (valid : Lane.Valid l) :
 /-- The note algorithm's pick: in range, with a consistent memory. -/
 private theorem lane_pick_ok (l : Lane) (valid : Lane.Valid l) :
     l.noteChoice.offset < l.span ∧ NoteState.Valid l.span l.rule.amount l.noteChoice.state :=
-  notes_choose_stays_in_range l.rule l.span l.notes _ _ _
+  notes_choose_stays_in_range l.rule l.span l.mask l.low l.notes _ _ _
     (by have := valid.spanPositive; omega) valid.loopLengthPositive valid.loopLengthFits valid.notesValid
     (lane_draw_below _ _ (by have := valid.spanPositive; omega) (by have := valid.spanFits; omega))
+
+/-- The gate a tick starts: at least one tick, and never longer than the lane's gate. -/
+private theorem lane_gate_now (l : Lane) (gate : 1 ≤ l.gate) : 1 ≤ l.gateNow ∧ l.gateNow ≤ l.gate := by
+  unfold Lane.gateNow; split <;> omega
 
 /-- A tick keeps a consistent lane consistent.
 Why it matters: however long the music runs, the counters stay in range, the note memory stays sound, and the
@@ -75,6 +79,7 @@ sounding note and its timer stay in step. -/
 theorem lane_tick_valid (l : Lane) (valid : Lane.Valid l) : Lane.Valid (Lane.tick l) := by
   have ⟨countOk, stepOk, divSame, stepsSame⟩ := lane_moved_counters l valid
   have ⟨_, choiceOk⟩ := lane_pick_ok l valid
+  have ⟨gateLo, gateHi⟩ := lane_gate_now l valid.gatePositive
   have timer := valid.soundingHasTimer
   have notesOk := valid.notesValid
   obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _⟩ := valid
@@ -105,15 +110,15 @@ theorem lane_new_note_stops_old (l : Lane) (note : Nat) (starts : (Lane.tick l).
   split at starts <;> split <;> first | rfl | (split at starts <;> simp_all)
 
 /-- A note starts only on a step the rhythm marks as a hit.
-Why it matters: the Euclidean pattern is respected; a rest never plays, whatever the note algorithm or the
-play chance say. -/
+Why it matters: the rhythm's pattern is respected, whichever rhythm source makes it; a rest never plays,
+whatever the note algorithm or the play chance say. -/
 theorem lane_note_only_on_hit (l : Lane) (note : Nat) (starts : (Lane.tick l).on = some note) :
-    Euclid.hit l.hits l.steps l.step = true := by
-  have plays : l.plays = true → Euclid.hit l.hits l.steps l.step = true := by
+    Rhythm.hit l.rhythm l.hits l.steps l.step = true := by
+  have plays : l.plays = true → Rhythm.hit l.rhythm l.hits l.steps l.step = true := by
     intro h
-    unfold Lane.plays Lane.isHit at h
+    unfold Lane.plays Lane.isHit Lane.stepHit at h
     simp only [Bool.and_eq_true] at h
-    exact h.1.2
+    exact h.1.1
   unfold Lane.tick at starts
   split at starts
   · exact plays (by assumption)
@@ -150,12 +155,17 @@ theorem lane_silence_stops_note (l : Lane) : l.silence.off = l.playing ∧ l.sil
   simp [Lane.silence]
 
 /-- Applying a lane's own settings back to it changes nothing, for a consistent lane whose settings are the
-ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 5, mutation up to 100 percent)
-and whose gate is the one its speed gives. `make`, `reconfigure` and `setNotes` only ever produce such lanes.
+ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 10, mutation up to 100 percent,
+a rhythm source in range with a live automaton row, the step sequencer's cursor inside its loop) and whose
+gate is the one its speed gives. `make`, `reconfigure`, `setNotes` and `setRhythm` only ever produce such
+lanes.
 Why it matters: saving a patch and loading it again, or redrawing a knob at its current value, cannot alter
 the music by a tick: the lane is exactly where it was. -/
 theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.steps ≤ 32)
-    (divMax : l.div ≤ 96) (algoMax : l.rule.algo ≤ 5) (mutateMax : l.rule.mutate ≤ 100) (gate : l.gate = Lane.gateFor l.div) :
+    (divMax : l.div ≤ 96) (algoMax : l.rule.algo ≤ 10) (mutateMax : l.rule.mutate ≤ 100) (gate : l.gate = Lane.gateFor l.div)
+    (cursor : l.notes.cursor < l.rule.amount) (kind : l.rhythm.kind ≤ 3) (rotate : l.rhythm.rotate < l.steps)
+    (accents : l.rhythm.accents ≤ l.hits) (rule : l.rhythm.rule < 256) (ratchet : 1 ≤ l.rhythm.ratchet ∧ l.rhythm.ratchet ≤ 4)
+    (subHits : l.rhythm.subHits ≤ l.rhythm.ratchet) (row : l.rhythm.row < 2 ^ l.steps) (live : l.rhythm.row ≠ 0) :
     l.reconfigure l.hits l.steps l.div l.mask = l ∧
       l.setNotes l.rule.algo l.prob l.rule.amount l.rule.mutate = l := by
   obtain ⟨steps, hits, div, maskNe, maskSmall, _, _, _, _, _, prob, amount, amountFits, ⟨_, slot, _, _⟩,
@@ -166,10 +176,42 @@ theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.st
     unfold Lane.clamp Notes.regLen at *; omega
   have mask : Lane.cleanMask l.mask = l.mask := by
     unfold Lane.cleanMask; rw [Nat.mod_eq_of_lt maskSmall]; simp [maskNe]
+  have rhythm : Rhythm.make l.rhythm.kind l.rhythm.rotate l.rhythm.accents l.rhythm.rule l.rhythm.ratchet
+      l.rhythm.subHits (min l.hits l.steps) l.steps l.rhythm.row = l.rhythm := by
+    unfold Rhythm.make
+    simp only [Nat.mod_eq_of_lt row, live, ite_false, Nat.min_eq_left hits]
+    have k : min 3 l.rhythm.kind = l.rhythm.kind := Nat.min_eq_right kind
+    have r : l.rhythm.rotate % l.steps = l.rhythm.rotate := Nat.mod_eq_of_lt rotate
+    have a : min l.rhythm.accents l.hits = l.rhythm.accents := Nat.min_eq_left accents
+    have u : l.rhythm.rule % 256 = l.rhythm.rule := Nat.mod_eq_of_lt rule
+    have t : max 1 (min 4 l.rhythm.ratchet) = l.rhythm.ratchet := by omega
+    have h : min l.rhythm.subHits (max 1 (min 4 l.rhythm.ratchet)) = l.rhythm.subHits := by omega
+    rw [k, r, a, u, h, t]
   constructor
   · unfold Lane.reconfigure
-    simp only [clampSteps, clampDiv, mask, ← gate]
+    simp only [clampSteps, clampDiv, mask, ← gate, rhythm]
     rw [Nat.min_eq_left hits, Nat.mod_eq_of_lt count, Nat.mod_eq_of_lt step, Nat.min_eq_left within]
   · unfold Lane.setNotes
     simp only [clampAmount, Nat.min_eq_left prob, Nat.min_eq_left algoMax, Nat.min_eq_left mutateMax,
-      Nat.mod_eq_of_lt slot]
+      Nat.mod_eq_of_lt slot, Nat.mod_eq_of_lt cursor]
+
+/-- Changing the rhythm source keeps a consistent lane consistent, whatever numbers are given.
+Why it matters: switching from Euclid to the automaton or the ratchet mid-song touches nothing but the
+rhythm; counters, memory and the sounding note stay as they were. -/
+theorem lane_set_rhythm_valid (l : Lane) (valid : Lane.Valid l) (kind rotate accents rule ratchet subHits : Nat)
+    (reseed : Bool) : Lane.Valid (Lane.setRhythm l kind rotate accents rule ratchet subHits reseed) := by
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _⟩ := valid
+  unfold Lane.setRhythm
+  exact ⟨by assumption, by assumption, by assumption, by assumption, by assumption, by assumption, by assumption,
+    by assumption, by assumption, by assumption, by assumption, by assumption, by assumption, by assumption,
+    by assumption, by assumption, by assumption, by assumption⟩
+
+/-- A key the player presses keeps a consistent lane consistent.
+Why it matters: playing along, or programming the step sequencer, can never break the lane. -/
+theorem lane_learn_valid (l : Lane) (valid : Lane.Valid l) (note : Nat) : Lane.Valid (Lane.learn l note) := by
+  have notesOk := notes_learn_keeps_valid l.rule l.span l.notes (note - l.low) valid.spanPositive valid.notesValid
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _⟩ := valid
+  unfold Lane.learn
+  exact ⟨by assumption, by assumption, by assumption, by assumption, by assumption, by assumption, by assumption,
+    by assumption, by assumption, by assumption, by assumption, by assumption, by assumption, notesOk,
+    by assumption, by assumption, by assumption, by assumption⟩

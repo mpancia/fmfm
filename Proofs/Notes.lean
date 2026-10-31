@@ -45,12 +45,27 @@ private theorem notes_set_keeps_memory (span : Nat) (s : NoteState) (valid : s.r
 /-- Whichever algorithm picks, the pitch is inside the range and the memory stays consistent.
 Why it matters: the note can never land outside the range the lane was given, and no algorithm can corrupt
 the memory the next pick depends on, however long it runs. -/
-theorem notes_choose_stays_in_range (rule : NoteRule) (span : Nat) (s : NoteState) (any step chance : Nat)
+theorem notes_choose_stays_in_range (rule : NoteRule) (span mask low : Nat) (s : NoteState) (any step chance : Nat)
     (positive : 0 < span) (loopLength : 0 < rule.amount) (fits : rule.amount ≤ Notes.regLen)
     (valid : NoteState.Valid span rule.amount s) (anyBelow : any < span) :
-    (Notes.choose rule span s any step chance).offset < span ∧
-      NoteState.Valid span rule.amount (Notes.choose rule span s any step chance).state := by
+    (Notes.choose rule span mask low s any step chance).offset < span ∧
+      NoteState.Valid span rule.amount (Notes.choose rule span mask low s any step chance).state := by
   obtain ⟨pos, slot, full, below⟩ := valid
+  have replayOk : (Notes.replay rule span s any chance).offset < span ∧
+      NoteState.Valid span rule.amount (Notes.replay rule span s any chance).state := by
+    have inRange : s.slot < s.reg.length := by omega
+    have kept : s.reg.getD s.slot 0 < span := by
+      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem inRange, Option.getD_some]
+      exact below _ (List.getElem_mem inRange)
+    have value : (if chance < rule.mutate then any else s.reg.getD s.slot 0) < span := by split <;> assumption
+    obtain ⟨len, mem⟩ := notes_set_keeps_memory span s full below s.slot _ value
+    exact ⟨value, pos, Nat.mod_lt _ loopLength, len, mem⟩
+  have moveOk : ∀ p m, p < span → Notes.moveBy span p m < span := by
+    intro p m h; unfold Notes.moveBy; split <;> omega
+  have turingBelow : ∀ b, (b % 256) * span / 256 < span := by
+    intro b
+    rw [Nat.div_lt_iff_lt_mul (by decide : 0 < 256), Nat.mul_comm span 256]
+    exact Nat.mul_lt_mul_of_pos_right (Nat.mod_lt _ (by decide)) positive
   unfold Notes.choose
   split
   · refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only <;> (try split) <;> omega
@@ -58,13 +73,12 @@ theorem notes_choose_stays_in_range (rule : NoteRule) (span : Nat) (s : NoteStat
   · exact ⟨Nat.mod_lt _ positive, Nat.mod_lt _ positive, slot, full, below⟩
   · refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only <;> (try split) <;> (try split) <;> (try dsimp only) <;>
       first | omega | assumption | skip
-  · have inRange : s.slot < s.reg.length := by omega
-    have kept : s.reg.getD s.slot 0 < span := by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem inRange, Option.getD_some]
-      exact below _ (List.getElem_mem inRange)
-    have value : (if chance < rule.mutate then any else s.reg.getD s.slot 0) < span := by split <;> assumption
-    obtain ⟨len, mem⟩ := notes_set_keeps_memory span s full below s.slot _ value
-    exact ⟨value, pos, Nat.mod_lt _ loopLength, len, mem⟩
+  · exact replayOk
+  · refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only <;> first | exact turingBelow _ | exact slot | exact full | exact below
+  · exact replayOk
+  · refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only <;> first | exact moveOk _ _ pos | exact slot | exact full | exact below
+  · refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only <;> first | exact moveOk _ _ pos | exact slot | exact full | exact below
+  · refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only <;> first | omega | exact Nat.mod_lt _ loopLength | exact full | exact below
   · exact ⟨anyBelow, anyBelow, slot, full, below⟩
 
 /-- UP climbs one position a note and wraps at the top, so from position `p` the `i`-th note is at
@@ -112,31 +126,81 @@ theorem notes_down_visits_every_position (span p : Nat) (positive : 0 < span) (s
 
 /-- BOUNCE never jumps: each note is at most one position from the last, in a range of at least two.
 Why it matters: a BOUNCE lane is a smooth up-and-down line; it can never leap across its range. -/
-theorem notes_bounce_moves_one (span : Nat) (s : NoteState) (wide : 2 ≤ span) (inside : s.pos < span)
+theorem notes_bounce_moves_one (span mask low : Nat) (s : NoteState) (wide : 2 ≤ span) (inside : s.pos < span)
     (any step chance : Nat) :
-    (Notes.choose ⟨4, 1, 0⟩ span s any step chance).offset + 1 = s.pos ∨
-      (Notes.choose ⟨4, 1, 0⟩ span s any step chance).offset = s.pos + 1 := by
+    (Notes.choose ⟨4, 1, 0⟩ span mask low s any step chance).offset + 1 = s.pos ∨
+      (Notes.choose ⟨4, 1, 0⟩ span mask low s any step chance).offset = s.pos + 1 := by
   simp only [Notes.choose]
   split <;> (try split) <;> (try dsimp only) <;> omega
 
 /-- WALK moves at most `amount` positions a note (the lane draws its step below `2 * amount + 1`, and the
 position is inside the range).
 Why it matters: the AMOUNT knob is a real limit on how far a WALK lane can jump between two notes. -/
-theorem notes_walk_bounded (amount span : Nat) (s : NoteState) (step any chance : Nat) (inside : s.pos < span)
+theorem notes_walk_bounded (amount span mask low : Nat) (s : NoteState) (step any chance : Nat) (inside : s.pos < span)
     (drawn : step ≤ 2 * amount) :
-    (Notes.choose ⟨1, amount, 0⟩ span s any step chance).offset ≤ s.pos + amount ∧
-      s.pos ≤ (Notes.choose ⟨1, amount, 0⟩ span s any step chance).offset + amount := by
+    (Notes.choose ⟨1, amount, 0⟩ span mask low s any step chance).offset ≤ s.pos + amount ∧
+      s.pos ≤ (Notes.choose ⟨1, amount, 0⟩ span mask low s any step chance).offset + amount := by
   simp only [Notes.choose]
   split <;> (try dsimp only) <;> omega
 
 /-- LOOP with no mutation plays the same note again every `amount` picks: the memory never changes, and the
 slot goes round.
 Why it matters: MUTATE at zero is an exact loop, the hook a listener can hold on to. -/
-theorem notes_loop_repeats (amount span : Nat) (s : NoteState)
+theorem notes_loop_repeats (amount span mask low : Nat) (s : NoteState)
     (fits : amount ≤ s.reg.length) (slot : s.slot < amount) (any step chance : Nat) :
-    (Notes.choose ⟨5, amount, 0⟩ span s any step chance).state.reg = s.reg ∧
-      (Notes.choose ⟨5, amount, 0⟩ span s any step chance).state.slot = (s.slot + 1) % amount ∧
-      (Notes.choose ⟨5, amount, 0⟩ span s any step chance).offset = s.reg.getD s.slot 0 := by
+    (Notes.choose ⟨5, amount, 0⟩ span mask low s any step chance).state.reg = s.reg ∧
+      (Notes.choose ⟨5, amount, 0⟩ span mask low s any step chance).state.slot = (s.slot + 1) % amount ∧
+      (Notes.choose ⟨5, amount, 0⟩ span mask low s any step chance).offset = s.reg.getD s.slot 0 := by
   have inRange : s.slot < s.reg.length := by omega
-  simp only [Notes.choose, Nat.not_lt_zero, ite_false, and_true]
+  simp only [Notes.choose, Notes.replay, Nat.not_lt_zero, ite_false, and_true]
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem inRange, Option.getD_some, List.set_getElem_self]
+
+/-- A picked move is one of the seven classes. -/
+private theorem notes_pick_move_bounded (weights : List Nat) (base pick : Nat) :
+    Notes.pickMove weights base pick < Notes.moves := by
+  unfold Notes.pickMove Notes.moves
+  simp only
+  omega
+
+/-- MARKOV moves at most three positions a note, jump or no jump (the move classes are -3 to +3, and a doubled
+move is cut to that range).
+Why it matters: a markov lane walks; whatever it learnt from the keys or the style says, it never leaps across
+its range. -/
+theorem notes_markov_moves_at_most_three (amount mutate span mask low : Nat) (s : NoteState)
+    (any step chance : Nat) (inside : s.pos < span) :
+    (Notes.choose ⟨8, amount, mutate⟩ span mask low s any step chance).offset ≤ s.pos + 3 ∧
+      s.pos ≤ (Notes.choose ⟨8, amount, mutate⟩ span mask low s any step chance).offset + 3 := by
+  simp only [Notes.choose]
+  have bound := notes_pick_move_bounded (Notes.chainWeights amount s.chain) (s.last % Notes.moves * Notes.moves)
+    (if Notes.rowTotal (Notes.chainWeights amount s.chain) (s.last % Notes.moves * Notes.moves) = 0 then 0
+      else any * Notes.rowTotal (Notes.chainWeights amount s.chain) (s.last % Notes.moves * Notes.moves) / span)
+  generalize Notes.pickMove _ _ _ = move at *
+  unfold Notes.moves at bound
+  unfold Notes.moveBy
+  split <;> split <;> (try split) <;> omega
+
+/-- GRAMMAR moves at most two positions a note: its symbols step or skip, up or down.
+Why it matters: the grammar shapes a line of steps and thirds, never a leap, whatever grammar and depth. -/
+theorem notes_grammar_moves_at_most_two (amount mutate span mask low : Nat) (s : NoteState)
+    (any step chance : Nat) (inside : s.pos < span) :
+    (Notes.choose ⟨9, amount, mutate⟩ span mask low s any step chance).offset ≤ s.pos + 2 ∧
+      s.pos ≤ (Notes.choose ⟨9, amount, mutate⟩ span mask low s any step chance).offset + 2 := by
+  simp only [Notes.choose]
+  generalize (Notes.phraseOf amount (mutate / 25)).getD s.phrase 0 = sym
+  unfold Notes.moveBy Notes.grammarMove
+  split <;> split <;> omega
+
+/-- A key the player presses leaves the memory consistent, for any note: the step sequencer writes it into
+the range, the markov chain counts it.
+Why it matters: nothing you play can corrupt the memory the lane plays from. -/
+theorem notes_learn_keeps_valid (rule : NoteRule) (span : Nat) (s : NoteState) (offset : Nat)
+    (positive : 0 < span) (valid : NoteState.Valid span rule.amount s) :
+    NoteState.Valid span rule.amount (Notes.learn rule span s offset) := by
+  obtain ⟨pos, slot, full, below⟩ := valid
+  unfold Notes.learn
+  have cut : min (span - 1) offset < span := by omega
+  split
+  · obtain ⟨len, mem⟩ := notes_set_keeps_memory span s full below s.cursor _ cut
+    exact ⟨cut, slot, len, mem⟩
+  · exact ⟨cut, slot, full, below⟩
+  · exact ⟨pos, slot, full, below⟩

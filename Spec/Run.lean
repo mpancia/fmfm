@@ -1,17 +1,22 @@
 import Firmware.Lane
 import Spec.Lane
 
-/-- What the firmware can do to a lane between notes: a clock tick, or a change of settings from the knobs. -/
+/-- What the firmware can do to a lane between notes: a clock tick, a change of settings from the knobs, or a
+key the player presses. -/
 inductive Lane.Op
   | tick
   | reconfigure (hits steps div mask : Nat)
   | setNotes (algo prob amount mutate : Nat)
+  | setRhythm (kind rotate accents rule ratchet subHits : Nat) (reseed : Bool)
+  | learn (note : Nat)
 
 /-- Apply one operation. -/
 def Lane.apply (l : Lane) : Lane.Op → Lane
   | .tick => l.tick
   | .reconfigure h s d m => l.reconfigure h s d m
   | .setNotes a p n m => l.setNotes a p n m
+  | .setRhythm k r a u t s re => l.setRhythm k r a u t s re
+  | .learn n => l.learn n
 
 /-- The lane after a list of operations, oldest first. -/
 def Lane.run (l : Lane) : List Lane.Op → Lane
