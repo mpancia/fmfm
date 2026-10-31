@@ -34,6 +34,7 @@ in `voices/`:
 | `Firmware/Percussion.lean` | kick, snare, cymbal, struck bell, struck drum, and Braids' `Svf` and `Excitation` | `percussion_glue.c` |
 | `Firmware/Physical.lean` | comb filter, plucked, bowed, blown, fluted | `physical_glue.c` |
 | `Firmware/Macro.lean` | the macro oscillator's mixing of the above | `macro_glue.c` |
+| `Firmware/Smooth.lean` | the per-sample smoothing of a parameter and of the phase step across a block | `analog_glue.c`, `digital_glue.c`, `macro_glue.c` (included next to the engine's own Api) |
 
 What stays C++ in `voices/braids/`: the per-block setup (pitch to phase step, filter coefficients, which waves
 or partials a block uses, the hysteresis on parameters), the delay lines and state arrays (the glue does every
@@ -93,9 +94,18 @@ glue draws the numbers and passes them in, so the sequence is the one Braids pro
   gains; a wavetable sample is the sum of its halves (`Proofs/Filters.lean`, `Noise.lean`, `Percussion.lean`,
   `Physical.lean`, `Wavetables.lean`); the two blends every table read is built from land between the values
   they blend, so the sine never exceeds its table, a wave crossfade never exceeds its waves and a macro mix is
-  never louder than its louder input (`Proofs/Blend.lean`, `Analog.lean`, `Wavetables.lean`, `Digital.lean`). The guarantee that the engines sound like Braids is the differential test.
+  never louder than its louder input (`Proofs/Blend.lean`, `Analog.lean`, `Wavetables.lean`, `Digital.lean`);
+  the samples of the comb, plucked, bowed and fluted engines, the blown pipe's output filter, the snare,
+  cymbal, bell and drum partials, the drum mix, and the noise resonators, boost, burst and grains are the exact
+  arithmetic clipped, not wrapped, under the ranges the glue hands over, and the friction, jet, overdrive and
+  grain-envelope reads stay inside their tables (`Proofs/Physical.lean`, `Percussion.lean`, `Noise.lean`).
+  The guarantee that the engines sound like Braids is the differential test.
+- Samples that Braids itself can overflow are not proved: the kick's low-pass step, the blown pipe's reed
+  product and the state-variable filter's cutoff times high-pass can pass 32 bits at the extremes of their
+  clipped states, and the clocked noise's quantized value can pass 16 bits; the Lean matches Braids there.
 - Indexes that depend on C data are not proved: the comb zone (0 to 14), the formant amplitude (0 to 15), the
-  grain envelope phase (reset per block by C++), the bowing and blowing envelope pointers (clamped per block by
-  C++) and the question mark's position in its code table (bounded by the stop symbol in the data).
+  bowing and blowing envelope pointers (clamped per block by C++) and the question mark's position in its code
+  table (bounded by the stop symbol in the data). The grain envelope read is proved only given the per-block
+  reset and the rate table's top value.
 - The chip's CPU cost of the Lean path is unmeasured; on x86 the analog oscillators run at about 1.3 times the
   original's time per sample.

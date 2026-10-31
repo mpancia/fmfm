@@ -41,15 +41,19 @@ half the oscillator's). `balance` is the position between the waves. A sync puls
   let s2 := (Wavetables.crossfade waveA waveB (p2 >>> 1) balance) >>> 1
   { phase := p2, out := (s1 + s2).toInt16 }
 
-/-- A wave picked from a 16 by 16 map: the four corner waves of one square, blended by `xfadeX` (between the
-rows) and `xfadeY` (between the columns). -/
-@[inline] def Wavetables.waveMap (phase inc w00 w01 w10 w11 xfadeX xfadeY : UInt32) (sync : UInt8) : WaveStep :=
+/-- One half-rate reading of a wave map: the four corner waves of one square, blended by `xfadeY` (between the
+columns) then `xfadeX` (between the rows), halved. -/
+@[inline] def Wavetables.mapRead (p w00 w01 w10 w11 xfadeX xfadeY : UInt32) : Int32 :=
+  (Digital.mix (Wavetables.crossfade w00 w01 (p >>> 1) xfadeY) (Wavetables.crossfade w10 w11 (p >>> 1) xfadeY)
+    (xfadeX &&& 0xFFFF)) >>> 1
+
+/-- A wave picked from a 16 by 16 map, read twice per sample at half the phase step. -/
+@[inline] def Wavetables.waveMap (phase inc w00 w01 w10 w11 xfadeX xfadeY : UInt32) (sync : UInt8) :
+    WaveStep :=
   let p1 := if sync != 0 then 0 else phase + inc
   let p2 := p1 + inc
-  let one (p : UInt32) : Int32 :=
-    (Digital.mix (Wavetables.crossfade w00 w01 (p >>> 1) xfadeY) (Wavetables.crossfade w10 w11 (p >>> 1) xfadeY)
-      (xfadeX &&& 0xFFFF)) >>> 1
-  { phase := p2, out := (one p1 + one p2).toInt16 }
+  { phase := p2, out := (Wavetables.mapRead p1 w00 w01 w10 w11 xfadeX xfadeY +
+      Wavetables.mapRead p2 w00 w01 w10 w11 xfadeX xfadeY).toInt16 }
 
 /-- A half step of the wave line: two readings (a, b), each a crossfade of two waves with its own phase mask,
 mixed by `balance`. The mask blocks the phase to fewer steps, which makes the "rough" reading. -/

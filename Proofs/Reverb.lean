@@ -1,4 +1,6 @@
+import Firmware.Mix
 import Firmware.Reverb
+import Spec.Reverb
 
 /-- `min t 100` is at most 100. -/
 private theorem reverb_clamped_setting (t : UInt32) : (min t 100).toNat ≤ 100 := by
@@ -333,3 +335,302 @@ theorem reverb_modulated_read_stays_in_line (scale lfo : UInt32) (lo : 192 ≤ s
   have w1 : 60 * scale.toNat * lfo.toNat ≤ 60 * scale.toNat * 32767 := Nat.mul_le_mul_left _ wobble
   have w2 : 100 * scale.toNat * lfo.toNat ≤ 100 * scale.toNat * 32767 := Nat.mul_le_mul_left _ wobble
   omega
+
+/-- A signal times a gain of at most 1.0 in size, either sign, is no larger in size than the signal. -/
+private theorem reverb_mul_shrinks (s g : Int32) (nonmin : -2 ^ 31 < s.toInt)
+    (unit : g.toInt.natAbs ≤ 32768) : (Reverb.mul s g).toInt.natAbs ≤ s.toInt.natAbs := by
+  rw [reverb_mul_value s g nonmin unit]
+  have hp : (s.toInt * g.toInt).natAbs ≤ s.toInt.natAbs * 32768 := by
+    rw [Int.natAbs_mul]; exact Nat.mul_le_mul_left _ unit
+  generalize s.toInt * g.toInt = p at *
+  omega
+
+/-- The product's size, in Q15, is at most the signal's size times the gain's plus half a step of rounding. -/
+private theorem reverb_mul_rounds (s g : Int32) (nonmin : -2 ^ 31 < s.toInt)
+    (unit : g.toInt.natAbs ≤ 32768) :
+    (Reverb.mul s g).toInt.natAbs * 32768 ≤ s.toInt.natAbs * g.toInt.natAbs + 16384 := by
+  rw [reverb_mul_value s g nonmin unit]
+  have hp : (s.toInt * g.toInt).natAbs = s.toInt.natAbs * g.toInt.natAbs := Int.natAbs_mul _ _
+  generalize s.toInt * g.toInt = p at *
+  generalize s.toInt.natAbs * g.toInt.natAbs = q at *
+  omega
+
+/-- Negating a gain of at most 1.0 in size is exact. -/
+private theorem reverb_neg_value (g : Int32) (unit : g.toInt.natAbs ≤ 32768) : (-g).toInt = -g.toInt := by
+  rw [Int32.toInt_neg]; exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- Twice a signal within a quarter of the range, as `Reverb.mul` by 2.0 computes it, is exact. -/
+private theorem reverb_double_value (s : Int32) (fits : s.toInt.natAbs < 2 ^ 30) :
+    (Reverb.mul s 65536).toInt = 2 * s.toInt := by
+  unfold Reverb.mul
+  rw [Int64.toInt_toInt32, reverb_shift15, Int64.toInt_add, Int64.toInt_mul, Int32.toInt_toInt64,
+    Int32.toInt_toInt64]
+  have c1 : (16384 : Int64).toInt = 16384 := by decide
+  have c2 : (65536 : Int32).toInt = 65536 := by decide
+  rw [c1, c2]
+  have e1 : Int.bmod (s.toInt * 65536) (2 ^ 64) = s.toInt * 65536 := Int.bmod_eq_of_le (by omega) (by omega)
+  rw [e1]
+  have e2 : Int.bmod (s.toInt * 65536 + 16384) (2 ^ 64) = s.toInt * 65536 + 16384 :=
+    Int.bmod_eq_of_le (by omega) (by omega)
+  rw [e2]
+  have e3 : (s.toInt * 65536 + 16384) / 32768 = 2 * s.toInt := by omega
+  rw [e3]
+  exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- The low-pass output is no larger in size than the larger of its state and its signal. -/
+private theorem reverb_lowpass_bounded (state signal amount : Int32) (hs : state.toInt.natAbs < 2 ^ 30)
+    (hx : signal.toInt.natAbs < 2 ^ 30) (nonneg : 0 ≤ amount.toInt) (unit : amount.toInt ≤ 32768) :
+    (Reverb.lowpass state signal amount).toInt.natAbs ≤ max state.toInt.natAbs signal.toInt.natAbs := by
+  have := reverb_lowpass_stays_between state signal amount hs hx nonneg unit
+  omega
+
+/-- An allpass adds at most twice the size of the sample it read to the size of the accumulator, with no
+wrap, when the accumulator is within a quarter of the range. -/
+private theorem reverb_allpass_bounded (acc oldest gain : Int32) (accFits : acc.toInt.natAbs ≤ 2 ^ 30)
+    (read : Reverb.fromMemory oldest) (unit : gain.toInt.natAbs ≤ 32768) :
+    (Reverb.allpass acc oldest gain).toInt.natAbs ≤ acc.toInt.natAbs + 2 * oldest.toInt.natAbs := by
+  unfold Reverb.fromMemory at *
+  dsimp only [Reverb.allpass]
+  have negUnit : (-gain).toInt.natAbs ≤ 32768 := by rw [reverb_neg_value gain unit]; omega
+  have m1 := reverb_mul_shrinks oldest (-gain) (by omega) negUnit
+  generalize Reverb.mul oldest (-gain) = fromLine at *
+  have s1 := reverb_add_exact acc fromLine (by omega)
+  generalize acc + fromLine = summed at *
+  have m2 := reverb_mul_shrinks summed gain (by omega) unit
+  generalize Reverb.mul summed gain = passed at *
+  have s2 := reverb_add_exact passed oldest (by omega)
+  rw [s2]
+  omega
+
+/-- A stored sample, read back, is the stored 16 bits times 8, exactly. -/
+private theorem reverb_decompress_value (stored : Int16) :
+    (Reverb.decompress stored).toInt = stored.toInt * 8 := by
+  unfold Reverb.decompress
+  rw [Int32.toInt_mul, Int16.toInt_toInt32]
+  have c : (8 : Int32).toInt = 8 := by decide
+  rw [c]
+  have lo := Int16.le_toInt stored
+  have hi := Int16.toInt_lt stored
+  exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- What the memory holds of a signal, times 8, is no larger in size than the signal: the division rounds
+towards zero and the saturation only cuts. -/
+private theorem reverb_compress_shrinks (signal : Int32) :
+    (Reverb.compress signal).toInt.natAbs * 8 ≤ signal.toInt.natAbs := by
+  have tdiv : ∀ a : Int, a.tdiv 8 = if 0 ≤ a then a / 8 else -((-a) / 8) := by
+    intro a
+    rw [Int.tdiv_eq_ediv]
+    split <;> split <;> simp [Int.sign] <;> omega
+  have stored : (signal / 8).toInt = signal.toInt.tdiv 8 := by
+    rw [Int32.toInt_div_of_ne_right]; · rfl
+    decide
+  rw [tdiv] at stored
+  unfold Reverb.compress
+  dsimp only
+  have c1 : (32767 : Int32).toInt = 32767 := by decide
+  have c2 : (-32768 : Int32).toInt = -32768 := by decide
+  have above : (signal / 8 > 32767) ↔ (32767 < (signal / 8).toInt) := by
+    show (32767 < signal / 8) ↔ _
+    rw [Int32.lt_iff_toInt_lt, c1]
+  have below : (signal / 8 < -32768) ↔ ((signal / 8).toInt < -32768) := by
+    rw [Int32.lt_iff_toInt_lt, c2]
+  by_cases h1 : signal / 8 > 32767
+  · have := above.mp h1
+    simp only [h1, ite_true]
+    have c3 : (32767 : Int16).toInt = 32767 := by decide
+    rw [c3]; split at stored <;> omega
+  · by_cases h2 : signal / 8 < -32768
+    · have := below.mp h2
+      simp only [h1, h2, ite_true, ite_false]
+      have c4 : (-32768 : Int16).toInt = -32768 := by decide
+      rw [c4]; split at stored <;> omega
+    · have a := mt above.mpr h1
+      have b := mt below.mpr h2
+      simp only [h1, h2, ite_false]
+      rw [Int32.toInt_toInt16, Int.bmod_eq_of_le (by omega) (by omega)]
+      split at stored <;> omega
+
+/-- A sample read back from the memory is at most 8.0 in size. -/
+private theorem reverb_decompress_in_memory (stored : Int16) :
+    Reverb.fromMemory (Reverb.decompress stored) := by
+  unfold Reverb.fromMemory
+  rw [reverb_decompress_value]
+  have lo := Int16.le_toInt stored
+  have hi := Int16.toInt_lt stored
+  omega
+
+/-- Half a trip round the undriven tank scales a sample's size by at most the decay gain, plus half a step of
+rounding. -/
+private theorem reverb_half_trip_decays (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
+    (decayUnit : decay.toInt.natAbs ≤ 32768) (brightNonneg : 0 ≤ bright.toInt)
+    (brightUnit : bright.toInt ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) :
+    (Reverb.decompress (Reverb.halfTrip tail decay bright diffusion)).toInt.natAbs * 32768 ≤
+      tail.toInt.natAbs * decay.toInt.natAbs + 16384 := by
+  unfold Reverb.fromMemory at read
+  unfold Reverb.halfTrip Reverb.loop Reverb.loopSmooth
+  rw [reverb_decompress_value]
+  have zero : (0 : Int32).toInt = 0 := by decide
+  have quiet : Reverb.fromMemory 0 := by unfold Reverb.fromMemory; rw [zero]; decide
+  have negUnit : (-diffusion).toInt.natAbs ≤ 32768 := by rw [reverb_neg_value diffusion diffusionUnit]; omega
+  have shrink := reverb_mul_shrinks tail decay (by omega) decayUnit
+  have round := reverb_mul_rounds tail decay (by omega) decayUnit
+  have fed := reverb_add_exact 0 (Reverb.mul tail decay) (by omega)
+  rw [zero, Int.zero_add] at fed
+  have smooth := reverb_lowpass_bounded 0 (0 + Reverb.mul tail decay) bright (by rw [zero]; decide)
+    (by omega) brightNonneg brightUnit
+  rw [fed, zero, Int.natAbs_zero] at smooth
+  generalize Reverb.lowpass 0 (0 + Reverb.mul tail decay) bright = smoothed at *
+  have first := reverb_allpass_bounded smoothed 0 diffusion (by omega) quiet diffusionUnit
+  rw [zero, Int.natAbs_zero] at first
+  generalize Reverb.allpass smoothed 0 diffusion = afterA at *
+  have second := reverb_allpass_bounded afterA 0 (-diffusion) (by omega) quiet negUnit
+  rw [zero, Int.natAbs_zero] at second
+  generalize Reverb.allpass afterA 0 (-diffusion) = afterB at *
+  have cut := reverb_compress_shrinks afterB
+  have chain : (Reverb.compress afterB).toInt.natAbs * 8 ≤ (Reverb.mul tail decay).toInt.natAbs := by omega
+  rw [Int.natAbs_mul]
+  have eight : (8 : Int).natAbs = 8 := rfl
+  rw [eight]
+  exact Nat.le_trans (Nat.mul_le_mul_right 32768 chain) round
+
+/-- One trip round the undriven tank (through both loops) scales a sample's size by the decay gain squared,
+plus at most one unit of rounding: in Q15, the sample read from a long delay comes back to that delay as at
+most `tail · decay² / 2^30 + 1`. Each loop applies the decay gain once, so a round trip applies it twice.
+The loop gain is at most 0.98 (`reverb_gains_below_one`), so the squared gain is at most 0.96. This follows
+one sample's direct path with the rest of the tank quiet: what the low-passes and the allpass lines hold
+comes out on later samples and is bounded by the same gains on its own trips.
+Why it matters: with nothing fed in, the tail gets quieter on every trip round the tank until it is within a
+rounding step of silence; no decay setting can make the reverb ring on or build up. -/
+theorem reverb_round_trip_decays (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
+    (decayUnit : decay.toInt.natAbs ≤ 32768) (brightNonneg : 0 ≤ bright.toInt)
+    (brightUnit : bright.toInt ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) :
+    (Reverb.decompress (Reverb.roundTrip tail decay bright diffusion)).toInt.natAbs * 2 ^ 30 ≤
+      tail.toInt.natAbs * decay.toInt.natAbs * decay.toInt.natAbs + 2 ^ 30 := by
+  unfold Reverb.roundTrip
+  have negUnit : (-diffusion).toInt.natAbs ≤ 32768 := by rw [reverb_neg_value diffusion diffusionUnit]; omega
+  have first := reverb_half_trip_decays tail decay bright diffusion read decayUnit brightNonneg brightUnit
+    diffusionUnit
+  have second := reverb_half_trip_decays _ decay bright (-diffusion)
+    (reverb_decompress_in_memory (Reverb.halfTrip tail decay bright diffusion)) decayUnit brightNonneg
+    brightUnit negUnit
+  generalize (Reverb.decompress (Reverb.halfTrip tail decay bright diffusion)).toInt.natAbs = middle at *
+  generalize (Reverb.decompress (Reverb.halfTrip (Reverb.decompress
+    (Reverb.halfTrip tail decay bright diffusion)) decay bright (-diffusion))).toInt.natAbs = out at *
+  generalize tail.toInt.natAbs = t at *
+  generalize decay.toInt.natAbs = d at *
+  calc out * 2 ^ 30 = out * 32768 * 32768 := by rw [Nat.mul_assoc]
+    _ ≤ (middle * d + 16384) * 32768 := Nat.mul_le_mul_right _ second
+    _ = middle * 32768 * d + 16384 * 32768 := by rw [Nat.add_mul, Nat.mul_right_comm]
+    _ ≤ (t * d + 16384) * d + 16384 * 32768 := Nat.add_le_add_right (Nat.mul_le_mul_right _ first) _
+    _ = t * d * d + 16384 * d + 16384 * 32768 := by rw [Nat.add_mul]
+    _ ≤ t * d * d + 16384 * 32768 + 16384 * 32768 :=
+      Nat.add_le_add_right (Nat.add_le_add_left (Nat.mul_le_mul_left _ decayUnit) _) _
+    _ = t * d * d + 2 ^ 30 := by omega
+
+/-- The four diffusers add at most 64.0 to the size of a send of at most 4096.0. -/
+private theorem reverb_diffuse_bounded (send inputGain diffusion oldest1 oldest2 oldest3 oldest4 : Int32)
+    (sendFits : send.toInt.natAbs ≤ 2 ^ 27) (inputUnit : inputGain.toInt.natAbs ≤ 32768)
+    (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) (read1 : Reverb.fromMemory oldest1)
+    (read2 : Reverb.fromMemory oldest2) (read3 : Reverb.fromMemory oldest3)
+    (read4 : Reverb.fromMemory oldest4) :
+    (Reverb.diffuse send inputGain diffusion oldest1 oldest2 oldest3 oldest4).toInt.natAbs ≤
+      2 ^ 27 + 2 ^ 21 := by
+  unfold Reverb.fromMemory at *
+  have negUnit : (-diffusion).toInt.natAbs ≤ 32768 := by rw [reverb_neg_value diffusion diffusionUnit]; omega
+  dsimp only [Reverb.diffuse]
+  have fed := reverb_mul_shrinks send inputGain (by omega) inputUnit
+  generalize Reverb.mul send inputGain = fed0 at *
+  have a1 := reverb_allpass_bounded fed0 oldest1 (-diffusion) (by omega) read1 negUnit
+  generalize Reverb.allpass fed0 oldest1 (-diffusion) = after1 at *
+  have a2 := reverb_allpass_bounded after1 oldest2 (-diffusion) (by omega) read2 negUnit
+  generalize Reverb.allpass after1 oldest2 (-diffusion) = after2 at *
+  have a3 := reverb_allpass_bounded after2 oldest3 (-diffusion) (by omega) read3 negUnit
+  generalize Reverb.allpass after2 oldest3 (-diffusion) = after3 at *
+  have a4 := reverb_allpass_bounded after3 oldest4 (-diffusion) (by omega) read4 negUnit
+  omega
+
+/-- A loop's low-pass output stays within 2^28 when its input is within 2^27 + 2^21 and its state within
+2^28. -/
+private theorem reverb_loop_smooth_bounded (input tail state decay bright : Int32)
+    (inputFits : input.toInt.natAbs ≤ 2 ^ 27 + 2 ^ 21) (stateFits : state.toInt.natAbs ≤ 2 ^ 28)
+    (decayUnit : decay.toInt.natAbs ≤ 32768) (brightNonneg : 0 ≤ bright.toInt)
+    (brightUnit : bright.toInt ≤ 32768) (readTail : Reverb.fromMemory tail) :
+    (Reverb.loopSmooth input tail state decay bright).toInt.natAbs ≤ 2 ^ 28 := by
+  unfold Reverb.fromMemory at *
+  dsimp only [Reverb.loopSmooth]
+  have m := reverb_mul_shrinks tail decay (by omega) decayUnit
+  generalize Reverb.mul tail decay = fed at *
+  have sum := reverb_add_exact input fed (by omega)
+  generalize input + fed = summed at *
+  have lp := reverb_lowpass_bounded state summed bright (by omega) (by omega) brightNonneg brightUnit
+  generalize Reverb.lowpass state summed bright = smoothed at *
+  omega
+
+/-- A loop's two allpasses add at most 32.0 to the size of its low-pass output. -/
+private theorem reverb_loop_bounded (input tail state oldestA oldestB decay bright diffusion : Int32)
+    (smoothFits : (Reverb.loopSmooth input tail state decay bright).toInt.natAbs ≤ 2 ^ 28)
+    (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) (readA : Reverb.fromMemory oldestA)
+    (readB : Reverb.fromMemory oldestB) :
+    (Reverb.loop input tail state oldestA oldestB decay bright diffusion).toInt.natAbs ≤ 2 ^ 28 + 2 ^ 20 := by
+  unfold Reverb.fromMemory at *
+  have negUnit : (-diffusion).toInt.natAbs ≤ 32768 := by rw [reverb_neg_value diffusion diffusionUnit]; omega
+  dsimp only [Reverb.loop]
+  generalize Reverb.loopSmooth input tail state decay bright = smoothed at *
+  have b1 := reverb_allpass_bounded smoothed oldestA diffusion (by omega) readA diffusionUnit
+  generalize Reverb.allpass smoothed oldestA diffusion = afterA at *
+  have b2 := reverb_allpass_bounded afterA oldestB (-diffusion) (by omega) readB negUnit
+  omega
+
+/-- The wet sample a loop hands to the mixer is exactly twice the sum the loop stores (no wrap in the
+doubling or in any addition before it), it is at most 16448.0 in size (2^29 + 2^21, a quarter of the 32-bit
+range), the low-pass's new state stays within 8192.0 (2^28), and the mixer's return gain of up to 2.0
+(`Mix.wetSample`) then scales it with no wrap either. This holds for a send of at most 4096.0 (2^27; six
+voices put far less on the bus), a low-pass state of at most 8192.0 (which the third claim keeps true from
+one sample to the next, starting from a cleared state), gains of at most 1.0 in size, and samples read from
+the memory (at most 8.0 each, by its 16-bit format).
+Why it matters: the reverb's output can never wrap round to the opposite sign on its way into the mix, which
+would turn a loud tail into full-scale noise. -/
+theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state returnGain : Int32)
+    (oldest1 oldest2 oldest3 oldest4 tail oldestA oldestB : Int32)
+    (sendFits : send.toInt.natAbs ≤ 2 ^ 27) (stateFits : state.toInt.natAbs ≤ 2 ^ 28)
+    (inputUnit : inputGain.toInt.natAbs ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768)
+    (decayUnit : decay.toInt.natAbs ≤ 32768) (brightNonneg : 0 ≤ bright.toInt)
+    (brightUnit : bright.toInt ≤ 32768) (returnUnit : returnGain.toInt.natAbs ≤ 65536)
+    (read1 : Reverb.fromMemory oldest1) (read2 : Reverb.fromMemory oldest2)
+    (read3 : Reverb.fromMemory oldest3) (read4 : Reverb.fromMemory oldest4)
+    (readTail : Reverb.fromMemory tail) (readA : Reverb.fromMemory oldestA)
+    (readB : Reverb.fromMemory oldestB) :
+    let input := Reverb.diffuse send inputGain diffusion oldest1 oldest2 oldest3 oldest4
+    let stored := Reverb.loop input tail state oldestA oldestB decay bright diffusion
+    let wet := Reverb.mul stored 65536
+    wet.toInt = 2 * stored.toInt ∧ wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21 ∧
+      (Reverb.loopSmooth input tail state decay bright).toInt.natAbs ≤ 2 ^ 28 ∧
+      (Mix.wetSample wet returnGain).toInt = wet.toInt * returnGain.toInt / 32768 := by
+  intro input stored wet
+  have inputIs : input = Reverb.diffuse send inputGain diffusion oldest1 oldest2 oldest3 oldest4 := rfl
+  have storedIs : stored = Reverb.loop input tail state oldestA oldestB decay bright diffusion := rfl
+  have wetIs : wet = Reverb.mul stored 65536 := rfl
+  clear_value input stored wet
+  subst storedIs wetIs
+  have inputFits : input.toInt.natAbs ≤ 2 ^ 27 + 2 ^ 21 := by
+    rw [inputIs]
+    exact reverb_diffuse_bounded send inputGain diffusion oldest1 oldest2 oldest3 oldest4 sendFits inputUnit
+      diffusionUnit read1 read2 read3 read4
+  have smoothFits := reverb_loop_smooth_bounded input tail state decay bright inputFits stateFits decayUnit
+    brightNonneg brightUnit readTail
+  have storedFits := reverb_loop_bounded input tail state oldestA oldestB decay bright diffusion smoothFits
+    diffusionUnit readA readB
+  generalize Reverb.loopSmooth input tail state decay bright = smoothed at *
+  generalize Reverb.loop input tail state oldestA oldestB decay bright diffusion = stored at *
+  have doubled := reverb_double_value stored (by omega)
+  refine ⟨doubled, by omega, smoothFits, ?_⟩
+  generalize Reverb.mul stored 65536 = wet at *
+  clear inputIs
+  unfold Mix.wetSample
+  rw [Int64.toInt_toInt32, reverb_shift15, Int64.toInt_mul, Int32.toInt_toInt64, Int32.toInt_toInt64]
+  have product : (wet.toInt * returnGain.toInt).natAbs ≤ (2 ^ 29 + 2 ^ 21) * 65536 := by
+    rw [Int.natAbs_mul]; exact Nat.mul_le_mul (by omega) returnUnit
+  generalize wet.toInt * returnGain.toInt = p at *
+  have inner : p.bmod (2 ^ 64) = p := Int.bmod_eq_of_le (by omega) (by omega)
+  rw [inner]
+  exact Int.bmod_eq_of_le (by omega) (by omega)

@@ -1,4 +1,3 @@
-import Firmware.Kernels
 import Firmware.Random
 import Firmware.Divider
 import Firmware.Euclid
@@ -28,3 +27,8 @@ import Firmware.Macro
 import Firmware.MacroApi
 import Firmware.Reverb
 import Firmware.ReverbApi
+import Firmware.Mix
+import Firmware.Smooth
+import Firmware.SmoothApi
+import Firmware.Patch
+import Firmware.PatchApi

@@ -6,6 +6,14 @@ cd "$(dirname "$0")/.."
 T=pi32v2
 sh tools/build_lean_fw.sh $T
 . tools/target_env.sh
+# A definition with no arguments becomes a global that only the module initialiser fills, and the firmware runs
+# no initialisers: it would be read as nil. Fail if any generated code reads one.
+for g in $(sed -n 's/^LEAN_EXPORT lean_object\* \(lp_[A-Za-z0-9_]*\);$/\1/p' .lake/build/ir/Firmware/*.c | sort -u); do
+    if grep -h "$g" .lake/build/ir/Firmware/*.c | grep -v "^LEAN_EXPORT\|_init_$g\|lean_mark_persistent($g)" | grep -q .; then
+        echo "lean-check: $g is a global filled by a module initialiser and read by firmware code; make it a function"
+        exit 1
+    fi
+done
 EXPORTS=$(sed -n 's/^@\[export \([A-Za-z0-9_]*\)\].*/\1/p' $(for f in Firmware/*.lean; do echo "$(sh tools/glue_modules.sh)" | grep -qx "$(basename "$f" .lean)" || echo "$f"; done))
 [ -n "$EXPORTS" ] || { echo "no @[export] functions in Firmware/"; exit 1; }
 $CC -Os -ffunction-sections -w -include stdint.h -c fw/firmware/src/libc.c -o build/lean/$T/libc.o     # memcpy etc., as in the real firmware

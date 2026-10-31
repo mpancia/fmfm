@@ -1,5 +1,6 @@
 import Firmware.Analog
 import Proofs.Blend
+import Spec.Analog
 
 /-- Clamping to 65535 leaves a value of at most 65535. -/
 private theorem analog_clamp_le (t : UInt32) : (if t > 65535 then (65535 : UInt32) else t).toNat ≤ 65535 := by
@@ -136,3 +137,17 @@ theorem analog_sine_between_entries (phase : UInt32) :
   rw [Int16.toInt_minValue] at hx' hy'
   have := blend_sixteen_between x.toInt32 y.toInt32 (phase >>> 8) (by simp; omega) (by simp; omega)
   simpa using this
+
+/-- Left to run, an oscillator's phase after `n` samples is exactly `phase + n * inc`, wrapped at 2^32.
+Why it matters: a note's pitch is exact for as long as it sounds: the frequency is `inc / 2^32` of the sample
+rate with no rounding error building up, so a long drone does not drift and two lanes an octave apart stay
+locked. -/
+theorem analog_phase_exact (phase inc : UInt32) (n : Nat) :
+    (Analog.freeRun phase inc n).toNat = (phase.toNat + n * inc.toNat) % 2 ^ 32 := by
+  induction n with
+  | zero => simp [Analog.freeRun, Nat.mod_eq_of_lt phase.toNat_lt]
+  | succ n ih =>
+    simp only [Analog.freeRun, Analog.saw]
+    simp only [bne_self_eq_false, Bool.false_eq_true, ite_false, UInt32.toNat_add, ih,
+      Nat.succ_mul]
+    omega

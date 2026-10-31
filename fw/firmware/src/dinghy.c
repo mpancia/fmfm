@@ -82,8 +82,9 @@ static void app_audio(int32_t *out, uint32_t n)
     fm1_reverb_block(send_bus, wet_left, wet_right, n);
     for (i = 0; i < n; i++) {
         const uint32_t gain = (uint32_t)reverb_return;
-        out[2u * i] += (int32_t)fm1_mix_wet_sample((uint32_t)wet_left[i], gain);
-        out[2u * i + 1u] += (int32_t)fm1_mix_wet_sample((uint32_t)wet_right[i], gain);
+        int32_t *l = &out[2u * i], *r = l + 1;
+        *l = (int32_t)fm1_mix_limit((uint32_t)(*l + (int32_t)fm1_mix_wet_sample((uint32_t)wet_left[i], gain)));
+        *r = (int32_t)fm1_mix_limit((uint32_t)(*r + (int32_t)fm1_mix_wet_sample((uint32_t)wet_right[i], gain)));
     }
 }
 
@@ -177,13 +178,6 @@ static char patch_name[20] = "INIT";
 
 #define NUSER 8u
 #define NBROWSE (NPATCHES + NUSER)
-typedef struct {
-    uint8_t magic, bpm, key, progression, rate, scale_lock;
-    uint8_t reverb[3];                          /* decay, brightness, return */
-    char name[16];
-    patch_lane_t lane[NL];
-} user_patch_t;
-#define USER_MAGIC 0xA7u
 
 static uint32_t chord_root(void) { return progression ? PROGRESSION[progression][chord_index & 3u] : 0u; }
 
@@ -278,15 +272,57 @@ static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint
     }
 }
 
+static void user_name(char *name, uint32_t slot)    /* "USER 1" to "USER 8" */
+{
+    static const char prefix[] = "USER ";
+    uint32_t i;
+    for (i = 0; prefix[i]; i++) name[i] = prefix[i];
+    name[i++] = (char)('1' + slot);
+    name[i] = 0;
+}
+
+static lean_object *patch_from_slot(uint32_t slot)  /* the patch in a user slot, or 0; Firmware/Patch.lean checks the bytes */
+{
+    lean_object *bytes = lean_alloc_sarray(1, FM1_PATCH_BYTES, FM1_PATCH_BYTES), *decoded, *patch;
+    if (slot_load(slot, lean_sarray_cptr(bytes), FM1_PATCH_BYTES)) { lean_dec(bytes); return 0; }
+    decoded = fm1_patch_decode(bytes);
+    if (lean_is_scalar(decoded)) return 0;
+    patch = lean_ctor_get(decoded, 0);
+    lean_inc(patch);
+    lean_dec(decoded);
+    return patch;
+}
+
 static void patch_load(uint32_t index)
 {
-    user_patch_t user;
+    lean_object *user;
     patch_index = index;
     if (index < NPATCHES) {
         const patch_t *p = &PATCHES[index];
         patch_set(p->name, p->bpm, p->key, p->progression, p->rate, p->scale_lock, p->reverb, p->lane);
-    } else if (slot_load(index - NPATCHES, &user, sizeof user) == 0 && user.magic == USER_MAGIC) {
-        patch_set(user.name, user.bpm, user.key, user.progression, user.rate, user.scale_lock, user.reverb, user.lane);
+    } else if ((user = patch_from_slot(index - NPATCHES)) != 0) {
+        patch_lane_t lanes[NL];
+        uint8_t reverb[3];
+        char name[7];
+        uint32_t i;
+        for (i = 0; i < NL; i++) {
+            lean_object *l = fm1_patch_lane_of(user, i);
+            patch_lane_t *d = &lanes[i];
+            d->hits = (uint8_t)fm1_patch_lane_field_of(l, 0); d->steps = (uint8_t)fm1_patch_lane_field_of(l, 1);
+            d->speed = (uint8_t)fm1_patch_lane_field_of(l, 2); d->scale = (uint8_t)fm1_patch_lane_field_of(l, 3);
+            d->sound = (uint8_t)fm1_patch_lane_field_of(l, 4); d->low = (uint8_t)fm1_patch_lane_field_of(l, 5);
+            d->span = (uint8_t)fm1_patch_lane_field_of(l, 6); d->algo = (uint8_t)fm1_patch_lane_field_of(l, 7);
+            d->chance = (uint8_t)fm1_patch_lane_field_of(l, 8); d->amount = (uint8_t)fm1_patch_lane_field_of(l, 9);
+            d->mutate = (uint8_t)fm1_patch_lane_field_of(l, 10); d->chord = (uint8_t)fm1_patch_lane_field_of(l, 11);
+            d->level = (uint8_t)fm1_patch_lane_field_of(l, 12); d->send = (uint8_t)fm1_patch_lane_field_of(l, 13);
+            d->seed = (uint16_t)fm1_patch_lane_field_of(l, 14);
+            lean_dec(l);
+        }
+        for (i = 0; i < 3u; i++) reverb[i] = (uint8_t)fm1_patch_field_of(user, 5u + i);
+        user_name(name, index - NPATCHES);
+        patch_set(name, fm1_patch_field_of(user, 0), fm1_patch_field_of(user, 1), fm1_patch_field_of(user, 2),
+                  fm1_patch_field_of(user, 3), fm1_patch_field_of(user, 4), reverb, lanes);
+        lean_dec(user);
     } else {
         const patch_t *p = &PATCHES[0];
         patch_set("EMPTY", p->bpm, 0, 0, 1, 0, p->reverb, p->lane);
@@ -295,25 +331,20 @@ static void patch_load(uint32_t index)
 
 static void patch_save(uint32_t slot)
 {
-    user_patch_t user;
+    lean_object *lanes[NL], *patch, *bytes;
     uint32_t i;
-    user.magic = USER_MAGIC; user.bpm = (uint8_t)bpm; user.key = (uint8_t)key; user.progression = (uint8_t)progression;
-    user.rate = (uint8_t)rate_bars; user.scale_lock = (uint8_t)scale_lock;
-    user.reverb[0] = (uint8_t)reverb_time; user.reverb[1] = (uint8_t)reverb_bright; user.reverb[2] = (uint8_t)reverb_amount;
-    for (i = 0; i < sizeof user.name; i++) user.name[i] = 0;
-    user.name[0] = 'U'; user.name[1] = 'S'; user.name[2] = 'E'; user.name[3] = 'R'; user.name[4] = ' '; user.name[5] = (char)('1' + slot);
-    for (i = 0; i < NL; i++) {
-        patch_lane_t *d = &user.lane[i];
-        d->hits = cfg[i].hits; d->steps = cfg[i].steps; d->speed = cfg[i].speed; d->scale = cfg[i].scale;
-        d->sound = cfg[i].preset; d->low = cfg[i].low; d->span = cfg[i].span; d->algo = cfg[i].algo;
-        d->chance = cfg[i].chance; d->amount = cfg[i].amount; d->mutate = cfg[i].mutate; d->chord = cfg[i].chord;
-        d->level = cfg[i].level; d->send = cfg[i].send; d->seed = cfg[i].seed;
-    }
+    for (i = 0; i < NL; i++)
+        lanes[i] = fm1_patch_lane_make(cfg[i].hits, cfg[i].steps, cfg[i].speed, cfg[i].scale, cfg[i].preset, cfg[i].low,
+                                       cfg[i].span, cfg[i].algo, cfg[i].chance, cfg[i].amount, cfg[i].mutate, cfg[i].chord,
+                                       cfg[i].level, cfg[i].send, cfg[i].seed);
+    patch = fm1_patch_make(bpm, key, progression, rate_bars, scale_lock, reverb_time, reverb_bright, reverb_amount,
+                           lanes[0], lanes[1], lanes[2], lanes[3]);
+    bytes = fm1_patch_encode(patch);
     silence_lanes();                            /* a flash write stalls the sound */
-    slot_save(slot, &user, sizeof user);
+    slot_save(slot, lean_sarray_cptr(bytes), (uint32_t)lean_sarray_size(bytes));
+    lean_dec(bytes);
     patch_index = NPATCHES + slot;
-    for (i = 0; i < sizeof patch_name - 1u && user.name[i]; i++) patch_name[i] = user.name[i];
-    patch_name[i] = 0;
+    user_name(patch_name, slot);
 }
 
 static void lfo_tick(uint32_t dt_ms)            /* move every modulator on and refresh what it drives */

@@ -102,6 +102,10 @@ structure Vowels.QuestionStep where
   length : Int16
   out : Int16
 
+/-- The question mark's distortion term: a square-law of the sample, scaled by `parameter` (0 to 32767). -/
+@[inline] def Vowels.questionDrive (sample parameter : Int32) : Int32 :=
+  (((sample * sample) >>> 14) * parameter) >>> 15
+
 /-- The question mark: a sine that a stream of dits and dahs (read two bits at a time from the code table) turns on
 and off, with noise from a wandering seed on top, then distorted. `dit` is the length of a dit in samples, `threshold`
 the floor of the noise and `parameter` the distortion; `r1` and `r2` are two consecutive random numbers. -/
@@ -130,6 +134,6 @@ the floor of the noise and `parameter` the distortion; `r1` and `r2` are two con
   let noise0 := (r2 * level3) >>> 15
   let noise1 := (noise0 * (Analog.sineTable ((p1 >>> 22) &&& 0xFF)).toInt32) >>> 15
   let s1 := Digital.clip (tone + noise1)
-  let s2 := Digital.clip (s1 + ((((s1 * s1) >>> 14) * parameter) >>> 15))
+  let s2 := Digital.clip (s1 + Vowels.questionDrive s1 parameter)
   { phase := p1, cycle := cycle', cycleIndex := cycleIndex', on := on', seed := seed', length := length',
     out := s2.toInt16 }

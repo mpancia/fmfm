@@ -141,3 +141,138 @@ theorem wavetables_read_between_bytes (wave phase : UInt32) :
   have k : Int32.toInt 32768 = 32768 := by decide
   simp only [Int.bmod_def, k]
   split <;> split <;> split <;> split <;> omega
+
+/-- An `Int32` shifted right two places is its value divided by 4, rounded down. -/
+private theorem wavetables_shift_two (s : Int32) : (s >>> 2).toInt = s.toInt / 4 := by
+  have : (s >>> 2).toInt = s.toInt >>> 2 := by
+    show (s.toBitVec.sshiftRight' (BitVec.smod (2 : Int32).toBitVec 32)).toInt = _
+    simp
+  rw [this, Int.shiftRight_eq_div_pow]
+  rfl
+
+/-- A value cut to 16 bits and widened again lies between -32768 and 32767. -/
+private theorem wavetables_cut16_range (x : Int32) :
+    -32768 ≤ x.toInt16.toInt32.toInt ∧ x.toInt16.toInt32.toInt ≤ 32767 := by
+  rw [Int16.toInt_toInt32, Int32.toInt_toInt16]
+  have lo := Int.le_bmod (x := x.toInt) (m := 2 ^ 16) (by decide)
+  have hi := Int.bmod_lt (x := x.toInt) (m := 2 ^ 16) (by decide)
+  omega
+
+/-- A mix of two values is a 16-bit value. -/
+private theorem wavetables_mix_range (a b : Int32) (balance : UInt32) :
+    -32768 ≤ (Digital.mix a b balance).toInt ∧ (Digital.mix a b balance).toInt ≤ 32767 := by
+  unfold Digital.mix
+  exact wavetables_cut16_range _
+
+/-- An `Int32` value in 16-bit range survives the cut to 16 bits. -/
+private theorem wavetables_keep16 (x : Int32) (lo : -32768 ≤ x.toInt) (hi : x.toInt ≤ 32767) :
+    x.toInt16.toInt = x.toInt := by
+  rw [Int32.toInt_toInt16]
+  exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- Adding two 16-bit values in 32 bits does not wrap. -/
+private theorem wavetables_add16 (a b : Int32) (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767)
+    (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) : (a + b).toInt = a.toInt + b.toInt := by
+  rw [Int32.toInt_add]
+  exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- One half-rate reading of a wave map is between -16384 and 16383. -/
+private theorem wavetables_map_read_range (p w00 w01 w10 w11 xfadeX xfadeY : UInt32) :
+    -16384 ≤ (Wavetables.mapRead p w00 w01 w10 w11 xfadeX xfadeY).toInt ∧
+      (Wavetables.mapRead p w00 w01 w10 w11 xfadeX xfadeY).toInt ≤ 16383 := by
+  unfold Wavetables.mapRead
+  rw [wavetables_shift_one]
+  have := wavetables_mix_range (Wavetables.crossfade w00 w01 (p >>> 1) xfadeY)
+    (Wavetables.crossfade w10 w11 (p >>> 1) xfadeY) (xfadeX &&& 0xFFFF)
+  omega
+
+/-- A wave map sample is exactly the sum of its two half-rate readings, each already halved: nothing wraps
+around.
+Why it matters: the wave map engine cannot click from an overflow, for any square of the map, phase or
+position inside the square. -/
+theorem wavetables_wave_map_never_wraps (phase inc w00 w01 w10 w11 xfadeX xfadeY : UInt32) (sync : UInt8) :
+    (Wavetables.waveMap phase inc w00 w01 w10 w11 xfadeX xfadeY sync).out.toInt =
+      (Wavetables.mapRead (if sync != 0 then 0 else phase + inc) w00 w01 w10 w11 xfadeX xfadeY).toInt +
+      (Wavetables.mapRead ((if sync != 0 then 0 else phase + inc) + inc) w00 w01 w10 w11 xfadeX
+        xfadeY).toInt := by
+  unfold Wavetables.waveMap
+  dsimp only
+  generalize (if sync != 0 then 0 else phase + inc) = start
+  have first := wavetables_map_read_range start w00 w01 w10 w11 xfadeX xfadeY
+  have second := wavetables_map_read_range (start + inc) w00 w01 w10 w11 xfadeX xfadeY
+  generalize Wavetables.mapRead start w00 w01 w10 w11 xfadeX xfadeY = a at *
+  generalize Wavetables.mapRead (start + inc) w00 w01 w10 w11 xfadeX xfadeY = b at *
+  have sum := wavetables_add16 a b (by omega) (by omega)
+  rw [wavetables_keep16 _ (by omega) (by omega), sum]
+
+/-- A wave line half step is a 16-bit value. -/
+private theorem wavetables_line_pair_range
+    (phase waveA waveB xfadeA maskA waveC waveD xfadeB maskB balance : UInt32) :
+    -32768 ≤ (Wavetables.linePair phase waveA waveB xfadeA maskA waveC waveD xfadeB maskB balance).toInt ∧
+      (Wavetables.linePair phase waveA waveB xfadeA maskA waveC waveD xfadeB maskB balance).toInt ≤
+        32767 := by
+  unfold Wavetables.linePair
+  exact wavetables_mix_range _ _ _
+
+/-- A wave line sample is exactly the average of its two half steps: nothing wraps around.
+Why it matters: the wave line engine cannot click from an overflow, for any waves, masks, crossfades or
+balance. -/
+theorem wavetables_wave_line_never_wraps
+    (phase inc waveA waveB xfadeA stepA maskA waveC waveD xfadeB stepB maskB balance : UInt32)
+    (sync : UInt8) :
+    (Wavetables.waveLine phase inc waveA waveB xfadeA stepA maskA waveC waveD xfadeB stepB maskB balance
+      sync).out.toInt =
+      ((Wavetables.linePair (if sync != 0 then 0 else phase) waveA waveB xfadeA maskA waveC waveD xfadeB
+          maskB balance).toInt +
+        (Wavetables.linePair ((if sync != 0 then 0 else phase) + inc) waveA waveB
+          ((xfadeA + stepA) &&& 0xFFFF) maskA waveC waveD ((xfadeB + stepB) &&& 0xFFFF) maskB
+          balance).toInt) / 2 := by
+  unfold Wavetables.waveLine
+  dsimp only
+  generalize (if sync != 0 then 0 else phase) = start
+  have first := wavetables_line_pair_range start waveA waveB xfadeA maskA waveC waveD xfadeB maskB
+    balance
+  have second := wavetables_line_pair_range (start + inc) waveA waveB ((xfadeA + stepA) &&& 0xFFFF)
+    maskA waveC waveD ((xfadeB + stepB) &&& 0xFFFF) maskB balance
+  generalize Wavetables.linePair start waveA waveB xfadeA maskA waveC waveD xfadeB maskB balance = a at *
+  generalize Wavetables.linePair (start + inc) waveA waveB ((xfadeA + stepA) &&& 0xFFFF) maskA waveC waveD
+    ((xfadeB + stepB) &&& 0xFFFF) maskB balance = b at *
+  have sum := wavetables_add16 a b first second
+  have halved : ((a + b) >>> 1).toInt = (a.toInt + b.toInt) / 2 := by rw [wavetables_shift_one, sum]
+  rw [wavetables_keep16 _ (by omega) (by omega), halved]
+
+/-- Adding four 16-bit values in 32 bits does not wrap. -/
+private theorem wavetables_add_four (a b c d : Int32) (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767)
+    (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) (hc : -32768 ≤ c.toInt ∧ c.toInt ≤ 32767)
+    (hd : -32768 ≤ d.toInt ∧ d.toInt ≤ 32767) :
+    (a + b + c + d).toInt = a.toInt + b.toInt + c.toInt + d.toInt := by
+  have two := wavetables_add16 a b ha hb
+  have three : (a + b + c).toInt = a.toInt + b.toInt + c.toInt := by
+    rw [Int32.toInt_add, two]
+    exact Int.bmod_eq_of_le (by omega) (by omega)
+  rw [Int32.toInt_add, three]
+  exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- A paraphonic sample is exactly the sum of its four voices divided by four: nothing wraps around.
+Why it matters: four full-scale voices added in 32 bits stay far inside the range, so the chord engine cannot
+click from an overflow at any chord, phase or morph position. -/
+theorem wavetables_paraphonic_never_wraps (p0 p1 p2 p3 inc0 inc1 inc2 inc3 waveA waveB balance : UInt32) :
+    (Wavetables.paraphonic p0 p1 p2 p3 inc0 inc1 inc2 inc3 waveA waveB balance).out.toInt =
+      ((Wavetables.crossfade waveA waveB ((p0 + inc0) >>> 1) balance).toInt +
+        (Wavetables.crossfade waveA waveB ((p1 + inc1) >>> 1) balance).toInt +
+        (Wavetables.crossfade waveA waveB ((p2 + inc2) >>> 1) balance).toInt +
+        (Wavetables.crossfade waveA waveB ((p3 + inc3) >>> 1) balance).toInt) / 4 := by
+  unfold Wavetables.paraphonic
+  dsimp only
+  have r0 := wavetables_crossfade_range waveA waveB ((p0 + inc0) >>> 1) balance
+  have r1 := wavetables_crossfade_range waveA waveB ((p1 + inc1) >>> 1) balance
+  have r2 := wavetables_crossfade_range waveA waveB ((p2 + inc2) >>> 1) balance
+  have r3 := wavetables_crossfade_range waveA waveB ((p3 + inc3) >>> 1) balance
+  generalize Wavetables.crossfade waveA waveB ((p0 + inc0) >>> 1) balance = a at *
+  generalize Wavetables.crossfade waveA waveB ((p1 + inc1) >>> 1) balance = b at *
+  generalize Wavetables.crossfade waveA waveB ((p2 + inc2) >>> 1) balance = c at *
+  generalize Wavetables.crossfade waveA waveB ((p3 + inc3) >>> 1) balance = d at *
+  have sum := wavetables_add_four a b c d r0 r1 r2 r3
+  have quartered : ((a + b + c + d) >>> 2).toInt = (a.toInt + b.toInt + c.toInt + d.toInt) / 4 := by
+    rw [wavetables_shift_two, sum]
+  rw [wavetables_keep16 _ (by omega) (by omega), quartered]

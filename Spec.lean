@@ -3,3 +3,6 @@ import Spec.Euclid
 import Spec.Notes
 import Spec.Lane
 import Spec.Run
+import Spec.Analog
+import Spec.Smooth
+import Spec.Reverb

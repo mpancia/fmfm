@@ -9,9 +9,10 @@ T=${1:?target: wasm32 or pi32v2}
 O=build/braids/$T
 rm -rf "$O"; mkdir -p "$O" build/lean_gen
 for g in voices/*_glue.c fx/*_glue.c; do                                          # the arithmetic in Lean, included as inline C
-    api=$(sed -n 's/^#include "\([A-Za-z0-9]*Api\)\.c"/\1/p' "$g")
-    lake build "Firmware.$api"
-    cp ".lake/build/ir/Firmware/$api.c" "build/lean_gen/$api.c"
+    for api in $(sed -n 's/^#include "\([A-Za-z0-9]*Api\)\.c"/\1/p' "$g"); do
+        lake build "Firmware.$api"
+        cp ".lake/build/ir/Firmware/$api.c" "build/lean_gen/$api.c"
+    done
     $CC -Os -ffunction-sections -w -Ibuild/lean_gen -I"$(dirname "$g")" -c "$g" -o "$O/$(basename "$(dirname "$g")")_$(basename "$g" .c).o"
 done
 for src in voices/braids/*.cc voices/stmlib/utils/random.cc voices/voice.cc; do

@@ -9,7 +9,7 @@ set -eu
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.elan/bin:$PATH"
 PREFIX=$(lean --print-prefix)
-for g in voices/*_glue.c fx/*_glue.c; do lake build "Firmware.$(sed -n 's/^#include "\([A-Za-z0-9]*Api\)\.c"/\1/p' "$g")"; done
+for m in $(sh tools/glue_modules.sh | grep Api); do lake build "Firmware.$m"; done
 T=${LEAN_TEST_DIR:-build/lean_test}
 rm -rf $T; mkdir -p $T/gen
 for m in $(sh tools/glue_modules.sh | grep Api); do cp .lake/build/ir/Firmware/$m.c $T/gen/$m.c; done

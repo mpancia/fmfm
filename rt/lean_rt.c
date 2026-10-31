@@ -178,6 +178,73 @@ lean_object *lean_array_push(lean_object *a, lean_object *v)
     return r;
 }
 
+lean_object *lean_array_to_list(lean_object *a)   /* the array's items as a List; consumes the array */
+{
+    size_t i = lean_array_size(a);
+    lean_object *l = lean_box(0);
+    while (i--) {
+        lean_object *x = lean_array_get_core(a, i), *c = lean_alloc_ctor(1, 2, 0);
+        lean_inc(x);
+        lean_ctor_set(c, 0, x);
+        lean_ctor_set(c, 1, l);
+        l = c;
+    }
+    lean_dec(a);
+    return l;
+}
+
+lean_object *lean_array_mk(lean_object *l)        /* a List as an Array; consumes the list */
+{
+    size_t n = 0, i;
+    lean_object *c, *r;
+    for (c = l; !lean_is_scalar(c); c = lean_ctor_get(c, 1)) n++;
+    r = lean_alloc_array(n, n);
+    for (c = l, i = 0; i < n; c = lean_ctor_get(c, 1), i++) {
+        lean_object *x = lean_ctor_get(c, 0);
+        lean_inc(x);
+        lean_array_set_core(r, i, x);
+    }
+    lean_dec(l);
+    return r;
+}
+
+/* ---- scalar arrays (ByteArray) */
+lean_object *lean_copy_sarray(lean_object *a, size_t cap)
+{
+    size_t elem = lean_sarray_elem_size(a), sz = lean_sarray_size(a);
+    lean_object *r = lean_alloc_sarray((unsigned)elem, sz, cap);
+    memmove(lean_sarray_cptr(r), lean_sarray_cptr(a), sz * elem);
+    lean_dec(a);
+    return r;
+}
+
+lean_object *lean_byte_array_push(lean_object *a, uint8_t b)
+{
+    size_t sz = lean_sarray_size(a), cap = lean_sarray_capacity(a);
+    lean_object *r = lean_is_exclusive(a) && cap > sz ? a : lean_copy_sarray(a, cap > sz ? cap : (cap + 1u) * 2u);
+    lean_to_sarray(r)->m_size = sz + 1u;
+    lean_sarray_cptr(r)[sz] = b;
+    return r;
+}
+
+lean_object *lean_byte_array_data(lean_object *a)   /* the bytes as an Array UInt8 (each boxed); consumes the ByteArray */
+{
+    size_t sz = lean_sarray_size(a), i;
+    lean_object *r = lean_alloc_array(sz, sz);
+    for (i = 0; i < sz; i++) lean_array_set_core(r, i, lean_box(lean_sarray_cptr(a)[i]));
+    lean_dec(a);
+    return r;
+}
+
+lean_object *lean_byte_array_mk(lean_object *a)     /* an Array UInt8 packed into a ByteArray; consumes the array */
+{
+    size_t sz = lean_array_size(a), i;
+    lean_object *r = lean_alloc_sarray(1, sz, sz);
+    for (i = 0; i < sz; i++) lean_sarray_cptr(r)[i] = (uint8_t)lean_unbox(lean_array_get_core(a, i));
+    lean_dec(a);
+    return r;
+}
+
 /* ---- panics and unsupported operations */
 void lean_notify_assert(const char *file, int line, const char *cond) { (void)file; (void)line; die(cond); }
 void lean_internal_panic(const char *msg) { die(msg); }

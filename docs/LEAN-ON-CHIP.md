@@ -15,11 +15,12 @@ dinghy.c (hand-written C) ---------------------┘
 
 | | Example | May use | Where it may run |
 |---|---|---|---|
-| Scalar | `Firmware/Kernels.lean` | `UInt8..64`, `Int8..32`, `Bool` | anywhere, including the audio interrupt (no runtime needed) |
+| Scalar | `Firmware/Analog.lean` | `UInt8..64`, `Int8..32`, `Bool` | anywhere, including the audio interrupt (no runtime needed) |
 | Ordinary | `Firmware/Lane.lean` | structures, `Option`, `Nat` below 2^31, closures | the main loop only (it allocates) |
 
 ## What the runtime (`rt/lean_rt.c`) provides
 A fixed pool (64 KiB by default, `FM1_LEAN_POOL_BYTES`), size-class free lists, reference-counted freeing, arrays,
+byte arrays (`ByteArray`, which the patch slots use),
 panic reporting. It does **not** provide big numbers (any `Nat`/`Int` of 2^31 or more stops the firmware with
 "number too big"; a `UInt32` of 2^31 or more converted with `toNat` does this), threads, tasks, IO, or
 external objects. If the pool runs out, the firmware stops ("Lean pool exhausted"). On the chip a stop is an
@@ -31,7 +32,11 @@ illegal instruction, which Dinghy's crash screen reports; in the simulator the p
 - New export? Add its prototype to `rt/fm1_lean.h`.
 - Do not call Lean from interrupts. Keep the audio path scalar.
 - Lean's compiler is run with `compiler.extract_closed false` (set in each file, and for `Init`), so no module
-  initialisation is needed. Keep that line in every new `Firmware/` file.
+  initialisation is needed. Keep that line in every new `Firmware/` file. A definition with no arguments (a
+  table as a `List`, a named constant) is still a global that only the initialiser fills, so the firmware reads
+  it as nil: write it as a function of its index instead. The same goes for `Init` constants such as
+  `ByteArray.empty` (so `List.toByteArray` is out; `Patch.encode` builds its array first). `make lean-check` fails
+  if generated code reads one.
 
 ## Checks
 - `make lean-check`: links the Lean code for the chip with only the runtime and `Init`. Fails on any missing

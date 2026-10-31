@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The sample loops of the Braids FM, feedback FM, chaotic FM, ring modulator, toy and digital modulation
- * engines, with the arithmetic of each sample in Lean (Firmware/Digital.lean). This file owns the buffers, the
- * pointers and the smoothing of the parameter; the Lean code, included below as inline functions, owns the rest.
- * The loops follow `DigitalOscillator::Render*` in Braids (Emilie Gillet, MIT). */
+ * engines, with the arithmetic of each sample in Lean (Firmware/Digital.lean) and the smoothing of the parameter
+ * across the block in Lean too (Firmware/Smooth.lean). This file owns the buffers and the pointers; the Lean
+ * code, included below as inline functions, owns the rest. The loops follow `DigitalOscillator::Render*` in
+ * Braids (Emilie Gillet, MIT). */
 #include <lean/lean.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,11 +11,13 @@
 #undef LEAN_EXPORT
 #define LEAN_EXPORT static inline
 #include "DigitalApi.c"
+#define _G_initialized smooth_initialized   /* every generated file names its init flag the same */
+#include "SmoothApi.c"
+#undef _G_initialized
 
-/* Parameter 0 moves in a straight line from the last block's value to this block's. */
 #define SMOOTH_BEGIN(previous, target, size) \
-    int32_t start_ = (previous), change_ = (target) - start_, per_sample_ = 32767 / (int32_t)(size), xfade_ = 0
-#define SMOOTH_NEXT() (xfade_ += per_sample_, start_ + (change_ * xfade_ >> 15))
+    int32_t start_ = (previous), target_ = (target), per_sample_ = fm1_smooth_per_sample(size), xfade_ = 0
+#define SMOOTH_NEXT() (xfade_ = fm1_smooth_advance(xfade_, per_sample_), fm1_smooth_parameter(start_, target_, xfade_))
 
 void fm1_digital_render_fm(uint32_t *phase, uint32_t *mod, uint32_t inc, uint32_t mod_inc, int32_t previous_parameter,
                            int32_t parameter, const uint8_t *sync, int16_t *buffer, uint32_t size)

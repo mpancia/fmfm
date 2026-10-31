@@ -71,19 +71,28 @@ theorem digital_mix_between_inputs (a b : Int32) (balance : UInt32) (hbal : bala
 /-- An `Int32` value in 16-bit range survives the cut to 16 bits. -/
 private theorem digital_keep16 (x : Int32) (lo : -32768 ≤ x.toInt) (hi : x.toInt ≤ 32767) :
     x.toInt16.toInt = x.toInt := by
-  rw [Int32.toInt_toInt16]; simp [Int.bmod_def]; split <;> omega
+  rw [Int32.toInt_toInt16]
+  exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- A value cut to 16 bits and widened again lies between -32768 and 32767. -/
+private theorem digital_cut16_range (x : Int32) :
+    -32768 ≤ x.toInt16.toInt32.toInt ∧ x.toInt16.toInt32.toInt ≤ 32767 := by
+  rw [Int16.toInt_toInt32, Int32.toInt_toInt16]
+  have lo := Int.le_bmod (x := x.toInt) (m := 2 ^ 16) (by decide)
+  have hi := Int.bmod_lt (x := x.toInt) (m := 2 ^ 16) (by decide)
+  omega
 
 /-- A blended sine is a 16-bit value. -/
 private theorem digital_sine_range (phase : UInt32) :
     -32768 ≤ (Analog.sineAt phase).toInt ∧ (Analog.sineAt phase).toInt ≤ 32767 := by
-  unfold Analog.sineAt; dsimp only
-  rw [Int16.toInt_toInt32, Int32.toInt_toInt16]; simp [Int.bmod_def]; split <;> omega
+  unfold Analog.sineAt
+  exact digital_cut16_range _
 
 /-- A wave shaper's output is a 16-bit value. -/
 private theorem digital_shape_range (table : UInt32 → Int16) (index : UInt32) :
     -32768 ≤ (Analog.shape table index).toInt ∧ (Analog.shape table index).toInt ≤ 32767 := by
   unfold Analog.shape Analog.blend88
-  rw [Int16.toInt_toInt32, Int32.toInt_toInt16]; simp [Int.bmod_def]; split <;> omega
+  exact digital_cut16_range _
 
 /-- Braids' `CLIP` leaves a value between -32767 and 32767, and the 16-bit sample written is exactly that
 value.
@@ -128,6 +137,22 @@ theorem digital_fm_never_wraps (phase modPhase inc modInc : UInt32) (previous : 
     digital_keep16 _ (digital_sine_range _).1 (digital_sine_range _).2,
     digital_keep16 _ (digital_sine_range _).1 (digital_sine_range _).2⟩
 
+/-- The product of two values of at most `m` and `n` in size is at most `m * n` in size. -/
+private theorem digital_product_small (a b : Int) (m n : Nat) (ha : a.natAbs ≤ m) (hb : b.natAbs ≤ n) :
+    -((m * n : Nat) : Int) ≤ a * b ∧ a * b ≤ ((m * n : Nat) : Int) := by
+  have := Int.natAbs_mul a b
+  have := Nat.mul_le_mul ha hb
+  omega
+
+/-- The product of two 16-bit signals is exact in 32 bits. -/
+private theorem digital_product16 (a b : Int32) (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767)
+    (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
+    (a * b).toInt = a.toInt * b.toInt ∧
+      -1073741824 ≤ a.toInt * b.toInt ∧ a.toInt * b.toInt ≤ 1073741824 := by
+  have small := digital_product_small a.toInt b.toInt 32768 32768 (by omega) (by omega)
+  rw [Int32.toInt_mul]
+  exact ⟨Int.bmod_eq_of_le (by omega) (by omega), by omega, by omega⟩
+
 /-- The product of two 16-bit signals, taken as the ring modulator does, is their exact product scaled down by
 65536, between -16384 and 16384: the multiplication never wraps and the cut to 16 bits changes nothing.
 Why it matters: the ring modulator multiplies three full-scale sines in a row; neither product can overflow,
@@ -137,15 +162,10 @@ theorem digital_ring_product_never_wraps (a b : Int32)
     (Digital.ringProduct a b).toInt = a.toInt * b.toInt / 65536 ∧
       -16384 ≤ (Digital.ringProduct a b).toInt ∧ (Digital.ringProduct a b).toInt ≤ 16384 := by
   unfold Digital.ringProduct
-  have small : -1073741824 ≤ a.toInt * b.toInt ∧ a.toInt * b.toInt ≤ 1073741824 := by
-    have := Int.natAbs_mul a.toInt b.toInt
-    have := Nat.mul_le_mul (by omega : a.toInt.natAbs ≤ 32768) (by omega : b.toInt.natAbs ≤ 32768)
-    omega
-  have product : (a * b).toInt = a.toInt * b.toInt := by
-    rw [Int32.toInt_mul]; simp [Int.bmod_def]; split <;> omega
-  rw [Int16.toInt_toInt32, Int32.toInt_toInt16, digital_shift_sixteen, product]
-  simp only [Int.bmod_def, Nat.reducePow]
-  split <;> omega
+  obtain ⟨product, lo, hi⟩ := digital_product16 a b ha hb
+  rw [Int16.toInt_toInt32, Int32.toInt_toInt16, digital_shift_sixteen, product,
+    Int.bmod_eq_of_le (by omega) (by omega)]
+  omega
 
 /-- The ring modulator writes exactly its soft-clipped triple product: the cut to 16 bits changes nothing.
 Why it matters: the ring modulator's sample is always a value of the overdrive shaper, so it cannot click
@@ -159,6 +179,25 @@ theorem digital_ring_mod_never_wraps (phase mod1 mod2 inc inc1 inc2 : UInt32) (s
   unfold Digital.ringMod
   dsimp only
   exact digital_keep16 _ (digital_shape_range _ _).1 (digital_shape_range _ _).2
+
+/-- The toy's four weights add up to 56416, so the weighted average of four bytes shifted down 8 places is at
+most 56195. -/
+private theorem digital_toy_average (h1 h2 h3 h4 : UInt8) :
+    (10530 * h1.toNat + 14751 * h2.toNat + 16384 * h3.toNat + 14751 * h4.toNat) / 256 ≤ 56195 := by
+  have := h1.toNat_lt; have := h2.toNat_lt; have := h3.toNat_lt; have := h4.toNat_lt
+  omega
+
+/-- Taking 28208 from an average of at most 56195 in unsigned 32-bit arithmetic, then reading the low 16 bits
+as signed, gives the signed difference. -/
+private theorem digital_toy_centre (q : Nat) (small : q ≤ 56195) :
+    (((2 ^ 32 - 28208 + q) % 2 ^ 32 % 2 ^ 16 : Nat) : Int).bmod (2 ^ 16) = (q : Int) - 28208 := by
+  by_cases above : 28208 ≤ q
+  · have low : (2 ^ 32 - 28208 + q) % 2 ^ 32 % 2 ^ 16 = q - 28208 := by omega
+    rw [low, Int.natCast_sub above]
+    exact Int.bmod_eq_of_le (by omega) (by omega)
+  · have low : (2 ^ 32 - 28208 + q) % 2 ^ 32 % 2 ^ 16 = q + 37328 := by omega
+    rw [low, ← Int.sub_bmod_right, Int.bmod_eq_of_le (by omega) (by omega)]
+    omega
 
 /-- The toy's smoothing filter writes exactly the weighted average of its four held values, centred on zero
 (between -28208 and 27987): the unsigned subtraction wraps for a low average, and the read as a 16-bit value
@@ -176,14 +215,14 @@ theorem digital_toy_never_wraps (h1 h2 h3 h4 : UInt8) :
     simp only [UInt32.toNat_add, UInt32.toNat_mul, UInt8.toNat_toUInt32, UInt32.toNat_ofNat, Nat.reducePow,
       Nat.reduceMod]
     omega
+  have small := digital_toy_average h1 h2 h3 h4
   generalize 10530 * h1.toUInt32 + 14751 * h2.toUInt32 + 16384 * h3.toUInt32 + 14751 * h4.toUInt32 = s at sum
   have shifted : (s >>> 8).toNat =
       (10530 * h1.toNat + 14751 * h2.toNat + 16384 * h3.toNat + 14751 * h4.toNat) / 256 := by
     rw [UInt32.toNat_shiftRight, sum]
     have : (UInt32.toNat 8 % 32) = 8 := by decide
     rw [this, Nat.shiftRight_eq_div_pow]
-  generalize average :
-    (10530 * h1.toNat + 14751 * h2.toNat + 16384 * h3.toNat + 14751 * h4.toNat) / 256 = q at shifted ⊢
+  generalize (10530 * h1.toNat + 14751 * h2.toNat + 16384 * h3.toNat + 14751 * h4.toNat) / 256 = q at *
   generalize s >>> 8 = x at shifted
   show (x - 28208).toUInt16.toBitVec.toInt = _
   rw [BitVec.toInt_eq_toNat_bmod]
@@ -191,5 +230,4 @@ theorem digital_toy_never_wraps (h1 h2 h3 h4 : UInt8) :
   rw [low16, UInt32.toNat_sub, shifted]
   have centre : UInt32.toNat 28208 = 28208 := by decide
   rw [centre]
-  simp only [Int.bmod_def, Nat.reducePow]
-  split <;> omega
+  exact digital_toy_centre q small

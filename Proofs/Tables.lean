@@ -100,3 +100,40 @@ theorem tables_wave_reads_inside_129 (phase : UInt32) :
   have := phase.toNat_lt
   rw [tables_succ_toNat _ (by omega), shifted]
   omega
+
+/-- A wave phase, halved and then masked to fewer steps as the wave line's rough reading does, reads inside a
+129-byte wave.
+Why it matters: the mask can only lower the phase, so the rough reading stays inside the wave like the plain
+one (`tables_wave_reads_inside_129`), whatever mask the wave line uses. -/
+theorem tables_wave_line_reads_inside_129 (phase mask : UInt32) :
+    (Analog.tableIndex ((phase >>> 1) &&& mask) + 1).toNat ≤ 128 := by
+  unfold Analog.tableIndex
+  have halved : (phase >>> 1).toNat < 2 ^ 31 := by
+    rw [UInt32.toNat_shiftRight]
+    have : (UInt32.toNat 1 % 32) = 1 := by decide
+    rw [this, Nat.shiftRight_eq_div_pow]
+    have := phase.toNat_lt
+    omega
+  have masked : ((phase >>> 1) &&& mask).toNat ≤ (phase >>> 1).toNat := by
+    rw [UInt32.toNat_and]
+    exact Nat.and_le_left
+  have shifted : (((phase >>> 1) &&& mask) >>> 24).toNat = ((phase >>> 1) &&& mask).toNat / 2 ^ 24 := by
+    rw [UInt32.toNat_shiftRight]
+    have : (UInt32.toNat 24 % 32) = 24 := by decide
+    rw [this, Nat.shiftRight_eq_div_pow]
+  rw [tables_succ_toNat _ (by omega), shifted]
+  omega
+
+/-- A formant phase and an amplitude of 0 to 15 read inside the 256-entry formant tables (16 phases by 16
+amplitudes).
+Why it matters: the vowel's formant amplitudes are 4-bit by construction of its data; with any such
+amplitude, no phase can read past the formant sine or square table. -/
+theorem tables_formant_reads_inside_256 (phase amp : UInt32) (nibble : amp.toNat ≤ 15) :
+    (((phase >>> 24) &&& 0xF0) ||| amp).toNat ≤ 255 := by
+  rw [UInt32.toNat_or, UInt32.toNat_and, UInt32.toNat_shiftRight]
+  have mask : UInt32.toNat 0xF0 = 240 := by decide
+  have places : UInt32.toNat 24 % 32 = 24 := by decide
+  rw [mask, places]
+  have high := Nat.and_le_right (n := phase.toNat >>> 24) (m := 240)
+  have := Nat.or_lt_two_pow (n := 8) (x := phase.toNat >>> 24 &&& 240) (y := amp.toNat) (by omega) (by omega)
+  omega

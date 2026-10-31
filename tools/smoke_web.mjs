@@ -84,6 +84,9 @@ const region = (f, y0, y1) => f.slice(y0 * 240, y1 * 240);
 const row = (f, r) => region(f, 28 + r * 36, 28 + r * 36 + 34);   // HOME_ROW_Y in dinghy.c
 const sameRows = (a, b, rows) => rows.every((r) => changed(row(a, r), row(b, r)) === 0);
 const audible = (from, to) => { let n = 0, all = 0; for (let t = from; t < to; t += 500) { all++; if (peak(t, t + 500) > 200) n++; } return [n, all]; };
+const patchName = (f) => {                       // the status bar after "U1 "
+  const px = []; for (let y = 218; y < 240; y++) px.push(...f.slice(y * 240 + 24, y * 240 + 120)); return px;
+};
 
 ok('the startup screen draws Alfred and the title', changed(shots.boot, new Uint16Array(240 * 240)) > 3000);
 ok('lanes make sound with no key pressed', peak(1000, 4000) > 1000);
@@ -98,6 +101,8 @@ ok('PRESETS on HOME opens the patch browser', changed(shots['home shape'], shots
 ok('another patch changes every lane row', [0, 1, 2, 3].every((r) => changed(row(shots['home shape'], r), row(shots.patch, r)) > 0));
 ok('a different slot looks different', changed(row(shots.patch, 1), row(shots.other, 1)) > 0);
 ok('a saved patch loads back exactly', sameRows(shots.patch, shots.loaded, [0, 1, 2, 3]));
+ok('the loaded slot is named after itself, not EMPTY', changed(patchName(shots.loaded), patchName(shots.other)) > 0 &&
+   changed(patchName(shots.loaded), patchName(shots.patch)) > 0);
 ok('PLAY starts it again', peak(6500, 7500) > 1000);
 const algo = audible(6500, 12500);
 ok(`every note algorithm keeps playing (${algo[0]} of ${algo[1]} half-seconds audible)`, algo[0] >= 0.75 * algo[1]);

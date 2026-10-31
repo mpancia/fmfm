@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The mixing loops of the Braids macro oscillator, with the arithmetic of each sample in Lean
- * (Firmware/Macro.lean). This file owns the buffers and the smoothing of the second parameter across the block.
- * The loops follow `MacroOscillator::Render*` in Braids (Emilie Gillet, MIT). */
+ * (Firmware/Macro.lean) and the smoothing of the second parameter across the block in Lean too
+ * (Firmware/Smooth.lean). This file owns the buffers. The loops follow `MacroOscillator::Render*` in Braids
+ * (Emilie Gillet, MIT). */
 #include <lean/lean.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,10 +11,13 @@
 #undef LEAN_EXPORT
 #define LEAN_EXPORT static inline
 #include "MacroApi.c"
+#define _G_initialized smooth_initialized   /* every generated file names its init flag the same */
+#include "SmoothApi.c"
+#undef _G_initialized
 
 #define SMOOTH_BEGIN(previous, target, size) \
-    int32_t start_ = (previous), change_ = (target) - start_, per_sample_ = 32767 / (int32_t)(size), xfade_ = 0
-#define SMOOTH_NEXT() (xfade_ += per_sample_, start_ + (change_ * xfade_ >> 15))
+    int32_t start_ = (previous), target_ = (target), per_sample_ = fm1_smooth_per_sample(size), xfade_ = 0
+#define SMOOTH_NEXT() (xfade_ = fm1_smooth_advance(xfade_, per_sample_), fm1_smooth_parameter(start_, target_, xfade_))
 
 void fm1_macro_render_csaw(int16_t *buffer, int32_t shift, uint32_t size)
 {

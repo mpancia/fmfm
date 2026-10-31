@@ -63,14 +63,16 @@ structure RingStep where
   mod2 : UInt32
   out : Int16
 
+/-- Two 16-bit signals multiplied, as a 16-bit signal: full scale times full scale comes out at half scale. -/
+@[inline] def Digital.ringProduct (a b : Int32) : Int32 := ((a * b) >>> 16).toInt16.toInt32
+
 /-- A sine multiplied by two more sines, then run through a soft-clipping curve. `phase` already includes the
 quarter-cycle offset of the C++ loop. -/
 @[inline] def Digital.ringMod (phase mod1 mod2 inc inc1 inc2 : UInt32) (sync : UInt8) : RingStep :=
   let p := if sync != 0 then 0 else phase + inc
   let m1 := (if sync != 0 then 0 else mod1) + inc1
   let m2 := (if sync != 0 then 0 else mod2) + inc2
-  let a := ((Analog.sineAt p * Analog.sineAt m1) >>> 16).toInt16.toInt32
-  let b := ((a * Analog.sineAt m2) >>> 16).toInt16.toInt32
+  let b := Digital.ringProduct (Digital.ringProduct (Analog.sineAt p) (Analog.sineAt m1)) (Analog.sineAt m2)
   let shaped := Analog.shape Digital.overdriveTable ((b + 32768) &&& 0xFFFF).toUInt32
   { phase := p, mod1 := m1, mod2 := m2, out := shaped.toInt16 }
 
@@ -80,6 +82,13 @@ structure ToyStep where
   held : UInt8
   counter : UInt16
   out : Int16
+
+/-- The toy's four-tap smoothing filter over the four held values of a sample, centred on zero. The unsigned
+subtraction wraps for a low average; the read as a 16-bit value undoes it. -/
+@[inline] def Digital.toyFilter (h1 h2 h3 h4 : UInt8) : Int16 :=
+  let filtered : UInt32 :=
+    10530 * h1.toUInt32 + 14751 * h2.toUInt32 + 16384 * h3.toUInt32 + 14751 * h4.toUInt32
+  ((filtered >>> 8) - 28208).toUInt16.toInt16
 
 /-- The toy's sample-and-hold: at four times the sample rate, hold a bit-twiddled value of the phase for `count`
 taps, and smooth with a four-tap filter. `x` is the pattern parameter (0 to 255). -/
@@ -104,8 +113,7 @@ taps, and smooth with a four-tap filter. `x` is the pattern parameter (0 to 255)
   let r4 := c3 ≥ count
   let h4 := if r4 then pick p4 else h3
   let c4 := (if r4 then 0 else c3) + 1
-  let filtered : UInt32 := 10530 * h1.toUInt32 + 14751 * h2.toUInt32 + 16384 * h3.toUInt32 + 14751 * h4.toUInt32
-  { phase := p4, held := h4, counter := c4, out := ((filtered >>> 8) - 28208).toUInt16.toInt16 }
+  { phase := p4, held := h4, counter := c4, out := Digital.toyFilter h1 h2 h3 h4 }
 
 /-- The result of one digital-modulation sample. -/
 structure ModulationStep where

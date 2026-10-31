@@ -31,11 +31,11 @@ def build():
     gen_dir.mkdir(parents=True, exist_ok=True)
     generated = []
     for glue_source in glues:
-        api = re.search(r'^#include "(\w+Api)\.c"', glue_source.read_text(), re.M).group(1)
-        subprocess.run(["lake", "build", f"Firmware.{api}"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
-        source = ROOT / f".lake/build/ir/Firmware/{api}.c"
-        (gen_dir / f"{api}.c").write_bytes(source.read_bytes())            # the arithmetic, from Lean
-        generated.append(source)
+        for api in re.findall(r'^#include "(\w+Api)\.c"', glue_source.read_text(), re.M):
+            subprocess.run(["lake", "build", f"Firmware.{api}"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+            source = ROOT / f".lake/build/ir/Firmware/{api}.c"
+            (gen_dir / f"{api}.c").write_bytes(source.read_bytes())        # the arithmetic, from Lean
+            generated.append(source)
     newest = max(p.stat().st_mtime for p in [*sources, *generated, *glues])
     if BIN.exists() and BIN.stat().st_mtime > newest:
         return

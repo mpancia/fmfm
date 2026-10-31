@@ -17,5 +17,7 @@ import Proofs.Physical
 import Proofs.Wavetables
 import Proofs.Blend
 import Proofs.Digital
-import Proofs.Digital
-import Proofs.Blend
+import Proofs.Mix
+import Proofs.Smooth
+import Proofs.Patch
+import Proofs.Vowels

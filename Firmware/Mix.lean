@@ -1,0 +1,59 @@
+set_option compiler.extract_closed false
+
+/-!
+The arithmetic of the mix in `dinghy.c`: each voice's level glides toward its gate, its sample is scaled by
+the sound's gain and the level, a share goes to the reverb bus, and the reverb's wet signal is scaled on the
+way back. The C keeps the loops and the buffers and calls these once a sample.
+-/
+
+/-- The level one sample later: it rises by `up` or falls by `down` toward `gate` and stops at the gate rather
+than passing it. -/
+def Mix.envelopeStep (amp gate up down : Int32) : Int32 :=
+  if amp < gate then
+    let raised := amp + up
+    if raised > gate then gate else raised
+  else if amp > gate then
+    let lowered := amp - down
+    if lowered < gate then gate else lowered
+  else amp
+
+/-- A voice's sample for the mix: the Braids sample times the sound's gain (256 = 1) and the level
+(130048 = full, the top of `play`'s gate). -/
+def Mix.voiceSample (sample : Int16) (gain : UInt16) (amp : Int32) : Int32 :=
+  (((sample.toInt32 * gain.toUInt32.toInt32) >>> 8) * (amp >>> 4)) >>> 15
+
+/-- The share of a voice's sample that goes to the reverb bus: the bus is left plus right, so the sample is
+doubled, then scaled by `send` (256 = all). -/
+def Mix.sendSample (s : Int32) (send : UInt16) : Int32 :=
+  (s * 2 * send.toUInt32.toInt32) >>> 8
+
+/-- The reverb's wet sample scaled by the Q15 return gain. The product needs 64 bits; a shift is cheap on the
+chip, a 64-bit division is not. -/
+def Mix.wetSample (wet gain : Int32) : Int32 :=
+  ((wet.toInt64 * gain.toInt64) >>> 15).toInt32
+
+/-- The mix held within 524287 before `platform.c` multiplies it by the master gain (at most 4088): anything
+louder would wrap in that product. Sixteen times full scale, so the limit is never reached by the dry mix
+and only by an extreme wet return. -/
+def Mix.limit (x : Int32) : Int32 :=
+  if x > 524287 then 524287 else if x < -524287 then -524287 else x
+
+/-- C entry: the level one sample later. -/
+@[export fm1_mix_envelope_step]
+def mixEnvelopeStep (amp gate up down : Int32) : Int32 := Mix.envelopeStep amp gate up down
+
+/-- C entry: a voice's sample for the mix. -/
+@[export fm1_mix_voice_sample]
+def mixVoiceSample (sample : Int16) (gain : UInt16) (amp : Int32) : Int32 := Mix.voiceSample sample gain amp
+
+/-- C entry: a voice's share for the reverb bus. -/
+@[export fm1_mix_send_sample]
+def mixSendSample (s : Int32) (send : UInt16) : Int32 := Mix.sendSample s send
+
+/-- C entry: the wet sample scaled by the return gain. -/
+@[export fm1_mix_wet_sample]
+def mixWetSample (wet gain : Int32) : Int32 := Mix.wetSample wet gain
+
+/-- C entry: the mix held within what the master gain can scale. -/
+@[export fm1_mix_limit]
+def mixLimit (x : Int32) : Int32 := Mix.limit x

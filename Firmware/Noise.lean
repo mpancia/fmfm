@@ -26,6 +26,12 @@ structure NoiseSvfStep where
   bp : Int32
   out : Int16
 
+/-- Where a signed 16-bit value falls on the overdrive curve: the value moved up to 0 to 65535. -/
+@[inline] def Noise.overdriveIndex (x : Int32) : UInt32 := (x + 32768).toUInt32
+
+/-- Filtered noise: the mix limited to 16 bits and scaled by `gain` (0 to 32767, out of 32768). -/
+@[inline] def Noise.corrected (mixed gain : Int32) : Int32 := (Digital.clip mixed * gain) >>> 15
+
 /-- White noise (`input`, already halved) through a state-variable filter, its low, band and high-pass outputs
 mixed by three gains, corrected by `gain` and soft-clipped. -/
 @[inline] def Noise.filtered (input f damp bp lp lpGain bpGain hpGain gain : Int32) : NoiseSvfStep :=
@@ -33,9 +39,10 @@ mixed by three gains, corrected by `gain` and soft-clipped. -/
   let lp' := Digital.clip (lp + ((f * bp) >>> 15))
   let hp := notch - lp'
   let bp' := bp + ((f * hp) >>> 15)
-  let mixed := Digital.clip (((lpGain * lp') >>> 14) + ((bpGain * bp') >>> 14) + ((hpGain * hp) >>> 14))
-  let corrected := (mixed * gain) >>> 15
-  { lp := lp', bp := bp', out := (Analog.shape Digital.overdriveTable ((corrected + 32768).toUInt32)).toInt16 }
+  let mixed := ((lpGain * lp') >>> 14) + ((bpGain * bp') >>> 14) + ((hpGain * hp) >>> 14)
+  let corrected := Noise.corrected mixed gain
+  { lp := lp', bp := bp',
+    out := (Analog.shape Digital.overdriveTable (Noise.overdriveIndex corrected)).toInt16 }
 
 /-- One two-pole resonator: the input scaled by `s` (sign kept), plus feedback by `c` and `q2`, clipped. -/
 @[inline] def Noise.resonate (input s c q2 y1 y2 : Int32) : Int32 :=
@@ -50,15 +57,17 @@ structure TwinStep where
   y22 : Int32
   out : Int16
 
+/-- Twin peaks: the resonators' sum boosted by `makeup` (out of 8192) and limited to 16 bits. -/
+@[inline] def Noise.boost (sum makeup : Int32) : Int32 := Digital.clip (sum + ((sum * makeup) >>> 13))
+
 /-- Twin peaks: noise (`input`, already halved) through two resonators, summed, boosted by `makeup` and
 soft-clipped. -/
 @[inline] def Noise.twinPeaks (input s1 c1 s2 c2 q2 makeup y11 y12 y21 y22 : Int32) : TwinStep :=
   let y10 := Noise.resonate input s1 c1 q2 y11 y12
   let y20 := Noise.resonate input s2 c2 q2 y21 y22
-  let sum := y10 + y20
-  let boosted := Digital.clip (sum + ((sum * makeup) >>> 13))
+  let boosted := Noise.boost (y10 + y20) makeup
   { y11 := y10, y12 := y11, y21 := y20, y22 := y21,
-    out := (Analog.shape Digital.overdriveTable ((boosted + 32768).toUInt32)).toInt16 }
+    out := (Analog.shape Digital.overdriveTable (Noise.overdriveIndex boosted)).toInt16 }
 
 /-- The result of one clocked-noise sample. -/
 structure ClockedStep where
@@ -140,11 +149,15 @@ structure ParticleStep where
   y32 : Int32
   out : Int16
 
+/-- Particle noise: the burst's sample, white noise (`noise`, its low 16 bits) at `amplitude`. -/
+@[inline] def Noise.burst (noise : UInt32) (amplitude : UInt16) : Int32 :=
+  (noise.toUInt16.toInt16.toInt32 * amplitude.toUInt32.toInt32) >>> 16
+
 /-- Particle noise: a decaying burst of noise (`amplitude`, reset to full by each hit) through three
 resonators. -/
 @[inline] def Noise.particle (noise : UInt32) (amplitude : UInt16) (s1 c1 s2 c2 s3 c3 y11 y12 y21 y22 y31 y32 : Int32) :
     ParticleStep :=
-  let input := (noise.toUInt16.toInt16.toInt32 * amplitude.toUInt32.toInt32) >>> 16
+  let input := Noise.burst noise amplitude
   let amplitude' := ((amplitude.toUInt32 * 64763) >>> 16).toUInt16
   let y10 := Noise.resonate input s1 c1 32506 y11 y12
   let y20 := Noise.resonate input s2 c2 32506 y21 y22

@@ -47,11 +47,15 @@ by `fraction` (0 to 65535). `resonance` (-32768 to 32767) scales what is fed bac
   let out := Digital.clip ((input + (delayed <<< 1)) >>> 1)
   { feedback := feedback.toInt16, out := out.toInt16 }
 
+/-- Where the comb filter's resonance setting (0 to 32767) falls on the overdrive curve: the setting spread over
+the curve's 16-bit range. -/
+@[inline] def Physical.combResonanceIndex (parameter : Int32) : UInt32 :=
+  (((parameter <<< 1) - 32768).toInt16.toInt32 + 32768).toUInt32
+
 /-- The comb filter's resonance setting (0 to 32767) bent by Braids' overdrive curve, so the extremes can be set
 more finely (`Interpolate88` over `ws_moderate_overdrive`). -/
 @[inline] def Physical.combResonance (parameter : Int32) : Int32 :=
-  let r := ((parameter <<< 1) - 32768).toInt16.toInt32
-  Analog.shape Digital.overdriveTable (r + 32768).toUInt32
+  Analog.shape Digital.overdriveTable (Physical.combResonanceIndex parameter)
 
 /-- Plucked string: the value that fills one place of a new string's delay line. It is the old content with white
 noise mixed in (three quarters noise). -/
@@ -83,6 +87,14 @@ structure BowedStep where
   biquad : Int32
   out : Int16
 
+/-- Bowed string: where the bow's speed against the string (`delta`, pressed with `bow`) falls on the 257-entry
+friction curve. The size of the product is capped at 131071 before its top 8 bits pick the entry. -/
+@[inline] def Physical.frictionIndex (delta bow : Int32) : UInt32 :=
+  let raw := (delta * bow) >>> 5
+  let magnitude := if raw < 0 then -raw else raw
+  let capped := if magnitude >= 131072 then 131071 else magnitude
+  (capped >>> 9).toUInt32
+
 /-- Bowed string: a digital waveguide. The string is two delay lines (bridge side and neck side) with a bow that
 pushes the velocity toward its own through a friction curve; a low-pass at the bridge and a biquad stand in for the
 body. `excitation` walks the bowing envelope, `bow` (about 45 to 172) is the bow pressure, `y0` and `y1` are the
@@ -99,10 +111,7 @@ biquad's last two outputs. The delay-line samples are 8 bits, so the stores are 
       + (Physical.bowingEnvelope ((excitation + 1) >>> 1)).toUInt32.toInt32
   let bowVelocity := envelope >>> 1
   let delta := bowVelocity - stringVelocity
-  let raw := (delta * bow) >>> 5
-  let magnitude := if raw < 0 then -raw else raw
-  let capped := if magnitude >= 131072 then 131071 else magnitude
-  let friction := (Physical.bowingFriction (capped >>> 9).toUInt32).toUInt32.toInt32
+  let friction := (Physical.bowingFriction (Physical.frictionIndex delta bow)).toUInt32.toInt32
   let velocity := (friction * delta) >>> 15
   let temp := ((bridgeValue * 6553) >>> 15) + ((y0 * 6948) >>> 12) + ((y1 * (-2959 : Int32)) >>> 12)
   let out := Digital.clip (temp - y1)
@@ -139,6 +148,12 @@ structure FlutedStep where
   bore : UInt8
   out : Int16
 
+/-- Flute: where the jet's delayed value falls on the 257-entry jet curve: the value limited to 0 to 65535, then
+its top 8 bits. -/
+@[inline] def Physical.jetIndex (jetValue : Int32) : UInt32 :=
+  let limited := if jetValue < 0 then 0 else if jetValue > 65535 then 65535 else jetValue
+  (limited >>> 8).toUInt32
+
 /-- Flute: a bore and a jet delay line. Breath pressure comes from an envelope with noise on it (`intensity` says
 how much); the bore's end reflects through a low-pass (`coefficient` out of 4096) and a DC blocker, and the jet's
 delayed value passes through a saturating curve back into the bore. The line samples are 8 bits. -/
@@ -150,8 +165,7 @@ delayed value passes through a saturating curve back into the bore. The line sam
   let breath := steady + ((((noise * intensity) >>> 12) * steady) >>> 15)
   let lp' := (((-coefficient) * boreValue) + ((4096 - coefficient) * lp)) >>> 12
   let dcY' := ((4055 * dcY) >>> 12) + (lp' - dcX)
-  let jetIndex := if jetValue < 0 then 0 else if jetValue > 65535 then 65535 else jetValue
-  let jet := (Physical.blowingJet (jetIndex >>> 8).toUInt32).toInt32 + (dcY' >>> 1)
+  let jet := (Physical.blowingJet (Physical.jetIndex jetValue)).toInt32 + (dcY' >>> 1)
   let out := Digital.clip (boreValue >>> 1)
   { lp := lp', dcX := lp', dcY := dcY', jet := ((breath - (dcY' >>> 1)) >>> 9).toUInt32.toUInt8,
     bore := (jet >>> 9).toUInt32.toUInt8, out := out.toInt16 }

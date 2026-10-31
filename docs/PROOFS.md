@@ -26,6 +26,10 @@ Why it matters: the triangle can never click from an overflow, at any pitch or p
 
 Why it matters: the sine, and everything FM-modulated through it, can never put out more than the table holds; the cut to 16 bits in `Analog.sineAt` never changes a value.
 
+**`analog_phase_exact`**: Left to run, an oscillator's phase after `n` samples is exactly `phase + n * inc`, wrapped at 2^32.
+
+Why it matters: a note's pitch is exact for as long as it sounds: the frequency is `inc / 2^32` of the sample rate with no rounding error building up, so a long drone does not drift and two lanes an octave apart stay locked.
+
 ## Blend
 
 **`blend_eight_between`**: Blending two 16-bit entries by an 8-bit fraction (`Interpolate88`, `Analog.blend88`) lands between the two.
@@ -41,6 +45,26 @@ Why it matters: this is the blend inside every table read and every wave crossfa
 **`digital_mix_between_inputs`**: A crossfade of two 16-bit values never leaves the range between them (give or take one rounding step toward zero), for any balance up to 65535.
 
 Why it matters: every macro shape mixes its oscillators with this, as do the wavetable engines; a crossfade can never be louder than its louder input, so it cannot wrap.
+
+**`digital_clip_never_wraps`**: Braids' `CLIP` leaves a value between -32767 and 32767, and the 16-bit sample written is exactly that value.
+
+Why it matters: every engine that ends in a clip (the saw swarm, the harmonics, the FOF vowel, the question mark) writes exactly the clipped sample; the clip is the only thing that limits an overloaded sample, never a wrap.
+
+**`digital_fm_never_wraps`**: Each of the three FM engines (FM, feedback FM, chaotic FM) writes exactly the blended sine at its modulated phase: the cut to 16 bits changes nothing.
+
+Why it matters: an FM sample is always a value of the sine table (`analog_sine_between_entries`), so no modulation depth, feedback or sync can make it click from an overflow.
+
+**`digital_ring_product_never_wraps`**: The product of two 16-bit signals, taken as the ring modulator does, is their exact product scaled down by 65536, between -16384 and 16384: the multiplication never wraps and the cut to 16 bits changes nothing.
+
+Why it matters: the ring modulator multiplies three full-scale sines in a row; neither product can overflow, at any phase, so the soft clipper after them gets a value at most half scale.
+
+**`digital_ring_mod_never_wraps`**: The ring modulator writes exactly its soft-clipped triple product: the cut to 16 bits changes nothing.
+
+Why it matters: the ring modulator's sample is always a value of the overdrive shaper, so it cannot click from an overflow at any phase or pitch.
+
+**`digital_toy_never_wraps`**: The toy's smoothing filter writes exactly the weighted average of its four held values, centred on zero (between -28208 and 27987): the unsigned subtraction wraps for a low average, and the read as a 16-bit value undoes that wrap exactly.
+
+Why it matters: the toy's sample is never off by 65536; the wrap Braids relies on is proved harmless, not assumed.
 
 ## Divider
 
@@ -67,6 +91,22 @@ Why it matters: the sum is handed to the overdrive shaper offset by 32768 with n
 **`filters_harmonic_glide_approaches`**: A harmonic's amplitude moves toward its target and never passes it (shown for an amplitude below its target; the other direction is symmetric), for values within a quarter of the 32-bit range.
 
 Why it matters: when a harmonic is told to fade, it fades monotonically; it cannot overshoot and ring.
+
+**`filters_swarm_filter_never_wraps`**: The saw swarm's high-pass writes exactly its clipped output, between -32767 and 32767.
+
+Why it matters: the swarm's final sample is limited by the clip and only the clip; a resonance peak can never wrap around into a click.
+
+**`filters_windowed_carrier_never_wraps`**: The windowed carrier of the digital filter engines is the exact product the formula means, for a 16-bit carrier and a window of 0 to 65535. In the low-pass and peak types the product can pass 2^31 and wrap (Braids' C++ does the same); the read as a 16-bit value cancels the wrap exactly.
+
+Why it matters: the saw or triangle voice of the digital filter engines never puts out a wrapped value, at any pitch, cutoff or window position; the overflow in the original is proved harmless rather than assumed.
+
+**`filters_vosim_never_wraps`**: Vosim writes exactly its windowed formant sum, centred on zero: the two formants under the bell window never pass 49150 before the centring, so nothing wraps, at any pitch or formant setting.
+
+Why it matters: vosim cannot click from an overflow, whatever the two formant frequencies are.
+
+**`filters_harmonics_never_wraps`**: The harmonics engine writes exactly its clipped sum, and the in-between sample exactly the average of that with the last sample.
+
+Why it matters: adding the harmonics is limited by the clip and only the clip, and the half-rate smoothing cannot wrap, so the engine cannot click from an overflow.
 
 ## Harmony
 
@@ -138,11 +178,65 @@ Why it matters: the modulator rises and falls by the same path, so a one-bar LFO
 
 Why it matters: the knob's own value is the centre of the motion, not its top or bottom, so adding an LFO does not shift the average sound; and switching depth to zero returns exactly the sound you set.
 
+## Mix
+
+**`mix_envelope_toward_gate`**: The level of a voice one sample later lies between where it was and its gate, and so stays between 0 and 130048 (the top of `play`'s gate). The steps are `ATTACK` (at most 1024) and `RELEASE` (at most 250).
+
+Why it matters: the glide that removes clicks cannot overshoot and bounce, and the level never wraps to a negative number that would flip the sound's sign or make a released voice sound again.
+
+**`mix_voice_sample_never_wraps`**: A voice's sample for the mix is computed without any wrap, given a gain of at most 2048 (the most `tools/gen_presets.py` writes) and a level of at most 130048, and it is within 65024 either way; the share sent to the reverb bus (send at most 256) is within 130048.
+
+Why it matters: the loudest voice at the loudest gain stays an exact scaled copy of what Braids rendered, never a wrapped burst, and six of each fit the stereo mix and the send bus with room to spare.
+
+**`mix_bus_never_wraps`**: The stereo mix of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives) plus the wet return is added up without any wrap: the dry sum is within 390144, the whole within 2486144. The wet sample is taken to be within 2^20, four times the loudest value the reverb memory can hold. The last conjunct is for `platform.c`, which multiplies the mix by the master gain (at most 4088, Q12) before its clip to 16 bits: the dry mix cannot wrap in that product either.
+
+Why it matters: six loud voices together can only clip at the deliberate clip in `platform.c`, never wrap in the mix to a burst of the opposite sign.
+
+**`mix_limit_fits_master`**: After the limiter the mix is within 524287, so `platform.c`'s product with the master gain (at most 4088) fits in 32 bits for any input; and a mix already within that range passes through unchanged.
+
+Why it matters: the dry mix never reaches the limit (`mix_bus_never_wraps`), so the limiter only acts on an extreme wet return, where it keeps the master stage from wrapping to a burst of the opposite sign.
+
 ## Noise
 
 **`noise_particle_amplitude_fades`**: Between hits, a particle burst only fades: its amplitude after a sample is at most what it was.
 
 Why it matters: particle noise dies away between hits; the burst cannot grow by itself.
+
+**`noise_overdrive_index_in_table`**: A signed 16-bit value moved up by 32768 lands on the overdrive curve's 65536 indices.
+
+Why it matters: the filtered and twin-peaks noises read the curve by this index with no bounds check; this is the condition `tables_shape_reads_inside_257` needs.
+
+**`noise_corrected_never_wraps`**: The filtered noise's gain correction is exact and stays within 16 bits: the mix held between -32767 and 32767, scaled by `gain` parts in 32768, for a gain from 0 to 32767.
+
+Why it matters: the result is the index into the overdrive curve; a wrapped or oversized value would read outside the curve.
+
+**`noise_boost_never_wraps`**: The twin peaks' boost is exact: the resonators' sum plus `makeup` parts in 8192 of itself, held between -32767 and 32767, for a sum within 65536 and a makeup gain from 0 to 8191.
+
+Why it matters: the boost is the last arithmetic before the overdrive curve; it is clipped, not wrapped.
+
+**`noise_resonate_never_wraps`**: One resonator step is exact: the input scaled by `s` parts in 65536 with its sign kept, plus the last output times `c` parts in 32768, minus the one before times `q2` parts in 32768, held between -32767 and 32767. Holds for an input within 32768, a scale from 0 to 65535, a coefficient within 65535, a `q2` within 32768 and last outputs within 32767 (they are this step's own clipped results).
+
+Why it matters: the resonators ring the particle and twin-peaks noises; a wrap in the feedback would be a burst of noise that never decays.
+
+**`noise_burst_never_wraps`**: A particle burst's sample is exact: the noise word's low 16 bits, read as a signed number, times the amplitude, divided by 65536, which keeps it within 16 bits.
+
+Why it matters: this is the input to the three resonators; it is within the range they are proved for.
+
+**`noise_particle_never_wraps`**: The particle noise's sample is exact: the three resonators' outputs added and held between -32767 and 32767, with nothing wrapping in the sum.
+
+Why it matters: each resonator is clipped on its own, so the three together need the sum to be clipped again, not wrapped.
+
+**`noise_cloud_out_never_wraps`**: The cloud's limiter is exact: the sample is the grains' sum held between -32768 and 32767.
+
+Why it matters: the cloud's sum is cut to 16 bits only after this limit, so the cut changes nothing.
+
+**`noise_grain_never_wraps`**: A grain's share of the sample is exact: the sine at its new phase times its envelope entry, divided by 131072, which is within 16384 either way, so the cloud's limiter sees the exact sum of its four grains.
+
+Why it matters: the cloud adds four of these for every sample; a wrapped share would be a click.
+
+**`noise_grain_envelope_index_in_table`**: A grain reads inside its 513-entry envelope as long as its envelope phase started the block at or below 2^24 and its rate is at most 2^18 per sample, for a block of up to 16 samples. Both are C++'s doing: it resets any grain whose phase has passed 2^24 before each block, and the rate table tops out at 32768 times 8.
+
+Why it matters: the envelope is a plain C array read without a bounds check.
 
 ## Notes
 
@@ -174,17 +268,115 @@ Why it matters: the AMOUNT knob is a real limit on how far a WALK lane can jump 
 
 Why it matters: MUTATE at zero is an exact loop, the hook a listener can hold on to.
 
+## Patch
+
+**`patch_decode_encode_round_trip`**: Saving a patch and loading the bytes back gives the same patch, for every patch the knobs can produce.
+
+Why it matters: a user slot restores exactly what was saved, every lane setting and every global, with no field lost, swapped or rounded on the way through flash.
+
+**`patch_decode_only_fits`**: A patch that loads from a slot is one the knobs could have produced: every setting is in range.
+
+Why it matters: a corrupt or foreign slot can never put an out-of-range sound index, scale or step count into the firmware, where it would read past a table; such a slot loads as EMPTY instead.
+
+**`patch_decode_rejects_wrong_marker`**: A slot whose first byte is not the patch marker 0xA7 never loads.
+
+Why it matters: a slot never written, or written by other software, is told apart by its first byte and treated as empty rather than read as a scramble of settings.
+
+**`patch_decode_rejects_wrong_size`**: A slot that is not exactly 74 bytes long never loads.
+
+Why it matters: a slot written by a firmware with a different patch layout is rejected whole instead of being read field by field in the wrong places.
+
+**`patch_encode_size`**: Every saved patch is 74 bytes long.
+
+Why it matters: the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a different count would make every saved patch unloadable.
+
 ## Percussion
 
 **`percussion_excite_decays`**: Between hits, an exciter's pulse only decays: it stays at or below where it was, and never below zero. The pulse is at most 2^19 (the loudest strike is 15 times 32768) and the decay at most 4096 (one, in 12 bits).
 
 Why it matters: a drum hit dies away; the exciter cannot grow on its own or swing negative.
 
+**`percussion_decay_never_grows`**: Between blocks a partial only fades: its new amplitude is at least zero and at most what it was, for an amplitude up to 32767, decays up to 65535 (the short one at most the long one) and any setting from 0 to 32767.
+
+Why it matters: a bell or drum partial dies away; the decay cannot make it louder or flip its sign, and so the amplitudes stay within the range the partial arithmetic is proved for.
+
+**`percussion_bell_partial_never_wraps`**: A bell partial's share of the sample is exact: the sine at its new phase times its amplitude, divided by 131072, for an amplitude from 0 to 32767 (Braids' bell partials start at most at 21872 and only decay).
+
+Why it matters: eleven of these are added for every sample of a bell; a wrapped share would be a click.
+
+**`percussion_drum_partial_never_wraps`**: A drum partial's share of the sample is exact: its amplitude moves from `amplitude` toward `target` by `fade` parts in 32768, and the sine at its new phase times that, divided by 65536, is the share. Holds for amplitudes from 0 to 32767 (Braids' drum partials start at most at 16986) and a fade from 0 to 32768.
+
+Why it matters: six of these are added for every sample of a drum; a wrapped share would be a click.
+
+**`percussion_snare_never_wraps`**: The snare's sample is exact: the two filtered exciters, each with a sixteenth of its raw pulse, at their gains, plus the filtered noise, held between -32767 and 32767. Holds for 16-bit filter outputs and noise, a first pulse within 2^19 and a second within 2^18 (Braids strikes them at 15 times 32768 and at 13107) and the gains Braids uses (22000 minus and plus half the first parameter).
+
+Why it matters: the snare adds three loud signals; this says the sum is clipped, not wrapped.
+
+**`percussion_cymbal_never_wraps`**: The cymbal's sample is exact: the metallic and white noises each held between -32767 and 32767, then the blend from the first toward the second by `xfade` parts in 32768, which lands between them and so fits 16 bits. The product inside sits at the very edge of 32 bits (65534 times 32767) and never crosses it.
+
+Why it matters: the cymbal's blend is its sample; it cannot wrap at any blend setting.
+
+**`percussion_drum_noise_stays_bounded`**: The drum's noise filter never runs away: when its three states are within 16384, so are the next three, for noise of any size and a cutoff from 0 to 32768.
+
+Why it matters: the filtered noise rings the drum's partials on every sample; a state that could grow would wrap that product.
+
+**`percussion_drum_mix_never_wraps`**: The drum's sample is exact: the first partial, the second and fourth ring-modulated by the filtered noise at the noise gain, and all the partials at the harmonics gain, held between -32767 and 32767. Holds for a second partial within 2048 and a fourth within 4096 (Braids starts them at 2654 and 5308 and the sine halves that), the others within 16 bits, filtered noise within 16384, a noise gain from 0 to 12888 and a harmonics gain from 0 to 16384, which are the ranges Braids' drum sets.
+
+Why it matters: the ring modulation multiplies two signals and then a gain; with any louder partial it would pass 32 bits, so the bound on those two partials is what keeps the drum free of wraps.
+
 ## Physical
+
+**`physical_mix_never_wraps`**: Braids' `Mix` of two 16-bit delay-line samples by a 16-bit fraction is exact: the weighted sum sits at the very edge of 32 bits (32768 times 65535) and never crosses it.
+
+Why it matters: every delay-line read of the bowed string, blown pipe and flute goes through this blend; an overflow here would put a wrong sample back into the string or bore on every pass.
+
+**`physical_comb_never_wraps`**: The comb filter's sample and the sample it feeds back are exact: the delayed sample is the exact blend of its two neighbours, and each output is that arithmetic held between -32767 and 32767, with nothing wrapping in between. Holds for 16-bit input and delay-line samples, a fraction from 0 to 65535 and a 16-bit resonance.
+
+Why it matters: the comb's delay line feeds itself; a wrapped sample would ring round the loop as a click.
+
+**`physical_comb_resonance_index_in_table`**: The comb filter reads its resonance curve inside the curve's 257 entries, whatever the setting.
+
+Why it matters: the curve is a plain C array read without a bounds check; the cut to 16 bits before the offset is what keeps every setting inside.
+
+**`physical_pluck_fill_never_wraps`**: Filling a new string never wraps: each place gets exactly a quarter of the old sample plus three quarters of the noise, which fits 16 bits for 16-bit inputs.
+
+Why it matters: a pluck starts from this fill; a wrapped value would start the note with a click.
 
 **`physical_pluck_average_no_gain`**: One step of the plucked string's loop never makes the signal louder: the result is within the louder of the two neighbours it averages, for 16-bit neighbours and a loss between 0 and 32768.
 
 Why it matters: the Karplus-Strong loop feeds its output back into itself; a step that could gain would make the string grow instead of ring down.
+
+**`physical_pluck_read_never_wraps`**: Reading the plucked string between two entries gives exactly the blend of the two, for 16-bit entries at any phase. The product inside can pass 32 bits (as in Braids' `Interpolate1022`), but the excess is a multiple of 2^16 and the cut to 16 bits removes it exactly.
+
+Why it matters: this read is the plucked string's sample; the overflow in the original is shown harmless rather than assumed.
+
+**`physical_half_rate_never_wraps`**: The two samples of an engine that runs at half rate are exact: the sample is the voices' sum held between -32767 and 32767, and the in-between sample is the mean of that and the previous 16-bit sample, rounded down.
+
+Why it matters: the plucked string and the bowed string hand every other sample through here; the mean of two 16-bit values must not wrap on the way to the buffer.
+
+**`physical_bowed_never_wraps`**: The bowed string's sample is exact: the body filter's arithmetic on the bridge sample (the blend of two 8-bit line samples, scaled up by 256) and its two previous outputs, held between -32767 and 32767. The two previous outputs are assumed within 2^18; Braids keeps them as plain 32-bit numbers without a clip.
+
+Why it matters: the body filter runs on every sample of a bowed note; a wrap in it would be a click.
+
+**`physical_bowed_lowpass_stays_bounded`**: The bowed string's bridge low-pass never runs away: when its state is within 16 bits, so is the next state, for 8-bit line samples and any fraction up to 65535.
+
+Why it matters: this state feeds the string back to itself on every sample; a state that could grow would make the string swell instead of settle, and would wrap the bow's arithmetic.
+
+**`physical_friction_index_in_table`**: The bowed string reads its friction curve inside the curve's 257 entries, for a bow pressure up to 1024 and a bow-to-string speed difference up to 2^20 (Braids' pressure is at most 172 and the difference at most 2^17).
+
+Why it matters: the friction read is a plain C array access with no bounds check; the cap at 131071 before the top 8 bits are taken is what keeps it inside.
+
+**`physical_blown_filter_stays_between`**: The blown pipe's output filter lands between the bore's new sample and the filter's own last output, so it fits 16 bits with nothing to cut, for a coefficient from 0 to 4096 and a 16-bit last output.
+
+Why it matters: this filter is the blown pipe's sample; it can only smooth what the bore gives it, never add a wrapped value of its own.
+
+**`physical_fluted_never_wraps`**: The flute's sample is exact: the bore's blended 8-bit sample scaled up by 256, held between -32767 and 32767, for 8-bit line samples and any fraction up to 65535.
+
+Why it matters: the flute's sample is read straight off the bore; nothing on that path can wrap.
+
+**`physical_jet_index_in_table`**: The flute reads its jet curve inside the curve's 257 entries, whatever the jet's value.
+
+Why it matters: the jet read is a plain C array access with no bounds check; the limit to 0 to 65535 before the top 8 bits are taken is what keeps it inside.
 
 ## Quantizer
 
@@ -244,6 +436,14 @@ Why it matters: the delay modulation below relies on the wobble never going nega
 
 Why it matters: a modulated read that ran past the end of its line would read the next line's samples, a quiet bug the differential test could miss. With `reverb_position_in_ring` and the line layout, every read is in the memory and in its line.
 
+**`reverb_round_trip_decays`**: One trip round the undriven tank (through both loops) scales a sample's size by the decay gain squared, plus at most one unit of rounding: in Q15, the sample read from a long delay comes back to that delay as at most `tail · decay² / 2^30 + 1`. Each loop applies the decay gain once, so a round trip applies it twice. The loop gain is at most 0.98 (`reverb_gains_below_one`), so the squared gain is at most 0.96. This follows one sample's direct path with the rest of the tank quiet: what the low-passes and the allpass lines hold comes out on later samples and is bounded by the same gains on its own trips.
+
+Why it matters: with nothing fed in, the tail gets quieter on every trip round the tank until it is within a rounding step of silence; no decay setting can make the reverb ring on or build up.
+
+**`reverb_wet_never_overflows`**: The wet sample a loop hands to the mixer is exactly twice the sum the loop stores (no wrap in the doubling or in any addition before it), it is at most 16448.0 in size (2^29 + 2^21, a quarter of the 32-bit range), the low-pass's new state stays within 8192.0 (2^28), and the mixer's return gain of up to 2.0 (`Mix.wetSample`) then scales it with no wrap either. This holds for a send of at most 4096.0 (2^27; six voices put far less on the bus), a low-pass state of at most 8192.0 (which the third claim keeps true from one sample to the next, starting from a cleared state), gains of at most 1.0 in size, and samples read from the memory (at most 8.0 each, by its 16-bit format).
+
+Why it matters: the reverb's output can never wrap round to the opposite sign on its way into the mix, which would turn a loud tail into full-scale noise.
+
 ## Run
 
 **`run_every_note_on_has_a_note_off`**: Every note a lane starts during a run is stopped: after any sequence of ticks and setting changes, the number of note-ons equals the number of note-offs plus the one note still sounding, which stopping the clock then reports as stopped (`lane_silence_stops_note`) and leaves nothing sounding.
@@ -253,6 +453,24 @@ Why it matters: this is the no-stuck-notes promise for a whole performance, not 
 **`run_clock_never_drifts`**: After `n` ticks from a fresh lane, the clock stands at `(n / div) % steps`, whatever notes played.
 
 Why it matters: the step position depends only on the tick count, so four lanes at different speeds stay in phase forever: nothing a note does can make a lane drift.
+
+## Smooth
+
+**`smooth_parameter_between`**: A smoothed parameter never leaves the range between the value it moves from and the value it moves to: for parameters 0 to 32767 (Braids' range) and any crossfade position 0 to 32767, the smoothed value lies between `start` and `target`, and nothing in the arithmetic wraps.
+
+Why it matters: when a knob moves, the timbre glides from the old setting to the new one; it cannot swing past either, and the product inside cannot overflow into a sudden jump.
+
+**`smooth_parameter_reaches_target`**: When the block ends, the smoothed parameter is within `size` of the value it was moving to: the last crossfade position is `32767 - 32767 % size` rather than 32768, so the final value stops just short. Blocks on the FM-1 are 16 samples, so the parameter ends within 16 of its target on a scale of 32768.
+
+Why it matters: a knob setting is reached, not approached forever; the step from the end of one block to the start of the next is at most `size`, so block boundaries are inaudible.
+
+**`smooth_step_glide_bound`**: While a block smooths the phase step from `previous` to `target`, the step never rises above the larger of the two nor falls more than `size` below the smaller. Rising, it stays between the two exactly; falling (or level), Braids' `~` makes each sample move one more than the exact share, so the step can pass the target by up to `size`. The target must be at least `size` for the falling case to stay in range (a phase step of 16 is a pitch far below hearing).
+
+Why it matters: a pitch glide between blocks cannot shoot past the note by more than 16 units of 2^32 per sample, a frequency error below a millionth of a semitone; there is no audible blip at a block boundary.
+
+**`smooth_step_lands_near_target`**: When the block ends, the smoothed phase step is at or below its target and within `size` of it: rising, it lands `(target - previous) % size` short; falling or level, it lands between 1 and `size` below. The target must be at least `size` so the falling case stays in range.
+
+Why it matters: after every block the pitch is within 16 units of 2^32 per sample of the note asked for, so a note settles on pitch within one block and never ends up sharp.
 
 ## Tables
 
@@ -272,6 +490,28 @@ Why it matters: these are the only 129-entry tables; without the clamp to 16383 
 
 Why it matters: Braids' waves are 129 bytes, half the table size the phase could address; the halving in every wavetable engine is what keeps the read inside the wave.
 
+**`tables_wave_line_reads_inside_129`**: A wave phase, halved and then masked to fewer steps as the wave line's rough reading does, reads inside a 129-byte wave.
+
+Why it matters: the mask can only lower the phase, so the rough reading stays inside the wave like the plain one (`tables_wave_reads_inside_129`), whatever mask the wave line uses.
+
+**`tables_formant_reads_inside_256`**: A formant phase and an amplitude of 0 to 15 read inside the 256-entry formant tables (16 phases by 16 amplitudes).
+
+Why it matters: the vowel's formant amplitudes are 4-bit by construction of its data; with any such amplitude, no phase can read past the formant sine or square table.
+
+## Vowels
+
+**`vowels_fof_contribution_never_wraps`**: Each formant filter of the FOF vowel contributes exactly its band-pass state scaled by the amplitude (a 16-bit value) and divided by 131072: between -8192 and 8191, with nothing wrapping.
+
+Why it matters: the five contributions are added in C as a 32-bit sum, which therefore never passes 40960, so the clip after it is the only thing that limits the FOF vowel.
+
+**`vowels_fof_out_never_wraps`**: The FOF vowel writes exactly its clipped filter sum, and the in-between sample exactly the average of that with the last sample.
+
+Why it matters: the FOF vowel is limited by its clip and only its clip; the half-rate smoothing cannot wrap, so the engine cannot click from an overflow.
+
+**`vowels_question_drive_never_wraps`**: The question mark's distortion term is exactly the square-law formula, between 0 and 65535, for a clipped sample and a drive of 0 to 32767: neither product wraps.
+
+Why it matters: at full drive the distortion cannot overflow and flip the sample's sign; the clip after it is the only thing that limits the question mark.
+
 ## Wavetables
 
 **`wavetables_wavetable_never_wraps`**: A wavetable sample is exactly the sum of its two half-rate readings, each halved: nothing wraps around.
@@ -285,3 +525,15 @@ Why it matters: morphing between waves can never be louder than the louder wave,
 **`wavetables_read_between_bytes`**: A wave read lies between the two bytes it blends (each byte scaled to 16 bits), for any wave and phase. The product inside wraps in 32 bits for steep waves (Braids' `wt_waves` has byte steps up to 253; the C++ does the same), and the cut to 16 bits cancels the wrap exactly.
 
 Why it matters: a wave never puts out more than its bytes hold, and the overflow in the original is proved harmless rather than assumed.
+
+**`wavetables_wave_map_never_wraps`**: A wave map sample is exactly the sum of its two half-rate readings, each already halved: nothing wraps around.
+
+Why it matters: the wave map engine cannot click from an overflow, for any square of the map, phase or position inside the square.
+
+**`wavetables_wave_line_never_wraps`**: A wave line sample is exactly the average of its two half steps: nothing wraps around.
+
+Why it matters: the wave line engine cannot click from an overflow, for any waves, masks, crossfades or balance.
+
+**`wavetables_paraphonic_never_wraps`**: A paraphonic sample is exactly the sum of its four voices divided by four: nothing wraps around.
+
+Why it matters: four full-scale voices added in 32 bits stay far inside the range, so the chord engine cannot click from an overflow at any chord, phase or morph position.

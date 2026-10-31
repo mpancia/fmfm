@@ -27,6 +27,9 @@ theorem analog_sine_between_entries (phase : UInt32) :
         max (Analog.sineTable (Analog.tableIndex phase)).toInt
           (Analog.sineTable (Analog.tableIndex phase + 1)).toInt := sorry
 
+theorem analog_phase_exact (phase inc : UInt32) (n : Nat) :
+    (Analog.freeRun phase inc n).toNat = (phase.toNat + n * inc.toNat) % 2 ^ 32 := sorry
+
 -- Proofs/Blend.lean
 theorem blend_eight_between (a b : Int32) (index : UInt32)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
@@ -43,6 +46,39 @@ theorem digital_mix_between_inputs (a b : Int32) (balance : UInt32) (hbal : bala
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
     min a.toInt b.toInt - 1 ≤ (Digital.mix a b balance).toInt ∧
       (Digital.mix a b balance).toInt ≤ max a.toInt b.toInt := sorry
+
+theorem digital_clip_never_wraps (x : Int32) :
+    (Digital.clip x).toInt16.toInt = (Digital.clip x).toInt ∧
+      -32767 ≤ (Digital.clip x).toInt ∧ (Digital.clip x).toInt ≤ 32767 := sorry
+
+theorem digital_fm_never_wraps (phase modPhase inc modInc : UInt32) (previous : Int16)
+    (index attenuation : Int32) (sync : UInt8) :
+    (Digital.fm phase modPhase inc modInc index sync).out.toInt =
+      (Analog.sineAt ((if sync != 0 then 0 else phase + inc) +
+        ((Analog.sineAt ((if sync != 0 then 0 else modPhase) + modInc) * index) <<< 2).toUInt32)).toInt ∧
+    (Digital.feedbackFm phase modPhase inc modInc previous index attenuation sync).out.toInt =
+      (Analog.sineAt ((if sync != 0 then 0 else phase + inc) +
+        ((Analog.sineAt ((if sync != 0 then 0 else modPhase) + modInc + (previous.toInt32 <<< 14).toUInt32) *
+          ((index * attenuation) >>> 15)) <<< 1).toUInt32)).toInt ∧
+    (Digital.chaoticFm phase modPhase inc modInc index sync).out.toInt =
+      (Analog.sineAt ((if sync != 0 then 0 else phase + inc) +
+        ((Analog.sineAt (if sync != 0 then 0 else modPhase) * index) <<< 1).toUInt32)).toInt := sorry
+
+theorem digital_ring_product_never_wraps (a b : Int32)
+    (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
+    (Digital.ringProduct a b).toInt = a.toInt * b.toInt / 65536 ∧
+      -16384 ≤ (Digital.ringProduct a b).toInt ∧ (Digital.ringProduct a b).toInt ≤ 16384 := sorry
+
+theorem digital_ring_mod_never_wraps (phase mod1 mod2 inc inc1 inc2 : UInt32) (sync : UInt8) :
+    (Digital.ringMod phase mod1 mod2 inc inc1 inc2 sync).out.toInt =
+      (Analog.shape Digital.overdriveTable
+        ((Digital.ringProduct (Digital.ringProduct (Analog.sineAt (if sync != 0 then 0 else phase + inc))
+          (Analog.sineAt ((if sync != 0 then 0 else mod1) + inc1)))
+          (Analog.sineAt ((if sync != 0 then 0 else mod2) + inc2)) + 32768) &&& 0xFFFF).toUInt32).toInt := sorry
+
+theorem digital_toy_never_wraps (h1 h2 h3 h4 : UInt8) :
+    (Digital.toyFilter h1 h2 h3 h4).toInt =
+      ((10530 * h1.toNat + 14751 * h2.toNat + 16384 * h3.toNat + 14751 * h4.toNat) / 256 : Nat) - 28208 := sorry
 
 -- Proofs/Divider.lean
 theorem divider_pulse_count (div ticks : Nat) (positive : 0 < div) :
@@ -65,6 +101,32 @@ theorem filters_harmonic_glide_approaches (amplitude target : Int32)
     (order : amplitude.toInt ≤ target.toInt) :
     amplitude.toInt ≤ (Filters.harmonicGlide amplitude target).toInt ∧
       (Filters.harmonicGlide amplitude target).toInt ≤ target.toInt := sorry
+
+theorem filters_swarm_filter_never_wraps (sample f damp bp lp : Int32) :
+    (Filters.swarmFilter sample f damp bp lp).out.toInt =
+      (Digital.clip ((sample - ((bp * damp) >>> 15)) - Digital.clip (lp + ((f * bp) >>> 15)))).toInt ∧
+      -32767 ≤ (Filters.swarmFilter sample f damp bp lp).out.toInt ∧
+        (Filters.swarmFilter sample f damp bp lp).out.toInt ≤ 32767 := sorry
+
+theorem filters_windowed_carrier_never_wraps (carrier window : Int32) (filterType : UInt8)
+    (carrier16 : -32768 ≤ carrier.toInt ∧ carrier.toInt ≤ 32767)
+    (window16 : 0 ≤ window.toInt ∧ window.toInt ≤ 65535) :
+    (Filters.windowedCarrier carrier window filterType).toInt =
+      if filterType &&& 2 != 0 then carrier.toInt * window.toInt / 65536
+      else window.toInt * (carrier.toInt + 32768) / 65536 - 32768 := sorry
+
+theorem filters_vosim_never_wraps (phase inc formant0 formant1 inc0 inc1 : UInt32) (sync : UInt8) :
+    (Filters.vosim phase inc formant0 formant1 inc0 inc1 sync).out.toInt =
+      (if (if sync != 0 then 0 else phase + inc) < inc then (0 : Int32) else
+        (((24576 : Int32) + (Analog.sineAt (formant0 + inc0) >>> 1) +
+          (Analog.sineAt (formant1 + inc1) >>> 2)) *
+          ((Filters.bellAt (if sync != 0 then 0 else phase + inc)).toInt32 >>> 1)) >>> 15).toInt - 24576 := sorry
+
+theorem filters_harmonics_never_wraps (sum previous : Int32)
+    (previous16 : -32768 ≤ previous.toInt ∧ previous.toInt ≤ 32767) :
+    (Filters.harmonicsOut sum).toInt16.toInt = (Digital.clip sum).toInt ∧
+      (Filters.harmonicsMid sum previous).toInt16.toInt =
+        ((Digital.clip sum).toInt + previous.toInt) / 2 := sorry
 
 -- Proofs/Harmony.lean
 theorem harmony_mask_never_empty (scale key root follow : UInt32) :
@@ -116,10 +178,84 @@ theorem lfo_modulate_centred (base depth phase : UInt32) (small : base.toNat ≤
     (deep : depth.toNat ≤ 100) :
     lfoModulate base depth 1073741824 = base ∧ lfoModulate base 0 phase = base := sorry
 
+-- Proofs/Mix.lean
+theorem mix_envelope_toward_gate (amp gate up down : Int32)
+    (ampInRange : 0 ≤ amp.toInt ∧ amp.toInt ≤ 130048) (gateInRange : 0 ≤ gate.toInt ∧ gate.toInt ≤ 130048)
+    (upInRange : 0 ≤ up.toInt ∧ up.toInt ≤ 1024) (downInRange : 0 ≤ down.toInt ∧ down.toInt ≤ 250) :
+    min amp.toInt gate.toInt ≤ (Mix.envelopeStep amp gate up down).toInt ∧
+      (Mix.envelopeStep amp gate up down).toInt ≤ max amp.toInt gate.toInt ∧
+      0 ≤ (Mix.envelopeStep amp gate up down).toInt ∧ (Mix.envelopeStep amp gate up down).toInt ≤ 130048 := sorry
+
+theorem mix_voice_sample_never_wraps (sample : Int16) (gain send : UInt16) (amp : Int32)
+    (gainInRange : gain.toNat ≤ 2048) (sendInRange : send.toNat ≤ 256)
+    (ampInRange : 0 ≤ amp.toInt ∧ amp.toInt ≤ 130048) :
+    (Mix.voiceSample sample gain amp).toInt =
+        sample.toInt * gain.toNat / 256 * (amp.toInt / 16) / 32768 ∧
+      (Mix.voiceSample sample gain amp).toInt.natAbs ≤ 65024 ∧
+      (Mix.sendSample (Mix.voiceSample sample gain amp) send).toInt.natAbs ≤ 130048 := sorry
+
+theorem mix_bus_never_wraps (voices : List Int32) (wet gain : Int32) (atMostSix : voices.length ≤ 6)
+    (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024) (wetBounded : wet.toInt.natAbs ≤ 2 ^ 20)
+    (returnInRange : 0 ≤ gain.toInt ∧ gain.toInt ≤ 65500) :
+    (voices.foldl (· + ·) 0).toInt = (voices.map Int32.toInt).sum ∧
+      (voices.foldl (· + ·) 0).toInt.natAbs ≤ 390144 ∧
+      (voices.foldl (· + ·) 0 + Mix.wetSample wet gain).toInt =
+        (voices.map Int32.toInt).sum + wet.toInt * gain.toInt / 32768 ∧
+      (voices.foldl (· + ·) 0 + Mix.wetSample wet gain).toInt.natAbs ≤ 2486144 ∧
+      (voices.foldl (· + ·) 0).toInt.natAbs * 4088 < 2 ^ 31 := sorry
+
+theorem mix_limit_fits_master (x : Int32) :
+    (Mix.limit x).toInt.natAbs * 4088 < 2 ^ 31 ∧ (x.toInt.natAbs ≤ 524287 → Mix.limit x = x) := sorry
+
 -- Proofs/Noise.lean
 theorem noise_particle_amplitude_fades (noise : UInt32) (amplitude : UInt16)
     (s1 c1 s2 c2 s3 c3 y11 y12 y21 y22 y31 y32 : Int32) :
     (Noise.particle noise amplitude s1 c1 s2 c2 s3 c3 y11 y12 y21 y22 y31 y32).amplitude ≤ amplitude := sorry
+
+theorem noise_overdrive_index_in_table (x : Int32) (sixteenBit : -32768 ≤ x.toInt ∧ x.toInt ≤ 32767) :
+    (Noise.overdriveIndex x).toNat ≤ 65535 := sorry
+
+theorem noise_corrected_never_wraps (mixed gain : Int32) (gainFits : 0 ≤ gain.toInt ∧ gain.toInt ≤ 32767) :
+    (Noise.corrected mixed gain).toInt = max (-32767) (min 32767 mixed.toInt) * gain.toInt / 32768 ∧
+      (Noise.corrected mixed gain).toInt.natAbs ≤ 32767 := sorry
+
+theorem noise_boost_never_wraps (sum makeup : Int32) (sumFits : sum.toInt.natAbs ≤ 65536)
+    (makeupFits : 0 ≤ makeup.toInt ∧ makeup.toInt ≤ 8191) :
+    (Noise.boost sum makeup).toInt =
+      max (-32767) (min 32767 (sum.toInt + sum.toInt * makeup.toInt / 8192)) := sorry
+
+theorem noise_resonate_never_wraps (input s c q2 y1 y2 : Int32) (inputFits : input.toInt.natAbs ≤ 32768)
+    (sFits : 0 ≤ s.toInt ∧ s.toInt ≤ 65535) (cFits : c.toInt.natAbs ≤ 65535)
+    (q2Fits : q2.toInt.natAbs ≤ 32768)
+    (y1Fits : y1.toInt.natAbs ≤ 32767) (y2Fits : y2.toInt.natAbs ≤ 32767) :
+    (Noise.resonate input s c q2 y1 y2).toInt =
+      max (-32767) (min 32767
+        ((if 0 < input.toInt then input.toInt * s.toInt / 65536 else -((-input.toInt) * s.toInt / 65536))
+          + y1.toInt * c.toInt / 32768 - y2.toInt * q2.toInt / 32768)) := sorry
+
+theorem noise_burst_never_wraps (noise : UInt32) (amplitude : UInt16) :
+    (Noise.burst noise amplitude).toInt = noise.toUInt16.toInt16.toInt * amplitude.toNat / 65536 := sorry
+
+theorem noise_particle_never_wraps (noise : UInt32) (amplitude : UInt16)
+    (s1 c1 s2 c2 s3 c3 y11 y12 y21 y22 y31 y32 : Int32) :
+    (Noise.particle noise amplitude s1 c1 s2 c2 s3 c3 y11 y12 y21 y22 y31 y32).out.toInt =
+      max (-32767) (min 32767
+        ((Noise.resonate (Noise.burst noise amplitude) s1 c1 32506 y11 y12).toInt
+          + (Noise.resonate (Noise.burst noise amplitude) s2 c2 32506 y21 y22).toInt
+          + (Noise.resonate (Noise.burst noise amplitude) s3 c3 32506 y31 y32).toInt)) := sorry
+
+theorem noise_cloud_out_never_wraps (sum : Int32) :
+    (Noise.cloudOut sum).toInt = max (-32768) (min 32767 sum.toInt) := sorry
+
+theorem noise_grain_never_wraps (phase inc envelope envInc : UInt32) :
+    (Noise.grain phase inc envelope envInc).contribution.toInt =
+      (Analog.sineAt (phase + inc)).toInt * (Noise.grainEnvelope ((envelope + envInc) >>> 16)).toNat
+        / 131072 ∧
+      (Noise.grain phase inc envelope envInc).contribution.toInt.natAbs ≤ 16384 := sorry
+
+theorem noise_grain_envelope_index_in_table (phase inc envelope envInc : UInt32)
+    (started : envelope.toNat ≤ 2 ^ 24 + 15 * 2 ^ 18) (rate : envInc.toNat ≤ 2 ^ 18) :
+    ((Noise.grain phase inc envelope envInc).envelope >>> 16).toNat ≤ 512 := sorry
 
 -- Proofs/Notes.lean
 theorem notes_start_valid (span amount : Nat) (seed : UInt32) (positive : 0 < span) (small : span ≤ 65535)
@@ -156,6 +292,21 @@ theorem notes_loop_repeats (amount span : Nat) (s : NoteState)
       (Notes.choose ⟨5, amount, 0⟩ span s any step chance).state.slot = (s.slot + 1) % amount ∧
       (Notes.choose ⟨5, amount, 0⟩ span s any step chance).offset = s.reg.getD s.slot 0 := sorry
 
+-- Proofs/Patch.lean
+theorem patch_decode_encode_round_trip (p : Patch) (fits : p.Fits) :
+    Patch.decode (Patch.encode p) = some p := sorry
+
+theorem patch_decode_only_fits (bytes : ByteArray) (p : Patch) (loaded : Patch.decode bytes = some p) :
+    p.Fits := sorry
+
+theorem patch_decode_rejects_wrong_marker (bytes : ByteArray) (nonEmpty : 0 < bytes.size)
+    (wrong : bytes[0] ≠ 0xA7) : Patch.decode bytes = none := sorry
+
+theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 74) :
+    Patch.decode bytes = none := sorry
+
+theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 74 := sorry
+
 -- Proofs/Percussion.lean
 theorem percussion_excite_decays (state decay counter level : Int32)
     (nonneg : 0 ≤ state.toInt) (small : state.toInt ≤ 524288) (gentle : 0 ≤ decay.toInt ∧ decay.toInt ≤ 4096)
@@ -163,12 +314,147 @@ theorem percussion_excite_decays (state decay counter level : Int32)
     0 ≤ (Percussion.excite state decay counter level).state.toInt ∧
       (Percussion.excite state decay counter level).state.toInt ≤ state.toInt := sorry
 
+theorem percussion_decay_never_grows (amplitude decayLong decayShort parameter : Int32)
+    (amplitudeFits : 0 ≤ amplitude.toInt ∧ amplitude.toInt ≤ 32767)
+    (decayFits : 0 ≤ decayShort.toInt ∧ decayShort.toInt ≤ decayLong.toInt ∧ decayLong.toInt ≤ 65535)
+    (parameterFits : 0 ≤ parameter.toInt ∧ parameter.toInt ≤ 32767) :
+    0 ≤ (Percussion.decay amplitude decayLong decayShort parameter).toInt ∧
+      (Percussion.decay amplitude decayLong decayShort parameter).toInt ≤ amplitude.toInt := sorry
+
+theorem percussion_bell_partial_never_wraps (phase inc : UInt32) (amplitude : Int32)
+    (amplitudeFits : 0 ≤ amplitude.toInt ∧ amplitude.toInt ≤ 32767) :
+    (Percussion.bellPartial phase inc amplitude).contribution.toInt =
+      (Analog.sineAt (phase + inc)).toInt * amplitude.toInt / 131072 := sorry
+
+theorem percussion_drum_partial_never_wraps (phase inc : UInt32) (amplitude target fade : Int32)
+    (amplitudeFits : 0 ≤ amplitude.toInt ∧ amplitude.toInt ≤ 32767)
+    (targetFits : 0 ≤ target.toInt ∧ target.toInt ≤ 32767) (fadeFits : 0 ≤ fade.toInt ∧ fade.toInt ≤ 32768) :
+    (Percussion.drumPartial phase inc amplitude target fade).contribution.toInt =
+      (Analog.sineAt (phase + inc)).toInt *
+        (amplitude.toInt + (target.toInt - amplitude.toInt) * fade.toInt / 32768) / 65536 := sorry
+
+theorem percussion_snare_never_wraps (filtered1 excitation1 filtered2 excitation2 noise g1 g2 : Int32)
+    (filtered1Fits : filtered1.toInt.natAbs ≤ 32767) (excitation1Fits : excitation1.toInt.natAbs ≤ 2 ^ 19)
+    (filtered2Fits : filtered2.toInt.natAbs ≤ 32767) (excitation2Fits : excitation2.toInt.natAbs ≤ 2 ^ 18)
+    (noiseFits : noise.toInt.natAbs ≤ 32767)
+    (g1Fits : 0 ≤ g1.toInt ∧ g1.toInt ≤ 22000) (g2Fits : 0 ≤ g2.toInt ∧ g2.toInt ≤ 38383) :
+    (Percussion.snareMix filtered1 excitation1 filtered2 excitation2 noise g1 g2).toInt =
+      max (-32767) (min 32767
+        ((filtered1.toInt + excitation1.toInt / 16) * g1.toInt / 32768
+          + (filtered2.toInt + excitation2.toInt / 16) * g2.toInt / 32768 + noise.toInt)) := sorry
+
+theorem percussion_cymbal_never_wraps (metal white xfade : Int32)
+    (xfadeFits : 0 ≤ xfade.toInt ∧ xfade.toInt ≤ 32767) :
+    (Percussion.cymbalOut metal white xfade).toInt =
+      max (-32767) (min 32767 metal.toInt)
+        + (max (-32767) (min 32767 white.toInt) - max (-32767) (min 32767 metal.toInt)) * xfade.toInt
+          / 32768 := sorry
+
+theorem percussion_drum_noise_stays_bounded (noise lp0 lp1 lp2 f : Int32)
+    (lp0Fits : lp0.toInt.natAbs ≤ 16384) (lp1Fits : lp1.toInt.natAbs ≤ 16384)
+    (lp2Fits : lp2.toInt.natAbs ≤ 16384) (fFits : 0 ≤ f.toInt ∧ f.toInt ≤ 32768) :
+    (Percussion.drumNoise noise lp0 lp1 lp2 f).lp0.toInt.natAbs ≤ 16384 ∧
+      (Percussion.drumNoise noise lp0 lp1 lp2 f).lp1.toInt.natAbs ≤ 16384 ∧
+      (Percussion.drumNoise noise lp0 lp1 lp2 f).lp2.toInt.natAbs ≤ 16384 := sorry
+
+theorem percussion_drum_mix_never_wraps
+    (partial0 partial1 partial3 harmonics lp2 noiseGain harmonicsGain : Int32)
+    (partial0Fits : partial0.toInt.natAbs ≤ 32768) (partial1Fits : partial1.toInt.natAbs ≤ 2048)
+    (partial3Fits : partial3.toInt.natAbs ≤ 4096) (harmonicsFits : harmonics.toInt.natAbs ≤ 32768)
+    (lp2Fits : lp2.toInt.natAbs ≤ 16384) (noiseGainFits : 0 ≤ noiseGain.toInt ∧ noiseGain.toInt ≤ 12888)
+    (harmonicsGainFits : 0 ≤ harmonicsGain.toInt ∧ harmonicsGain.toInt ≤ 16384) :
+    (Percussion.drumMix partial0 partial1 partial3 harmonics lp2 noiseGain harmonicsGain).toInt =
+      max (-32767) (min 32767
+        (partial0.toInt + (partial1.toInt * lp2.toInt / 256) * (12288 - noiseGain.toInt) / 16384
+          + (partial3.toInt * lp2.toInt / 512) * noiseGain.toInt / 16384
+          + harmonics.toInt * harmonicsGain.toInt / 16384)) := sorry
+
 -- Proofs/Physical.lean
+theorem physical_mix_never_wraps (a b : Int32) (fraction : UInt32)
+    (aFits : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (bFits : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767)
+    (fractionFits : fraction.toNat ≤ 65535) :
+    (Physical.mix a b fraction).toInt =
+      (a.toInt * (65535 - fraction.toNat) + b.toInt * fraction.toNat) / 65536 := sorry
+
+theorem physical_comb_never_wraps (input a b fraction resonance : Int32)
+    (inputFits : -32768 ≤ input.toInt ∧ input.toInt ≤ 32767)
+    (aFits : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (bFits : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767)
+    (fractionFits : 0 ≤ fraction.toInt ∧ fraction.toInt ≤ 65535)
+    (resonanceFits : -32768 ≤ resonance.toInt ∧ resonance.toInt ≤ 32767) :
+    (Physical.comb input a b fraction resonance).out.toInt =
+      max (-32767) (min 32767
+        ((input.toInt + 2 * (a.toInt + (b.toInt - a.toInt) * (fraction.toInt / 2) / 32768)) / 2)) ∧
+    (Physical.comb input a b fraction resonance).feedback.toInt =
+      max (-32767) (min 32767
+        ((a.toInt + (b.toInt - a.toInt) * (fraction.toInt / 2) / 32768) * resonance.toInt / 32768
+          + input.toInt / 2)) := sorry
+
+theorem physical_comb_resonance_index_in_table (parameter : Int32) :
+    (Physical.combResonanceIndex parameter).toNat ≤ 65535 := sorry
+
+theorem physical_pluck_fill_never_wraps (old noise : Int32)
+    (oldFits : -32768 ≤ old.toInt ∧ old.toInt ≤ 32767)
+    (noiseFits : -32768 ≤ noise.toInt ∧ noise.toInt ≤ 32767) :
+    (Physical.pluckFill old noise).toInt = (old.toInt + 3 * noise.toInt) / 4 := sorry
+
 theorem physical_pluck_average_no_gain (a b loss : Int32)
     (ha : -32767 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32767 ≤ b.toInt ∧ b.toInt ≤ 32767)
     (hl : 0 ≤ loss.toInt ∧ loss.toInt ≤ 32768) :
     -(max a.toInt.natAbs b.toInt.natAbs : Int) ≤ (Physical.pluckAverage a b loss).toInt ∧
       (Physical.pluckAverage a b loss).toInt ≤ max a.toInt.natAbs b.toInt.natAbs := sorry
+
+theorem physical_pluck_read_never_wraps (a b : Int32) (phase : UInt32)
+    (aFits : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (bFits : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
+    (Physical.pluckRead a b phase).toInt =
+      a.toInt + (b.toInt - a.toInt) * ((phase >>> 6) &&& 0xFFFF).toNat / 65536 := sorry
+
+theorem physical_half_rate_never_wraps (sum previous : Int32)
+    (previousFits : -32768 ≤ previous.toInt ∧ previous.toInt ≤ 32767) :
+    (Digital.clip sum).toInt16.toInt = max (-32767) (min 32767 sum.toInt) ∧
+    (Physical.halfSum (Digital.clip sum) previous).toInt =
+      (max (-32767) (min 32767 sum.toInt) + previous.toInt) / 2 := sorry
+
+theorem physical_bowed_never_wraps (bridgeA bridgeB nutA nutB : Int32) (bridgeFraction neckFraction : UInt32)
+    (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32)
+    (bridgeAFits : -128 ≤ bridgeA.toInt ∧ bridgeA.toInt ≤ 127)
+    (bridgeBFits : -128 ≤ bridgeB.toInt ∧ bridgeB.toInt ≤ 127)
+    (bridgeFractionFits : bridgeFraction.toNat ≤ 65535)
+    (y0Fits : y0.toInt.natAbs ≤ 2 ^ 18) (y1Fits : y1.toInt.natAbs ≤ 2 ^ 18) :
+    (Physical.bowed bridgeA bridgeB nutA nutB bridgeFraction neckFraction lp excitation bow y0 y1).out.toInt =
+      max (-32767) (min 32767
+        ((Physical.mix bridgeA bridgeB bridgeFraction).toInt * 256 * 6553 / 32768
+          + y0.toInt * 6948 / 4096 + y1.toInt * (-2959) / 4096 - y1.toInt)) := sorry
+
+theorem physical_bowed_lowpass_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
+    (bridgeFraction neckFraction : UInt32) (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32)
+    (bridgeAFits : -128 ≤ bridgeA.toInt ∧ bridgeA.toInt ≤ 127)
+    (bridgeBFits : -128 ≤ bridgeB.toInt ∧ bridgeB.toInt ≤ 127)
+    (bridgeFractionFits : bridgeFraction.toNat ≤ 65535) (lpFits : lp.toInt.natAbs ≤ 32768) :
+    (Physical.bowed bridgeA bridgeB nutA nutB bridgeFraction neckFraction lp excitation bow
+      y0 y1).lp.toInt.natAbs ≤ 32768 := sorry
+
+theorem physical_friction_index_in_table (delta bow : Int32)
+    (deltaFits : delta.toInt.natAbs ≤ 2 ^ 20) (bowFits : bow.toInt.natAbs ≤ 1024) :
+    (Physical.frictionIndex delta bow).toNat ≤ 255 := sorry
+
+theorem physical_blown_filter_stays_between (noise a b : Int32) (fraction : UInt32)
+    (lp parameter filter coefficient : Int32)
+    (coefficientFits : 0 ≤ coefficient.toInt ∧ coefficient.toInt ≤ 4096)
+    (filterFits : -32768 ≤ filter.toInt ∧ filter.toInt ≤ 32767) :
+    min (Physical.blown noise a b fraction lp parameter filter coefficient).bore.toInt filter.toInt ≤
+        (Physical.blown noise a b fraction lp parameter filter coefficient).filter.toInt ∧
+      (Physical.blown noise a b fraction lp parameter filter coefficient).filter.toInt ≤
+        max (Physical.blown noise a b fraction lp parameter filter coefficient).bore.toInt filter.toInt := sorry
+
+theorem physical_fluted_never_wraps (boreA boreB jetA jetB : Int32) (boreFraction jetFraction : UInt32)
+    (excitation : UInt32) (noise intensity coefficient lp dcX dcY : Int32)
+    (boreAFits : -128 ≤ boreA.toInt ∧ boreA.toInt ≤ 127) (boreBFits : -128 ≤ boreB.toInt ∧ boreB.toInt ≤ 127)
+    (boreFractionFits : boreFraction.toNat ≤ 65535) :
+    (Physical.fluted boreA boreB jetA jetB boreFraction jetFraction excitation noise intensity coefficient
+        lp dcX dcY).out.toInt =
+      max (-32767) (min 32767 ((Physical.mix boreA boreB boreFraction).toInt * 256)) := sorry
+
+theorem physical_jet_index_in_table (jetValue : Int32) : (Physical.jetIndex jetValue).toNat ≤ 255 := sorry
 
 -- Proofs/Quantizer.lean
 theorem quantizer_snap_keeps_scale_notes (mask note : Nat) (inside : Quantizer.inScale mask note = true) :
@@ -230,6 +516,29 @@ theorem reverb_modulated_read_stays_in_line (scale lfo : UInt32) (lo : 192 ≤ s
     (Reverb.modOffset 10 60 scale lfo >>> 16).toNat + 1 < (Reverb.length scale 0).toNat ∧
       (Reverb.modOffset 4680 100 scale lfo >>> 16).toNat + 1 < (Reverb.length scale 9).toNat := sorry
 
+theorem reverb_round_trip_decays (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
+    (decayUnit : decay.toInt.natAbs ≤ 32768) (brightNonneg : 0 ≤ bright.toInt)
+    (brightUnit : bright.toInt ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) :
+    (Reverb.decompress (Reverb.roundTrip tail decay bright diffusion)).toInt.natAbs * 2 ^ 30 ≤
+      tail.toInt.natAbs * decay.toInt.natAbs * decay.toInt.natAbs + 2 ^ 30 := sorry
+
+theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state returnGain : Int32)
+    (oldest1 oldest2 oldest3 oldest4 tail oldestA oldestB : Int32)
+    (sendFits : send.toInt.natAbs ≤ 2 ^ 27) (stateFits : state.toInt.natAbs ≤ 2 ^ 28)
+    (inputUnit : inputGain.toInt.natAbs ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768)
+    (decayUnit : decay.toInt.natAbs ≤ 32768) (brightNonneg : 0 ≤ bright.toInt)
+    (brightUnit : bright.toInt ≤ 32768) (returnUnit : returnGain.toInt.natAbs ≤ 65536)
+    (read1 : Reverb.fromMemory oldest1) (read2 : Reverb.fromMemory oldest2)
+    (read3 : Reverb.fromMemory oldest3) (read4 : Reverb.fromMemory oldest4)
+    (readTail : Reverb.fromMemory tail) (readA : Reverb.fromMemory oldestA)
+    (readB : Reverb.fromMemory oldestB) :
+    let input := Reverb.diffuse send inputGain diffusion oldest1 oldest2 oldest3 oldest4
+    let stored := Reverb.loop input tail state oldestA oldestB decay bright diffusion
+    let wet := Reverb.mul stored 65536
+    wet.toInt = 2 * stored.toInt ∧ wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21 ∧
+      (Reverb.loopSmooth input tail state decay bright).toInt.natAbs ≤ 2 ^ 28 ∧
+      (Mix.wetSample wet returnGain).toInt = wet.toInt * returnGain.toInt / 32768 := sorry
+
 -- Proofs/Run.lean
 theorem run_every_note_on_has_a_note_off (l : Lane) (fresh : l.playing = none) (ops : List Lane.Op) :
     Lane.noteOns (l.trace ops) = Lane.noteOffs (l.trace ops) + (l.run ops).soundingCount ∧
@@ -239,6 +548,33 @@ theorem run_clock_never_drifts (hits steps div mask low span : Nat) (seed : UInt
     let l := Lane.make hits steps div mask low span seed
     (l.run (List.replicate n .tick)).step = Lane.stepAfter l.div l.steps n ∧
       (l.run (List.replicate n .tick)).count = n % l.div := sorry
+
+-- Proofs/Smooth.lean
+theorem smooth_parameter_between (start target xfade : Int32)
+    (startInRange : 0 ≤ start.toInt ∧ start.toInt ≤ 32767)
+    (targetInRange : 0 ≤ target.toInt ∧ target.toInt ≤ 32767)
+    (xfadeInRange : 0 ≤ xfade.toInt ∧ xfade.toInt ≤ 32767) :
+    min start.toInt target.toInt ≤ (Smooth.parameter start target xfade).toInt ∧
+      (Smooth.parameter start target xfade).toInt ≤ max start.toInt target.toInt := sorry
+
+theorem smooth_parameter_reaches_target (start target : Int32) (size : UInt32)
+    (startInRange : 0 ≤ start.toInt ∧ start.toInt ≤ 32767)
+    (targetInRange : 0 ≤ target.toInt ∧ target.toInt ≤ 32767)
+    (notEmpty : 0 < size.toNat) (small : size.toNat ≤ 32767) :
+    target.toInt - size.toNat ≤
+        (Smooth.parameter start target (Smooth.crossfadeAfter size size.toNat)).toInt ∧
+      (Smooth.parameter start target (Smooth.crossfadeAfter size size.toNat)).toInt ≤
+        target.toInt + size.toNat := sorry
+
+theorem smooth_step_glide_bound (previous target size : UInt32) (room : size.toNat ≤ target.toNat) (k : Nat)
+    (within : k ≤ size.toNat) :
+    min previous.toNat target.toNat - size.toNat ≤ (Smooth.stepAfter previous target size k).toNat ∧
+      (Smooth.stepAfter previous target size k).toNat ≤ max previous.toNat target.toNat := sorry
+
+theorem smooth_step_lands_near_target (previous target size : UInt32) (notEmpty : 0 < size.toNat)
+    (room : size.toNat ≤ target.toNat) :
+    target.toNat - size.toNat ≤ (Smooth.stepAfter previous target size size.toNat).toNat ∧
+      (Smooth.stepAfter previous target size size.toNat).toNat ≤ target.toNat := sorry
 
 -- Proofs/Tables.lean
 theorem tables_phase_reads_inside_257 (phase : UInt32) :
@@ -253,6 +589,33 @@ theorem tables_resonator_reads_inside_129 (pitch : Int32) :
 
 theorem tables_wave_reads_inside_129 (phase : UInt32) :
     (Analog.tableIndex (phase >>> 1) + 1).toNat ≤ 128 := sorry
+
+theorem tables_wave_line_reads_inside_129 (phase mask : UInt32) :
+    (Analog.tableIndex ((phase >>> 1) &&& mask) + 1).toNat ≤ 128 := sorry
+
+theorem tables_formant_reads_inside_256 (phase amp : UInt32) (nibble : amp.toNat ≤ 15) :
+    (((phase >>> 24) &&& 0xF0) ||| amp).toNat ≤ 255 := sorry
+
+-- Proofs/Vowels.lean
+theorem vowels_fof_contribution_never_wraps (lp bp f amp input : Int32)
+    (amp16 : -32768 ≤ amp.toInt ∧ amp.toInt ≤ 32767) :
+    (Vowels.fofFilter lp bp f amp input).contribution.toInt =
+        (Vowels.fofFilter lp bp f amp input).bp.toInt * amp.toInt / 131072 ∧
+      -8192 ≤ (Vowels.fofFilter lp bp f amp input).contribution.toInt ∧
+        (Vowels.fofFilter lp bp f amp input).contribution.toInt ≤ 8191 := sorry
+
+theorem vowels_fof_out_never_wraps (sum previous : Int32)
+    (previous16 : -32768 ≤ previous.toInt ∧ previous.toInt ≤ 32767) :
+    (Vowels.fofOut sum previous).out.toInt = (Digital.clip sum).toInt ∧
+      (Vowels.fofOut sum previous).mid.toInt = ((Digital.clip sum).toInt + previous.toInt) / 2 := sorry
+
+theorem vowels_question_drive_never_wraps (sample parameter : Int32)
+    (clipped : -32767 ≤ sample.toInt ∧ sample.toInt ≤ 32767)
+    (drive : 0 ≤ parameter.toInt ∧ parameter.toInt ≤ 32767) :
+    (Vowels.questionDrive sample parameter).toInt =
+        sample.toInt * sample.toInt / 16384 * parameter.toInt / 32768 ∧
+      0 ≤ (Vowels.questionDrive sample parameter).toInt ∧
+        (Vowels.questionDrive sample parameter).toInt ≤ 65535 := sorry
 
 -- Proofs/Wavetables.lean
 theorem wavetables_wavetable_never_wraps (phase inc waveA waveB balance : UInt32) (sync : UInt8) :
@@ -274,3 +637,27 @@ theorem wavetables_read_between_bytes (wave phase : UInt32) :
       (Wavetables.read wave phase).toInt ≤
         max ((Wavetables.waveByte wave (Analog.tableIndex phase)).toNat * 256 - 32768 : Int)
           ((Wavetables.waveByte wave (Analog.tableIndex phase + 1)).toNat * 256 - 32768) := sorry
+
+theorem wavetables_wave_map_never_wraps (phase inc w00 w01 w10 w11 xfadeX xfadeY : UInt32) (sync : UInt8) :
+    (Wavetables.waveMap phase inc w00 w01 w10 w11 xfadeX xfadeY sync).out.toInt =
+      (Wavetables.mapRead (if sync != 0 then 0 else phase + inc) w00 w01 w10 w11 xfadeX xfadeY).toInt +
+      (Wavetables.mapRead ((if sync != 0 then 0 else phase + inc) + inc) w00 w01 w10 w11 xfadeX
+        xfadeY).toInt := sorry
+
+theorem wavetables_wave_line_never_wraps
+    (phase inc waveA waveB xfadeA stepA maskA waveC waveD xfadeB stepB maskB balance : UInt32)
+    (sync : UInt8) :
+    (Wavetables.waveLine phase inc waveA waveB xfadeA stepA maskA waveC waveD xfadeB stepB maskB balance
+      sync).out.toInt =
+      ((Wavetables.linePair (if sync != 0 then 0 else phase) waveA waveB xfadeA maskA waveC waveD xfadeB
+          maskB balance).toInt +
+        (Wavetables.linePair ((if sync != 0 then 0 else phase) + inc) waveA waveB
+          ((xfadeA + stepA) &&& 0xFFFF) maskA waveC waveD ((xfadeB + stepB) &&& 0xFFFF) maskB
+          balance).toInt) / 2 := sorry
+
+theorem wavetables_paraphonic_never_wraps (p0 p1 p2 p3 inc0 inc1 inc2 inc3 waveA waveB balance : UInt32) :
+    (Wavetables.paraphonic p0 p1 p2 p3 inc0 inc1 inc2 inc3 waveA waveB balance).out.toInt =
+      ((Wavetables.crossfade waveA waveB ((p0 + inc0) >>> 1) balance).toInt +
+        (Wavetables.crossfade waveA waveB ((p1 + inc1) >>> 1) balance).toInt +
+        (Wavetables.crossfade waveA waveB ((p2 + inc2) >>> 1) balance).toInt +
+        (Wavetables.crossfade waveA waveB ((p3 + inc3) >>> 1) balance).toInt) / 4 := sorry

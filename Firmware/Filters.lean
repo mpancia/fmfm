@@ -50,6 +50,13 @@ structure FilterStep where
 @[inline] def Filters.phaseReset (index : UInt8) : UInt32 :=
   if index == 0 then 0 else if index == 2 then 0x40000000 else 0x80000000
 
+/-- The carrier under its `window` (0 to 65535): a plain product for the band-pass and high-pass types, or,
+for the low-pass and peak types, the carrier lifted to one side first. That product can pass 2^31 and wrap;
+the read as a 16-bit value undoes it, as it does in Braids. -/
+@[inline] def Filters.windowedCarrier (carrier window : Int32) (filterType : UInt8) : Int32 :=
+  if filterType &&& 2 != 0 then ((carrier * window) >>> 16).toInt16.toInt32
+  else ((((window * (carrier + 32768)) >>> 16) - 32768).toInt16.toInt32)
+
 /-- The "digital filter" oscillators: a saw or triangle and a square, each windowing a sine at a resonant
 frequency, with a type (0 to 3) choosing low-pass, peak, band-pass or high-pass. -/
 @[inline] def Filters.digitalFilter (phase inc modPhase modInc squarePhase : UInt32) (integrator : Int32)
@@ -77,9 +84,7 @@ frequency, with a type (0 to 3) choosing low-pass, peak, band-pass or high-pass.
   let pulse0 := (squareCarrier * doubleSaw.toInt32) >>> 16
   let pulse := if pol1 != 0 then 0 - pulse0 else pulse0
   let integ1 := Digital.clip (integ0 + ((pulse * gain.toInt32) >>> 16))
-  let sawTri : Int32 :=
-    if filterType &&& 2 != 0 then ((carrier * window) >>> 16).toInt16.toInt32
-    else ((((window * (carrier + 32768)) >>> 16) - 32768).toInt16.toInt32)
+  let sawTri := Filters.windowedCarrier carrier window filterType
   let square : Int32 :=
     if filterType &&& 2 != 0 then pulse.toInt16.toInt32
     else if filterType == 1 then ((pulse + integ1) >>> 1).toInt16.toInt32
