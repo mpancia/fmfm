@@ -268,6 +268,11 @@ import is a lint error: Comparator cannot see it.
 - Never add a hypothesis only to make a proof pass. If a proof stalls, the statement may be wrong: test it
   with `plausible` or `#eval` first.
 - Split a proof into private lemmas when it passes about 15 lines.
+- Keep `omega` calls in small contexts. `omega` builds a certificate over every hypothesis in scope, and the
+  external checkers (`make comparator PARANOID=1`) run out of fuel on a certificate with a dozen atoms where
+  Lean's kernel does not. State the numeric fact as a private lemma with just the hypotheses it needs
+  (`digital_weighted_between` in `Proofs/Digital.lean`), and avoid `simp [Int.bmod_def]; split <;> omega`;
+  `Int.bmod_eq_of_le` with two small `omega` side goals does the same with a far smaller term.
 
 **What `make lint` enforces.** It rejects `sorry`, `admit`, new axioms, `native_decide`, `bv_decide` (each use
 adds an axiom, so `lake check` fails), `maxHeartbeats 0`, `partial def`, `unsafe`, `x = x` theorems,

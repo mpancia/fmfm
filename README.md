@@ -101,9 +101,8 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 Proofs cover the Lean code in `Firmware/`. What is proved is listed in `docs/PROOFS.md`; the same statements are
 in `Challenge.lean`, and `make comparator` (Lean 4.35's `lake comparator`) checks in a sandbox that `Proofs/`
 proves each of them with no axiom but `propext`, `Classical.choice` and `Quot.sound`. `PARANOID=1` also runs
-the five external checkers bundled with Lean: nanoda accepts everything; lean4lean, con-leche and con-ron
-give up on `digital_mix_between_inputs` (recursion depth and fuel, not a rejection), so that one proof should
-be made smaller. They do not cover:
+the five external checkers bundled with Lean (leanchecker-paranoid, lean4lean, nanoda, con-leche, con-ron);
+all accept. They do not cover:
 
 - `rt/lean_rt.c`: the small Lean runtime (allocator, freeing, arrays, panics). See `docs/LEAN-ON-CHIP.md`.
 - Lean's compiler (Lean to C) and JieLi's clang (C to chip code).
@@ -114,5 +113,7 @@ be made smaller. They do not cover:
 - `fx/reverb_glue.c`: the reverb network and its delay memory (the arithmetic is Lean; the order of operations is C, copied
   from Clouds). Checked against Clouds' original by `make test-lean`; not heard (`docs/FX.md`).
 - `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
+  Its mix loop (level glide, voice sample, reverb send and return) calls `Firmware/Mix.lean`, which
+  `Proofs/Mix.lean` shows never wraps; the master gain and the clip in `fw/firmware/src/platform.c` stay C.
 - The hardware, and `web/web_host.c` for the simulator.
 - Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.
