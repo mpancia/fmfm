@@ -6,6 +6,7 @@ import Firmware.Quantizer
 import Firmware.Notes
 import Firmware.Lane
 import Firmware.LaneApi
+import Firmware.Lfo
 import Firmware.Analog
 import Firmware.AnalogApi
 import Firmware.Digital
