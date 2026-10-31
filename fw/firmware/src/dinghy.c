@@ -54,13 +54,12 @@ static void render_voice(uint32_t v, int32_t *out, int32_t *bus, uint32_t n)
         braids_voice_set(vmem[v], voice[v].shape, voice[v].pitch, timbre > 32767 ? 32767 : timbre, voice[v].color);
         braids_voice_render(vmem[v], block, BRAIDS_BLOCK);
         for (j = 0; j < BRAIDS_BLOCK; j++) {
-            int32_t s;
-            if (amp < g) { amp += up; if (amp > g) amp = g; }
-            else if (amp > g) { amp -= down; if (amp < g) amp = g; }
-            s = (((int32_t)block[j] * voice[v].gain >> 8) * (amp >> 4)) >> 15;
+            int32_t s;                                                    /* the arithmetic is Lean: Firmware/Mix.lean */
+            amp = (int32_t)fm1_mix_envelope_step((uint32_t)amp, (uint32_t)g, (uint32_t)up, (uint32_t)down);
+            s = (int32_t)fm1_mix_voice_sample((uint16_t)block[j], voice[v].gain, (uint32_t)amp);
             out[2u * (i + j)] += s;
             out[2u * (i + j) + 1u] += s;
-            bus[i + j] += (s * 2 * (int32_t)voice[v].send) >> 8;       /* the send bus is left plus right */
+            bus[i + j] += (int32_t)fm1_mix_send_sample((uint32_t)s, voice[v].send);   /* the send bus is left plus right */
         }
     }
     voice[v].amp = amp;
@@ -82,8 +81,9 @@ static void app_audio(int32_t *out, uint32_t n)
     if (!reverb_ready || !reverb_return) return;
     fm1_reverb_block(send_bus, wet_left, wet_right, n);
     for (i = 0; i < n; i++) {
-        out[2u * i] += (int32_t)(((int64_t)wet_left[i] * reverb_return) >> 15);
-        out[2u * i + 1u] += (int32_t)(((int64_t)wet_right[i] * reverb_return) >> 15);
+        const uint32_t gain = (uint32_t)reverb_return;
+        out[2u * i] += (int32_t)fm1_mix_wet_sample((uint32_t)wet_left[i], gain);
+        out[2u * i + 1u] += (int32_t)fm1_mix_wet_sample((uint32_t)wet_right[i], gain);
     }
 }
 
@@ -723,6 +723,42 @@ static void draw_title(void)                    /* the group and page, or the na
     cv_blit(0, 0);
 }
 
+/* RHYTHM: the chosen lane's bar as a circle in place of the HITS and STEPS meters. One dot a step, clockwise
+ * from the top; the hits are filled and joined, the current step is bright. Braids' sine table places the dots. */
+uint16_t fm1_braids_wav_sine(uint32_t index);
+#define CIRCLE_CX 62
+#define CIRCLE_CY 40
+#define CIRCLE_R 33
+static void circle_point(uint32_t k, uint32_t steps, int32_t *x, int32_t *y)
+{
+    uint32_t a = (k * 256u) / steps;
+    *x = CIRCLE_CX + ((int32_t)(int16_t)fm1_braids_wav_sine(a) * CIRCLE_R + 16384) / 32768;
+    *y = CIRCLE_CY - ((int32_t)(int16_t)fm1_braids_wav_sine((a + 64u) & 255u) * CIRCLE_R + 16384) / 32768;
+}
+
+static void draw_circle(void)
+{
+    uint32_t steps = cfg[selected].steps, cur = fm1_lane_step_of(lane[selected]), k, last = ~0u, first = ~0u;
+    uint16_t col = cfg[selected].muted || !cfg[selected].level ? TH.dim : LANE_COLOUR(selected), faint = blend(TH.bg, col);
+    int32_t x, y, px = 0, py = 0, fx = 0, fy = 0;
+    cv_begin(116, 82, TH.bg);
+    for (k = 0; k < steps; k++) {                           /* the polygon of hits first, under the dots */
+        if (!fm1_lane_hit_at_of(lane[selected], k)) continue;
+        circle_point(k, steps, &x, &y);
+        if (last == ~0u) { fx = x; fy = y; first = k; } else cv_line(px, py, x, y, faint);
+        px = x; py = y; last = k;
+    }
+    if (first != ~0u && last != first) cv_line(px, py, fx, fy, faint);
+    for (k = 0; k < steps; k++) {
+        int hit = fm1_lane_hit_at_of(lane[selected], k);
+        uint16_t c = k == cur ? TH.hi : hit ? col : TH.dim;
+        circle_point(k, steps, &x, &y);
+        if (hit || k == cur) cv_rect(x - 2, y - 2, 5, 5, c);
+        else cv_rect(x - 1, y - 1, 2, 2, c);
+    }
+    cv_blit(4, 90);
+}
+
 static void draw_columns(void)                  /* the page's four values: a meter, the value, the label */
 {
     char value[24];
@@ -733,11 +769,13 @@ static void draw_columns(void)                  /* the page's four values: a met
         int32_t x = 10 + (int32_t)k * 58;
         uint16_t col = page == P_MIX ? LANE_COLOUR(k) : LANE_COLOUR(selected);
         if (!PAGE_LABEL[page][k][0]) continue;
+        if (page == P_RHYTHM && k < 2u) continue;           /* the circle stands in for these two meters */
         param_text(page, k, value, &fill);
         cv_rect(x, 0, 46, 80, well);
         cv_rect(x, 80 - (int32_t)(fill * 80u / 255u), 46, (int32_t)(fill * 80u / 255u), col);
     }
     cv_blit(0, 90);
+    if (page == P_RHYTHM) draw_circle();
     cv_begin(240, 36, TH.bg);
     for (k = 0; k < 4u; k++) {
         int32_t cx = 33 + (int32_t)k * 58;
@@ -1026,7 +1064,11 @@ static void app_main(void)
         if (!browse_mode)
             for (k = 0; k < NL; k++) {
                 uint32_t sig = fm1_lane_step_of(lane[k]) + 1u;
-                if (sig != row_sig[k]) { row_sig[k] = sig; draw_lane(k); }
+                if (sig != row_sig[k]) {
+                    row_sig[k] = sig;
+                    draw_lane(k);
+                    if (k == selected && page == P_RHYTHM) draw_circle();
+                }
             }
         if (!browse_mode && page == P_HOME && !running) {   /* Alfred waits in the corner: a bow on arrival, a blink now and then */
             uint32_t since = fm1_ms - stopped_ms, dip = since >= 300u && since < 700u ? 2u : since >= 700u && since < 900u ? 1u : 0u;

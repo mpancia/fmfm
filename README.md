@@ -19,7 +19,7 @@ same button again moves to the group's next page. The four knobs set the four va
 | Group | Pages (knobs 1 to 4) |
 |---|---|
 | HOME | overview of the four lanes: hits, steps, speed, chance |
-| SEQ | RHYTHM: hits, steps, speed, chance. NOTES: algorithm, amount, mutate, range. RANGE: scale, low note, chord follow |
+| SEQ | RHYTHM: hits, steps, speed, chance, with the bar drawn as a circle (the hits joined, the current step bright). NOTES: algorithm, amount, mutate, range. RANGE: scale, low note, chord follow |
 | EDIT | SOUND: shape, timbre, colour, level. ENVELOPE: attack, release, envelope-to-timbre. MIX: the four lane levels |
 | GLO | HARMONY: key, scale lock, chord progression, bars per chord. SYSTEM: tempo, keys octave. MIDI: in and out channels. BANKS: patch, save slot |
 
