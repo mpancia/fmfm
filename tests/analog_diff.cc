@@ -22,8 +22,8 @@ static uint32_t rng = 12345;
 static uint32_t rnd() { return rng = rng * 1664525u + 1013904223u; }
 
 int main() {
-  const char *names[] = {"SAW", "VARIABLE_SAW", "CSAW", "SQUARE", "TRIANGLE", "SINE"};
-  const int shapes[] = {0, 3, 4, 5};                       // the shapes ported to Lean so far
+  const char *names[] = {"SAW", "VARIABLE_SAW", "CSAW", "SQUARE", "TRIANGLE", "SINE", "TRIANGLE_FOLD", "SINE_FOLD", "BUZZ"};
+  const int shapes[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};         // every analog shape
   long samples = 0, mismatches = 0, sync_mismatches = 0;
   double ref_time = 0, lean_time = 0;
   for (int shape : shapes) {

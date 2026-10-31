@@ -79,18 +79,24 @@ private theorem analog_int32_shift_one (s : Int32) : (s >>> 1).toInt = s.toInt /
   rw [this, Int.shiftRight_eq_div_pow]
   simp
 
-/-- Each half of a triangle step lies between -16384 and 16383.
-Why it matters: the two halves can be added without ever leaving the range of a 16-bit sample. -/
-theorem analog_triangle_half_range (phase : UInt32) :
-    -16384 ≤ (Analog.triangleHalf phase).toInt ∧ (Analog.triangleHalf phase).toInt ≤ 16383 := by
-  unfold Analog.triangleHalf
+/-- A triangle wave lies between -32768 and 32767. -/
+private theorem analog_triangle_wave_range (phase : UInt32) :
+    -32768 ≤ (Analog.triangleWave phase).toInt ∧ (Analog.triangleWave phase).toInt ≤ 32767 := by
+  unfold Analog.triangleWave
   dsimp only
   generalize (((phase >>> 16) <<< 1) ^^^ (if (phase >>> 16) &&& 0x8000 != 0 then (0xFFFF : UInt32) else 0)) = raw
   have folded : (((raw &&& 0xFFFF) ^^^ 0x8000 : UInt32)).toNat < 65536 := by
     rw [UInt32.toNat_xor, UInt32.toNat_and]
     exact Nat.xor_lt_two_pow (n := 16) (Nat.and_lt_two_pow _ (by decide)) (by decide)
+  exact analog_signed_half _ folded
+
+/-- Each half of a triangle step lies between -16384 and 16383.
+Why it matters: the two halves can be added without ever leaving the range of a 16-bit sample. -/
+theorem analog_triangle_half_range (phase : UInt32) :
+    -16384 ≤ (Analog.triangleHalf phase).toInt ∧ (Analog.triangleHalf phase).toInt ≤ 16383 := by
+  unfold Analog.triangleHalf
   rw [analog_int32_shift_one]
-  have := analog_signed_half _ folded
+  have := analog_triangle_wave_range phase
   omega
 
 /-- The triangle's sample is exactly the sum of its two halves: nothing wraps around.
