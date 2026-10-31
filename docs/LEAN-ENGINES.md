@@ -86,7 +86,9 @@ glue draws the numbers and passes them in, so the sequence is the one Braids pro
   16-bit index, and the swarm's unmasked sum by its range); a harmonic glides to its target without overshoot;
   an exciter's pulse and a particle burst only decay between hits; one step of the plucked string's loop never
   gains; a wavetable sample is the sum of its halves (`Proofs/Filters.lean`, `Noise.lean`, `Percussion.lean`,
-  `Physical.lean`, `Wavetables.lean`). The guarantee that the engines sound like Braids is the differential test.
+  `Physical.lean`, `Wavetables.lean`); the two blends every table read is built from land between the values
+  they blend, so the sine never exceeds its table, a wave crossfade never exceeds its waves and a macro mix is
+  never louder than its louder input (`Proofs/Blend.lean`, `Analog.lean`, `Wavetables.lean`, `Digital.lean`). The guarantee that the engines sound like Braids is the differential test.
 - Indexes that depend on C data are not proved: the comb zone (0 to 14), the formant amplitude (0 to 15), the
   grain envelope phase (reset per block by C++), the bowing and blowing envelope pointers (clamped per block by
   C++) and the question mark's position in its code table (bounded by the stop symbol in the data).

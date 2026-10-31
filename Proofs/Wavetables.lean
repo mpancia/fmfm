@@ -1,4 +1,5 @@
 import Firmware.Wavetables
+import Proofs.Blend
 
 /-- An `Int32` shifted right one place is its value halved, rounded down. -/
 private theorem wavetables_shift_one (s : Int32) : (s >>> 1).toInt = s.toInt / 2 := by
@@ -35,3 +36,23 @@ theorem wavetables_wavetable_never_wraps (phase inc waveA waveB balance : UInt32
   rw [Int32.toInt_toInt16, Int32.toInt_add, wavetables_shift_one, wavetables_shift_one]
   simp [Int.bmod_def]
   split <;> omega
+
+/-- A crossfade of two waves at the same phase lies between the two waves' values there, as long as they
+are at most 32767 apart.
+Why it matters: morphing between waves can never be louder than the louder wave, at any morph position. -/
+theorem wavetables_crossfade_between_waves (waveA waveB phase balance : UInt32)
+    (near : -32767 ≤ (Wavetables.read waveB phase).toInt - (Wavetables.read waveA phase).toInt ∧
+      (Wavetables.read waveB phase).toInt - (Wavetables.read waveA phase).toInt ≤ 32767) :
+    min (Wavetables.read waveA phase).toInt (Wavetables.read waveB phase).toInt ≤
+        (Wavetables.crossfade waveA waveB phase balance).toInt ∧
+      (Wavetables.crossfade waveA waveB phase balance).toInt ≤
+        max (Wavetables.read waveA phase).toInt (Wavetables.read waveB phase).toInt := by
+  have ra : -32768 ≤ (Wavetables.read waveA phase).toInt ∧ (Wavetables.read waveA phase).toInt ≤ 32767 := by
+    unfold Wavetables.read; dsimp only
+    rw [Int16.toInt_toInt32, Int32.toInt_toInt16]; simp [Int.bmod_def]; split <;> omega
+  have rb : -32768 ≤ (Wavetables.read waveB phase).toInt ∧ (Wavetables.read waveB phase).toInt ≤ 32767 := by
+    unfold Wavetables.read; dsimp only
+    rw [Int16.toInt_toInt32, Int32.toInt_toInt16]; simp [Int.bmod_def]; split <;> omega
+  unfold Wavetables.crossfade
+  dsimp only
+  exact blend_sixteen_between _ _ balance ra rb near

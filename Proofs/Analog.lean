@@ -1,4 +1,5 @@
 import Firmware.Analog
+import Proofs.Blend
 
 /-- Clamping to 65535 leaves a value of at most 65535. -/
 private theorem analog_clamp_le (t : UInt32) : (if t > 65535 then (65535 : UInt32) else t).toNat ≤ 65535 := by
@@ -114,3 +115,30 @@ theorem analog_triangle_never_wraps (phase inc : UInt32) (sync : UInt8) :
   rw [Int32.toInt_toInt16, Int32.toInt_add]
   simp [Int.bmod_def]
   omega
+
+/-- The sine at any phase lies between the two table entries it blends, as long as neighbouring entries are
+at most 32767 apart (the sine table's neighbours differ by at most about 800).
+Why it matters: the sine, and everything FM-modulated through it, can never put out more than the table
+holds; the cut to 16 bits in `Analog.sineAt` never changes a value. -/
+theorem analog_sine_between_entries (phase : UInt32)
+    (near : -32767 ≤ (Analog.sineTable (Analog.tableIndex phase + 1)).toInt -
+        (Analog.sineTable (Analog.tableIndex phase)).toInt ∧
+      (Analog.sineTable (Analog.tableIndex phase + 1)).toInt -
+        (Analog.sineTable (Analog.tableIndex phase)).toInt ≤ 32767) :
+    min (Analog.sineTable (Analog.tableIndex phase)).toInt
+        (Analog.sineTable (Analog.tableIndex phase + 1)).toInt ≤ (Analog.sineAt phase).toInt ∧
+      (Analog.sineAt phase).toInt ≤
+        max (Analog.sineTable (Analog.tableIndex phase)).toInt
+          (Analog.sineTable (Analog.tableIndex phase + 1)).toInt := by
+  unfold Analog.sineAt
+  dsimp only
+  generalize (Analog.sineTable (Analog.tableIndex phase)) = x at *
+  generalize (Analog.sineTable (Analog.tableIndex phase + 1)) = y at *
+  have hx := Int16.toInt_lt x
+  have hx' := Int16.le_iff_toInt_le.mp (Int16.minValue_le x)
+  have hy := Int16.toInt_lt y
+  have hy' := Int16.le_iff_toInt_le.mp (Int16.minValue_le y)
+  rw [Int16.toInt_minValue] at hx' hy'
+  have := blend_sixteen_between x.toInt32 y.toInt32 (phase >>> 8) (by simp; omega) (by simp; omega)
+    (by simp; omega)
+  simpa using this

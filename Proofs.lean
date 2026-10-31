@@ -15,3 +15,5 @@ import Proofs.Noise
 import Proofs.Percussion
 import Proofs.Physical
 import Proofs.Wavetables
+import Proofs.Blend
+import Proofs.Digital
