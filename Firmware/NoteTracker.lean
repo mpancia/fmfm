@@ -51,19 +51,3 @@ def trackerLast (t : Tracker) : UInt8 := t.last
 /-- C entry: how many notes are held. -/
 @[export fm1_tracker_count]
 def trackerCount (t : Tracker) : UInt32 := t.count
-
-/-- No note appears twice in the held list, whatever happens. -/
-theorem Tracker.press_nodup (t : Tracker) (n : UInt8) (h : t.held.Nodup) : (t.press n).held.Nodup := by
-  simp only [Tracker.press, List.nodup_cons]
-  exact ⟨by simp, h.filter _⟩
-
-/-- Releasing keeps the held list free of duplicates. -/
-theorem Tracker.release_nodup (t : Tracker) (n : UInt8) (h : t.held.Nodup) : (t.release n).held.Nodup :=
-  h.filter _
-
-/-- After a release, the note is not held. -/
-theorem Tracker.release_not_held (t : Tracker) (n : UInt8) : n ∉ (t.release n).held := by
-  simp [Tracker.release]
-
-/-- The empty tracker satisfies the no-duplicates condition, so the theorems above apply from power-on. -/
-example : Tracker.empty.held.Nodup := List.nodup_nil

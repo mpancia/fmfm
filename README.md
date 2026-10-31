@@ -42,6 +42,8 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 | `make test` | headless test of the web build in node (boot, sound, screen, LEDs) |
 | `make fw` | build `fw/build/dinghy.fwsc` with the Lean code linked in (does not flash) |
 | `make lean-check` | the Lean code in `Firmware/` links for the chip with only the small runtime in `rt/` |
+| `make proofs` | list every proved theorem with what it claims and why (`docs/PROOFS.md`) |
+| `make lint` | style checks, proof layout checks |
 | `make check` | `make lean-check` + `lake check` (kernel replay, standard axioms only) |
 | `make flash-deps` | optional: MIDI libraries for `fw/tools/fm1_install.py` |
 

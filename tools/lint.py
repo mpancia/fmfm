@@ -75,13 +75,27 @@ def lean_check(f, lines):
         before = text[:m.start()].rstrip()
         if not before.endswith("-/"):
             warn(f, text[:m.start()].count("\n") + 1, f"{m.group(1)} {m.group(2)} has no docstring")
+    # proof layout: theorems live in Proofs/, each public one says why it matters
+    in_proofs = f.startswith("Proofs/")
+    for m in re.finditer(r"^((?:private )?)(?:theorem|lemma)\s+(\S+)", text, re.M):
+        line = text[:m.start()].count("\n") + 1
+        if not in_proofs:
+            err(f, line, f"theorem {m.group(2)} outside Proofs/. Proofs live in Proofs/<Module>.lean")
+        elif not m.group(1):
+            before = text[:m.start()].rstrip()
+            doc = before[before.rfind("/--"):] if before.endswith("-/") else ""
+            if "Why it matters:" not in doc:
+                err(f, line, f"public theorem {m.group(2)} needs a docstring with 'Why it matters:'")
+            words = [w.lower() for w in re.findall(r"[A-Z][a-z0-9]*", Path(f).stem)]
+            if not any(m.group(2).lower().startswith(w) for w in words):
+                warn(f, line, f"theorem {m.group(2)} should start with its module name ('{words[-1]}_...')")
     # theorems that prove nothing: `x = x`, or closed by rfl on a name that only restates a definition
     for m in re.finditer(r"theorem\s+(\S+)[^\n]*?\)?\s:\s*([^\n:]+?)\s*:=\s*(?:by\s+)?(rfl|trivial|simp)\s*$", text, re.M):
         lhs = m.group(2)
         eq = re.fullmatch(r"(.+?)\s*=\s*(.+)", lhs)
         if eq and eq.group(1).strip() == eq.group(2).strip():
             err(f, text[:m.start()].count("\n") + 1, f"theorem {m.group(1)} states x = x")
-    if defs and theorems > 2 * defs:
+    if defs and theorems > 2 * defs and not f.startswith("Proofs/"):
         warn(f, 1, f"{theorems} theorems for {defs} definitions. Keep only properties someone would want stated.")
     comments = sum(1 for l in lines if l.strip().startswith("--"))
     if len(code) > 20 and comments / max(1, len(code)) > 0.15:
@@ -135,6 +149,8 @@ for f in files:
     # hygiene
     if lines and any(l != l.rstrip() for l in lines): warn(f, 1, "trailing whitespace")
 
+if subprocess.run([sys.executable, str(ROOT / "tools/proof_index.py"), "--check"], cwd=ROOT).returncode:
+    errors.append("docs/PROOFS.md is out of date")
 for w in warnings: print("warn ", w)
 for e in errors: print("ERROR", e)
 print(f"lint: {len(files)} files, {len(errors)} errors, {len(warnings)} warnings")

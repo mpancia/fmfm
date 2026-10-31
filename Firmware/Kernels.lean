@@ -17,9 +17,3 @@ set_option compiler.extract_closed false
 A full cycle is 2^32, so wrapping is exactly "start the next cycle". -/
 @[export fm1_phase_step]
 def phaseStep (phase step : UInt32) : UInt32 := phase + step
-
-/-- Adding a step never loses more than a full cycle: the result is the true sum
-modulo 2^32. -/
-theorem phaseStep_spec (phase step : UInt32) :
-    (phaseStep phase step).toNat = (phase.toNat + step.toNat) % 2 ^ 32 := by
-  simp [phaseStep, UInt32.toNat_add]

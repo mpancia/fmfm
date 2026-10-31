@@ -7,7 +7,7 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
 
-.PHONY: install run web test build check lean-check fw flash-deps clean lint
+.PHONY: install run web test build check lean-check fw flash-deps clean lint proofs
 
 
 install:
@@ -41,6 +41,11 @@ fw:
 # The Lean code that runs on the FM-1 links for the chip with only the small runtime.
 lean-check:
 	sh tools/check_lean_fw.sh
+
+# Lists every public theorem with what it claims and why (also written to docs/PROOFS.md).
+proofs:
+	python3 tools/proof_index.py --write
+	@cat docs/PROOFS.md
 
 # Style checks: sorry/axioms, undocumented or pointless theorems, excess comments, machine-sounding prose.
 lint:

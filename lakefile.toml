@@ -1,6 +1,6 @@
 name = "fmfm"
 version = "0.1.0"
-defaultTargets = ["fmfm", "Firmware"]
+defaultTargets = ["fmfm", "Firmware", "Spec", "Proofs"]
 
 # Core Lean only: no Mathlib, so builds stay fast and there is no cache to fetch.
 # If you add a dependency, pin its `rev` here and commit lake-manifest.json.
@@ -12,6 +12,13 @@ name = "Fmfm"
 # so it may only use what rt/lean_rt.c supports: see docs/LEAN-ON-CHIP.md.
 [[lean_lib]]
 name = "Firmware"
+
+# Spec: the plain definitions needed to state what is promised. Proofs: the promises, proved.
+[[lean_lib]]
+name = "Spec"
+
+[[lean_lib]]
+name = "Proofs"
 
 [[lean_exe]]
 name = "fmfm"

@@ -217,29 +217,56 @@ Comments are for what the code cannot say: why, a hardware fact, a trap. They ar
 
 A proof earns its place by ruling out a bug someone would care about. A proof that only passes is noise.
 
-- **Prove a property, not a restatement.** `t.last = n` after `press t n` is the definition. "No note is held twice"
-  or "release always reaches silence" is a property. If the theorem is `rfl` against a definition you just wrote,
-  delete it.
-- **Few theorems per definition.** More than about two per definition usually means restating. Keep the ones
-  stated in the spec; fold or drop the rest.
-- **Every theorem has a reason.** Its docstring says what could go wrong without it, in plain words. If you
-  cannot say that, delete the theorem.
-- **Do not prove the library.** No lemmas for facts Lean or Batteries already has. Search first (`exact?`).
-- **Specs are small and separate.** A spec file holds definitions and the main statements, nothing else. Helper
-  lemmas live next to the proofs, not in the spec.
-- **Do not weaken to pass.** If a proof stalls, the statement may be wrong. Test it with `plausible` or `#eval`
-  before adding hypotheses. Never add a hypothesis only to make the proof go through.
-- **No ceremony.** No `example` blocks that restate theorems, no `#print axioms` left in files, no proofs of
+**Where things go.** One module, three files, so a reader can find the code, what it promises, and the proof
+without searching:
+
+| Directory | Holds | May contain theorems? |
+|---|---|---|
+| `Firmware/<Module>.lean` | the code that runs on the FM-1 | no |
+| `Spec/<Module>.lean` | plain reference definitions needed to state a promise (a counting function, a model) | no |
+| `Proofs/<Module>.lean` | the promises, proved, and the private lemmas they need | yes |
+
+A module with nothing worth promising has no `Proofs` file. `Spec` is optional: add it only when stating a
+theorem needs a definition that is not part of the code.
+
+**How a theorem is written.**
+- Name: `<module>_<property>`, such as `quantizer_snap_in_scale`. Helper lemmas are `private`.
+- Docstring: one plain sentence saying what is true, then `Why it matters:` and one sentence about the bug it
+  rules out. `make lint` rejects a public theorem without both. If you cannot write the second sentence, delete
+  the theorem.
+- Hypotheses have names that say what they mean (`positive`, `fits`, `notEmpty`), not `h1`, `h2`.
+- State limits honestly. If a theorem needs `6 ≤ note`, say why in its docstring. Do not claim more than it proves.
+- One headline theorem per property. Put the proof's pieces in `private` lemmas above it, each with a one-line
+  docstring.
+
+**The index.** `docs/PROOFS.md` lists every public theorem with its claim and reason. It is generated
+(`make proofs`), and `make lint` fails if it is stale. Read it first to see what the repo proves; it is also the
+right text to show a reviewer.
+
+**What not to prove.**
+- Prove a property, not a restatement. If the theorem is `rfl` against a definition you just wrote, delete it.
+  `phase + step` equals `phase + step` mod 2^32 is the definition.
+- Few theorems per definition. More than about two usually means restating.
+- Do not prove the library. No lemmas for facts Lean already has. Search first (`exact?`).
+- No ceremony: no `example` blocks that restate theorems, no `#print axioms` left in files, no proofs of
   `True`, `x = x`, or `¬ False`. Keep an `example` only when it shows a hypothesis can be met (section 4).
-- **Proof style.** Short tactic scripts. Use `simp`, `omega`, `grind`, `decide` where they close the goal and say
-  so. Split a proof into lemmas when it passes about 15 lines, not before.
-- **Check the whole repo.** `make lint` rejects `sorry`, `admit`, new axioms, `native_decide`, `bv_decide` (each use adds an axiom, so `lake check` fails),
-  `maxHeartbeats 0`, `partial def`, `unsafe`, and `x = x` theorems, and warns on undocumented declarations and
-  theorem-heavy files. `make check` adds the kernel replay.
+
+**Proof style.**
+- Short tactic scripts. Use `simp`, `omega`, `grind`, `decide` where they close the goal.
+- `decide +kernel` is allowed (it adds no axiom) but keep checks small enough to build in under a minute. If
+  the kernel recurses too deep, split the range, as `quantizer_scale_has_a_neighbour_split` does.
+- Never add a hypothesis only to make a proof pass. If a proof stalls, the statement may be wrong: test it
+  with `plausible` or `#eval` first.
+- Split a proof into private lemmas when it passes about 15 lines.
+
+**What `make lint` enforces.** It rejects `sorry`, `admit`, new axioms, `native_decide`, `bv_decide` (each use
+adds an axiom, so `lake check` fails), `maxHeartbeats 0`, `partial def`, `unsafe`, `x = x` theorems,
+theorems outside `Proofs/`, public theorems without `Why it matters:`, and a stale `docs/PROOFS.md`. It warns on
+undocumented declarations. `make check` adds the kernel replay.
 
 ## 13. Before you finish a change
 
-1. `make lint` shows no errors and no new warnings.
+1. `make lint` shows no errors and no new warnings. Run `make proofs` if you changed a theorem.
 2. `make test` passes if you touched firmware, the runtime, or the page. `make lean-check` if you touched
    `Firmware/` or `rt/`.
 3. `lake build` shows no `sorry` warnings. `make check` before a commit that adds or changes a theorem.
