@@ -156,7 +156,8 @@ async function powerOn() {
   await audio.resume();
   worker = new Worker('worker.js');
   worker.onmessage = (e) => {
-    if (e.data.error) powerOff('Firmware failed to start: ' + e.data.error);
+    if (e.data.error) powerOff('Firmware stopped: ' + e.data.error);
+    else if (e.data.report !== undefined) { if (e.data.fatal) powerOff('Lean runtime stopped the firmware: ' + e.data.report); else status('Lean: ' + e.data.report); }
     else if (e.data.ready) { running = true; $('off').hidden = true; $('power').textContent = 'Power off'; $('power').disabled = false; status('Booting...'); }
   };
   worker.postMessage({ ctl: ctl.buffer, ring: ring.buffer, frame: frame.buffer, base: location.href });

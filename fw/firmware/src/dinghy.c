@@ -18,6 +18,7 @@
 static void app_idle(void);
 #define LCD_IDLE app_idle                       /* while the screen's DMA runs: MIDI in (platform.c) */
 #include "platform.c"
+#include "fm1_lean.h"                           /* the Lean code and its small runtime (rt/lean_rt.c) */
 #if BOARD_SMK37
 #include "smk_wheel.h"
 #endif
@@ -68,7 +69,9 @@ static void app_audio(int32_t *out, uint32_t n)
 static const uint32_t INC_C9[12] = {            /* MIDI 120..131 (C9..B9); lower octaves shift right */
     815363807u, 863847862u, 915214929u, 969636441u, 1027294024u, 1088380105u,
     1153098554u, 1221665363u, 1294309365u, 1371273005u, 1452813141u, 1539201906u};
-static uint32_t ages, last_note = 255;
+static uint32_t ages;
+static lean_object *tracker;                    /* held notes and the last note played: Firmware/NoteTracker.lean */
+static uint32_t last_note(void) { return fm1_tracker_last_of(tracker); }   /* 255: none yet */
 
 static void play(uint32_t note, uint32_t vel)
 {
@@ -83,11 +86,12 @@ static void play(uint32_t note, uint32_t vel)
     voice[pick].age = ++ages;
     voice[pick].inc = INC_C9[note % 12u] >> (10u - note / 12u);
     voice[pick].gate = (int32_t)(vel * 90u);    /* 127 -> 11430: four voices stay under full scale */
-    last_note = note;
+    tracker = fm1_tracker_press(tracker, (uint8_t)note);
 }
 static void stop(uint32_t note)
 {
     uint32_t v;
+    tracker = fm1_tracker_release(tracker, (uint8_t)note);
     for (v = 0; v < NV; v++)
         if (voice[v].note == note)
             voice[v].gate = 0;
@@ -111,11 +115,12 @@ static void draw_note(void)
 {
     static const char *const NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     char s[8] = "-";
-    if (last_note < 128u) {
-        const char *p = NAME[last_note % 12u];
+    uint32_t ln = last_note();
+    if (ln < 128u) {
+        const char *p = NAME[ln % 12u];
         uint32_t i = 0;
         while (*p) s[i++] = *p++;
-        if (last_note >= 12u) s[i++] = (char)('0' + last_note / 12u - 1u);
+        if (ln >= 12u) s[i++] = (char)('0' + ln / 12u - 1u);
         s[i] = 0;
     }
     draw_text_box(0, 82, 240, &FONT_L, s, C_WHITE, 1);
@@ -216,6 +221,7 @@ static void app_main(void)
 #endif
     if (settings_load(&set, sizeof set) || (int8_t)set.oct < -2 || (int8_t)set.oct > 2 || set.ch > 16u)
         set.oct = 0, set.ch = 0;
+    tracker = fm1_tracker_new(lean_box(0));
 
     lcd_fill(0, 0, 240, 240, C_BLACK);
     draw_text_box(0, 18, 240, &FONT_L, APP_NAME, C_ACC, 1);
@@ -292,7 +298,7 @@ static void app_main(void)
 
         idle_ok = 1;                            /* the drawing below may read MIDI meanwhile (LCD_IDLE) */
         if (lit != lit_drawn) { lit_drawn = lit; draw_keys(lit); }   /* redraw only what changed */
-        if (last_note != note_drawn) { note_drawn = last_note; draw_note(); }
+        if (last_note() != note_drawn) { note_drawn = last_note(); draw_note(); }
         if ((st = (uint32_t)(oct + 2) | (uint32_t)set.ch << 4) != status_drawn) { status_drawn = st; draw_status(oct, set.ch); }
         if ((st = midi_src | clk_bpm << 2 | clk_run << 12) != midi_drawn) { midi_drawn = st; draw_midi(midi_src, clk_bpm, clk_run); }
         idle_ok = 0;

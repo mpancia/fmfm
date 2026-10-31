@@ -2,13 +2,13 @@
 # Kernels that run on the FM-1
 
 Everything in this file is compiled to C by Lean and linked into the firmware
-(`make kernels` checks that it links with no Lean runtime). Rules:
+(`make lean-check` checks that it links for the chip). Rules:
 
-* Only fixed-width integers and `Bool`. No `Nat`, `Int`, `String`, `Array`, structures:
-  those need Lean's allocator, which the chip does not have.
+* Only fixed-width integers and `Bool`, so these functions need no Lean runtime at all and are safe
+  to call from the audio interrupt. (Code that allocates, like `NoteTracker.lean`, must stay in the main loop.)
 * The chip has no FPU and no 64-bit division.
-* `extract_closed false` stops Lean from hoisting constants into lazily initialised
-  globals, which would pull in the Lean runtime.
+* `extract_closed false` stops Lean from hoisting constants into lazily initialised globals,
+  which would need module initialisation.
 -/
 
 set_option compiler.extract_closed false

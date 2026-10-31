@@ -1,10 +1,11 @@
 # Web simulator
 
-`make run` builds and serves it; `make web` only builds into `build/web/`.
+`make run` builds and serves it; `make web` only builds into `build/web/`; `make test` runs it headless in node.
 
 ## What runs
 The same `fw/firmware/src/dinghy.c` that goes on the chip, compiled with `-DDINGHY_WEB` to WebAssembly by the
-clang and lld inside the pinned Lean toolchain (`tools/build_web.sh`). No emscripten, no libc.
+clang and lld inside the pinned Lean toolchain (`tools/build_web.sh`), together with the Lean code in `Firmware/`
+and its runtime (`rt/`). No emscripten, no libc.
 `web/web_host.c` plays the part of the hardware (derived from Dinghy's `tests/host.c`): screen buffer, inputs,
 RAM-backed settings, MIDI queue.
 
@@ -25,7 +26,7 @@ MIDI input (Chrome/Edge).
 
 ## What it does not model
 - CPU time: the chip is far slower than your computer. Check the audio ISR budget on hardware (`fm1_ticks()`), or
-  with `DINGHY_PERF=1 make run-host` (instructions per sample).
+  by comparing instruction counts in a build for the chip.
 - Flash: settings live in RAM and vanish at power off. No update path, rescue or boot guard.
 - TRS MIDI, MIDI out, USB audio device behaviour, key scan timing, battery.
 - Hardware rules (no float, no 64-bit division, ROM window addresses) are enforced only by `make fw`, not here.

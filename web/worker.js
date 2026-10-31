@@ -37,6 +37,10 @@ const imports = { env: {
     wrote = (wrote + frames) | 0;
     Atomics.store(ctl, 13, wrote);
   },
+  js_report(ptr, fatal) {                    // a message from the Lean runtime
+    const b = new Uint8Array(mem.buffer, ptr); let n = 0; while (b[n]) n++;
+    postMessage({ report: new TextDecoder().decode(b.subarray(0, n)), fatal });
+  },
   js_frame(ptr, lo, hi) {
     frame.set(new Uint16Array(mem.buffer, ptr, 240 * 240));
     Atomics.store(ctl, 15, lo); Atomics.store(ctl, 16, hi);

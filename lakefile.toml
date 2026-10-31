@@ -1,12 +1,17 @@
 name = "fmfm"
 version = "0.1.0"
-defaultTargets = ["fmfm"]
+defaultTargets = ["fmfm", "Firmware"]
 
 # Core Lean only: no Mathlib, so builds stay fast and there is no cache to fetch.
 # If you add a dependency, pin its `rev` here and commit lake-manifest.json.
 
 [[lean_lib]]
 name = "Fmfm"
+
+# Code that runs on the FM-1. Compiled to C and linked into the firmware (see tools/build_lean_fw.sh),
+# so it may only use what rt/lean_rt.c supports: see docs/LEAN-ON-CHIP.md.
+[[lean_lib]]
+name = "Firmware"
 
 [[lean_exe]]
 name = "fmfm"

@@ -6,9 +6,8 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
-FWENV := JIELI_TOOLCHAIN=$(ROOT)/vendor/toolchain AC79_SDK=$(ROOT)/vendor/ac79 PATH=$(ROOT)/.venv/bin:$(PATH)
 
-.PHONY: install run run-host web build check kernels fw flash-deps clean
+.PHONY: install run web test build check lean-check fw flash-deps clean
 
 
 install:
@@ -30,21 +29,21 @@ run: web
 web:
 	sh tools/build_web.sh
 
-# Headless run of the app on this computer: fw/build/host/dinghy.wav and screen PNGs, no browser.
-run-host:
-	cd fw && PATH=$(ROOT)/.venv/bin:$$PATH sh tests/run_host.sh
-	@echo "Open fw/build/host/dinghy.wav and fw/build/host/*.png"
+# Headless test of the web build: boots the firmware in node, plays notes, checks sound, screen and LEDs.
+test: web
+	node tools/smoke_web.mjs
 
 # Builds the installable firmware package fw/build/dinghy.fwsc (does NOT flash anything).
+# Includes the Lean code from Firmware/ and its runtime (rt/).
 fw:
-	cd fw && $(FWENV) sh build.sh
+	sh tools/build_fw.sh
 
-# Lean kernels -> C -> JieLi pi32v2 clang; fails if they need the Lean runtime.
-kernels:
-	sh tools/check_kernels.sh
+# The Lean code that runs on the FM-1 links for the chip with only the small runtime.
+lean-check:
+	sh tools/check_lean_fw.sh
 
-# Lean kernel replay (Linux, bubblewrap) + chip-compatibility of the kernels.
-check: kernels
+# Lean kernel replay (Linux, bubblewrap) + the chip link check.
+check: lean-check
 	lake check
 
 # Only needed to flash from this computer: python MIDI libs for fw/tools/fm1_install.py.

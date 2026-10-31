@@ -17,6 +17,8 @@
 WEB_IMPORT(js_sync) void js_sync(uint32_t ms);
 WEB_IMPORT(js_audio) void js_audio(const int16_t *pcm, uint32_t frames);
 WEB_IMPORT(js_frame) void js_frame(const uint16_t *fb, uint32_t leds_lo, uint32_t leds_hi);
+WEB_IMPORT(js_report) void js_report(const char *msg, int fatal);   /* a message from the Lean runtime (NUL-terminated) */
+void fm1_lean_report(const char *msg, int fatal) { js_report(msg, fatal); }   /* rt/lean_rt.c's hook */
 
 #ifndef APP_NAME
 #define APP_NAME "DINGHY"

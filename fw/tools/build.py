@@ -186,8 +186,9 @@ def build_app():
             raise SystemExit("app.ld: the XIP LENGTH line was not found")
         ld = OUT / "app.ld"
         ld.write_text(txt.replace("LENGTH = 0x8DFBC", f"LENGTH = {APP_SLOT:#X}".replace("0X", "0x")))
+    extra = os.environ.get("DINGHY_LINK", "").split()   # Lean objects and libInit.a (tools/build_fw.sh)
     tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", ld, OUT / "crt0.o", OUT / "fm1_vec.o",
-       OUT / "fm1_isr.o", OUT / "dinghy.o", "-o", elf)
+       OUT / "fm1_isr.o", OUT / "dinghy.o", *extra, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),

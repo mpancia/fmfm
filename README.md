@@ -39,10 +39,10 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 | `make install` | elan + Lean, `.venv`, JieLi toolchain (SHA-256 pinned, into `vendor/`), `lake build` |
 | `make run` | build the web simulator and serve it at http://localhost:8000/ (Power on, then play) |
 | `make web` | build only: `build/web/` |
-| `make run-host` | headless run of the app: `fw/build/host/dinghy.wav` + screen PNGs |
-| `make fw` | build `fw/build/dinghy.fwsc` (does not flash) |
-| `make kernels` | check the Lean kernels compile for the chip with no Lean runtime |
-| `make check` | `make kernels` + `lake check` (kernel replay, standard axioms only) |
+| `make test` | headless test of the web build in node (boot, sound, screen, LEDs) |
+| `make fw` | build `fw/build/dinghy.fwsc` with the Lean code linked in (does not flash) |
+| `make lean-check` | the Lean code in `Firmware/` links for the chip with only the small runtime in `rt/` |
+| `make check` | `make lean-check` + `lake check` (kernel replay, standard axioms only) |
 | `make flash-deps` | optional: MIDI libraries for `fw/tools/fm1_install.py` |
 
 ## Reproducibility
@@ -55,4 +55,10 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 
 ## Trusted surface
 
-Nothing yet.
+Proofs cover the Lean code in `Firmware/`. They do not cover:
+
+- `rt/lean_rt.c`: the small Lean runtime (allocator, freeing, arrays, panics). See `docs/LEAN-ON-CHIP.md`.
+- Lean's compiler (Lean to C) and JieLi's clang (C to chip code).
+- `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
+- The hardware, and `web/web_host.c` for the simulator.
+- Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.

@@ -19,11 +19,7 @@ JieLi AC7911B (pi32v2 RISC, **no FPU**), 1 MiB flash executed in place, 240x240 
   See `fw/docs/RULES.md`.
 
 ## Lean on this chip
-Lean's runtime (allocator, refcounts) cannot run on the chip. Scalar-only Lean functions
-(`UInt8..64`, `Int8..32`, `Bool`) compile to plain C with no runtime: `fm1_phase_step` becomes two instructions.
-`make kernels` proves that for every `@[export]` in `Fmfm/Kernels.lean` by linking with `--gc-sections`;
-any `Nat`/`Array`/structure use fails with an undefined `lean_*` symbol. The generated C is at
-`.lake/build/ir/Fmfm/Kernels.c`. **Not done yet:** calling these kernels from `dinghy.c`.
+See `docs/LEAN-ON-CHIP.md`.
 
 ## Flash safety (do before flashing anything)
 1. Keep the unit on stock V15 first (V14 + custom firmware fails; community advice).
