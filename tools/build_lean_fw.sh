@@ -10,8 +10,10 @@ lake build Firmware
 sh tools/build_lean_init.sh "$T"
 O=build/lean/$T
 rm -rf "$O"; mkdir -p "$O"
-# Analog*.c and Digital*.c are not built here: voices/analog_glue.c and digital_glue.c include them as inline functions.
-for c in $(ls .lake/build/ir/Firmware/*.c | grep -v -e "/Analog" -e "/Digital") rt/lean_rt.c; do
+# The modules that voices/*_glue.c include as inline functions are not built here.
+SKIP=$(sh tools/glue_modules.sh)
+for c in .lake/build/ir/Firmware/*.c rt/lean_rt.c; do
+    if echo "$SKIP" | grep -qx "$(basename "$c" .c)"; then continue; fi
     $CC -Os -ffunction-sections -Wall -Wno-unused-parameter -c "$c" -o "$O/$(basename "$(dirname "$c")")_$(basename "$c" .c).o"
 done
 echo "lean: $(ls "$O"/*.o | wc -l) objects in $O"

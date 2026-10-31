@@ -6,6 +6,7 @@
   tools/audit_voices.py --check     test every factory sound in voices/presets.h (make audit)
 """
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,15 +26,17 @@ def build():
     BIN.parent.mkdir(exist_ok=True)
     sources = [ROOT / "tests/voice_render.cc", ROOT / "voices/voice.cc", ROOT / "voices/stmlib/utils/random.cc",
                *sorted((ROOT / "voices/braids").glob("*.cc"))]
-    subprocess.run(["lake", "build", "Firmware.AnalogApi", "Firmware.DigitalApi"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
-    generated = ROOT / ".lake/build/ir/Firmware/AnalogApi.c"
+    glues = sorted((ROOT / "voices").glob("*_glue.c"))
     gen_dir = ROOT / "build/native_gen"
     gen_dir.mkdir(parents=True, exist_ok=True)
-    digital = ROOT / ".lake/build/ir/Firmware/DigitalApi.c"
-    (gen_dir / "AnalogApi.c").write_bytes(generated.read_bytes())          # the oscillator arithmetic, from Lean
-    (gen_dir / "DigitalApi.c").write_bytes(digital.read_bytes())
-    glues = [ROOT / "voices/analog_glue.c", ROOT / "voices/digital_glue.c"]
-    newest = max(p.stat().st_mtime for p in [*sources, generated, digital, *glues])
+    generated = []
+    for glue_source in glues:
+        api = re.search(r'^#include "(\w+Api)\.c"', glue_source.read_text(), re.M).group(1)
+        subprocess.run(["lake", "build", f"Firmware.{api}"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+        source = ROOT / f".lake/build/ir/Firmware/{api}.c"
+        (gen_dir / f"{api}.c").write_bytes(source.read_bytes())            # the arithmetic, from Lean
+        generated.append(source)
+    newest = max(p.stat().st_mtime for p in [*sources, *generated, *glues])
     if BIN.exists() and BIN.stat().st_mtime > newest:
         return
     prefix = subprocess.check_output(["lean", "--print-prefix"], text=True).strip()

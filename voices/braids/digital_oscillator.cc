@@ -27,6 +27,12 @@
 // Oscillator - digital style waveforms.
 
 #include "braids/digital_oscillator.h"
+#include "filters_glue.h"
+#include "vowels_glue.h"
+#include "wavetables_glue.h"
+#include "noise_glue.h"
+#include "percussion_glue.h"
+#include "physical_glue.h"
 
 extern "C" {
 void fm1_digital_render_fm(uint32_t*, uint32_t*, uint32_t, uint32_t, int32_t, int32_t, const uint8_t*, int16_t*,

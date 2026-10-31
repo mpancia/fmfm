@@ -27,6 +27,7 @@
 // Macro-oscillator.
 
 #include "braids/macro_oscillator.h"
+#include "macro_glue.h"
 
 #include <algorithm>
 

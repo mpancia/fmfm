@@ -10,3 +10,17 @@ import Firmware.Analog
 import Firmware.AnalogApi
 import Firmware.Digital
 import Firmware.DigitalApi
+import Firmware.Filters
+import Firmware.FiltersApi
+import Firmware.Vowels
+import Firmware.VowelsApi
+import Firmware.Wavetables
+import Firmware.WavetablesApi
+import Firmware.Noise
+import Firmware.NoiseApi
+import Firmware.Percussion
+import Firmware.PercussionApi
+import Firmware.Physical
+import Firmware.PhysicalApi
+import Firmware.Macro
+import Firmware.MacroApi

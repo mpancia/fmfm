@@ -8,23 +8,23 @@ set -eu
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.elan/bin:$PATH"
 PREFIX=$(lean --print-prefix)
-lake build Firmware.AnalogApi Firmware.DigitalApi
+for g in voices/*_glue.c; do lake build "Firmware.$(sed -n 's/^#include "\([A-Za-z0-9]*Api\)\.c"/\1/p' "$g")"; done
 T=build/lean_test
 rm -rf $T; mkdir -p $T/gen
-cp .lake/build/ir/Firmware/AnalogApi.c $T/gen/AnalogApi.c
-cp .lake/build/ir/Firmware/DigitalApi.c $T/gen/DigitalApi.c
+for m in $(sh tools/glue_modules.sh | grep Api); do cp .lake/build/ir/Firmware/$m.c $T/gen/$m.c; done
 CXX="g++ -O2 -std=c++11 -w -DTEST"
 REF="-Dbraids=braids_ref -Dstmlib=stmlib_ref -Itests/reference"
 for f in analog_oscillator digital_oscillator macro_oscillator resources; do
     $CXX $REF -c tests/reference/braids/$f.cc -o $T/ref_$f.o
 done
 $CXX $REF -c tests/reference/stmlib/utils/random.cc -o $T/ref_random.o
-for f in analog_oscillator digital_oscillator macro_oscillator resources; do
-    $CXX -Ivoices -c voices/braids/$f.cc -o $T/lean_$f.o
+for src in voices/braids/*.cc; do
+    $CXX -Ivoices -c $src -o $T/lean_$(basename $src .cc).o
 done
 $CXX -Ivoices -c voices/stmlib/utils/random.cc -o $T/lean_random.o
-gcc -O2 -w -I"$PREFIX/include" -I$T/gen -c voices/analog_glue.c -o $T/glue.o
-gcc -O2 -w -I"$PREFIX/include" -I$T/gen -c voices/digital_glue.c -o $T/dglue.o
+for g in voices/*_glue.c; do
+    gcc -O2 -w -I"$PREFIX/include" -I$T/gen -c $g -o $T/glue_$(basename $g .c).o
+done
 for t in analog_diff voice_diff; do
     $CXX -c tests/$t.cc -o $T/$t.o
 done
@@ -32,7 +32,7 @@ $CXX $REF -c tests/analog_ref_adapter.cc -o $T/analog_ref_adapter.o
 $CXX $REF -c tests/voice_ref_adapter.cc -o $T/voice_ref_adapter.o
 $CXX -Ivoices -c tests/analog_lean_adapter.cc -o $T/analog_lean_adapter.o
 $CXX -Ivoices -c tests/voice_lean_adapter.cc -o $T/voice_lean_adapter.o
-SHARED="$T/ref_*.o $T/lean_*.o $T/glue.o $T/dglue.o"
+SHARED="$T/ref_*.o $T/lean_*.o $T/glue_*.o"
 g++ -o $T/analog_diff $T/analog_diff.o $T/analog_ref_adapter.o $T/analog_lean_adapter.o $SHARED
 g++ -o $T/voice_diff $T/voice_diff.o $T/voice_ref_adapter.o $T/voice_lean_adapter.o $SHARED
 $T/analog_diff
