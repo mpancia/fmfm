@@ -1,0 +1,13 @@
+name = "fmfm"
+version = "0.1.0"
+defaultTargets = ["fmfm"]
+
+# Core Lean only: no Mathlib, so builds stay fast and there is no cache to fetch.
+# If you add a dependency, pin its `rev` here and commit lake-manifest.json.
+
+[[lean_lib]]
+name = "Fmfm"
+
+[[lean_exe]]
+name = "fmfm"
+root = "Main"
