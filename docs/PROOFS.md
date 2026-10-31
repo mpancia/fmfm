@@ -22,7 +22,7 @@ Why it matters: the two halves can be added without ever leaving the range of a 
 
 Why it matters: the triangle can never click from an overflow, at any pitch or phase.
 
-**`analog_sine_between_entries`**: The sine at any phase lies between the two table entries it blends, as long as neighbouring entries are at most 32767 apart (the sine table's neighbours differ by at most about 800).
+**`analog_sine_between_entries`**: The sine at any phase lies between the two table entries it blends.
 
 Why it matters: the sine, and everything FM-modulated through it, can never put out more than the table holds; the cut to 16 bits in `Analog.sineAt` never changes a value.
 
@@ -32,9 +32,9 @@ Why it matters: the sine, and everything FM-modulated through it, can never put 
 
 Why it matters: a wave shaper can never put out more than its table holds, whatever the index; its output is 16-bit without relying on the cut.
 
-**`blend_sixteen_between`**: Blending two 16-bit values at most 32767 apart by a 16-bit fraction (`Interpolate824`) lands between them, with no wrap on the way.
+**`blend_sixteen_between`**: Blending two 16-bit values by a 16-bit fraction (`Interpolate824`) lands between them, for any two values. The product inside can wrap in 32 bits (Braids' own C++ does so for steep comb and wave tables), but the wrap is a multiple of 2^16 and the cut to 16 bits cancels it exactly, so the result is the intended value.
 
-Why it matters: this is the blend inside every table read and every wave crossfade; the result can never exceed what it blends.
+Why it matters: this is the blend inside every table read and every wave crossfade; the result can never exceed what it blends, and the overflow in the original is proved harmless rather than assumed.
 
 ## Digital
 
@@ -278,6 +278,10 @@ Why it matters: Braids' waves are 129 bytes, half the table size the phase could
 
 Why it matters: the wavetable engine cannot click from an overflow, for any waves, phase or morph position.
 
-**`wavetables_crossfade_between_waves`**: A crossfade of two waves at the same phase lies between the two waves' values there, as long as they are at most 32767 apart.
+**`wavetables_crossfade_between_waves`**: A crossfade of two waves at the same phase lies between the two waves' values there, for any two waves.
 
-Why it matters: morphing between waves can never be louder than the louder wave, at any morph position.
+Why it matters: morphing between waves can never be louder than the louder wave, at any morph position, even where the two waves are far apart (where Braids' C++ product wraps; see `blend_sixteen_between`).
+
+**`wavetables_read_between_bytes`**: A wave read lies between the two bytes it blends (each byte scaled to 16 bits), for any wave and phase. The product inside wraps in 32 bits for steep waves (Braids' `wt_waves` has byte steps up to 253; the C++ does the same), and the cut to 16 bits cancels the wrap exactly.
+
+Why it matters: a wave never puts out more than its bytes hold, and the overflow in the original is proved harmless rather than assumed.

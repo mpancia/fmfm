@@ -61,7 +61,8 @@
     "tables_resonator_reads_inside_129",
     "tables_wave_reads_inside_129",
     "wavetables_wavetable_never_wraps",
-    "wavetables_crossfade_between_waves"
+    "wavetables_crossfade_between_waves",
+    "wavetables_read_between_bytes"
   ],
   "permitted_axioms": [
     "propext",

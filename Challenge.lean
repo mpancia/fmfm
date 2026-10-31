@@ -266,3 +266,11 @@ theorem wavetables_crossfade_between_waves (waveA waveB phase balance : UInt32) 
         (Wavetables.crossfade waveA waveB phase balance).toInt ∧
       (Wavetables.crossfade waveA waveB phase balance).toInt ≤
         max (Wavetables.read waveA phase).toInt (Wavetables.read waveB phase).toInt := sorry
+
+theorem wavetables_read_between_bytes (wave phase : UInt32) :
+    min ((Wavetables.waveByte wave (Analog.tableIndex phase)).toNat * 256 - 32768 : Int)
+        ((Wavetables.waveByte wave (Analog.tableIndex phase + 1)).toNat * 256 - 32768) ≤
+        (Wavetables.read wave phase).toInt ∧
+      (Wavetables.read wave phase).toInt ≤
+        max ((Wavetables.waveByte wave (Analog.tableIndex phase)).toNat * 256 - 32768 : Int)
+          ((Wavetables.waveByte wave (Analog.tableIndex phase + 1)).toNat * 256 - 32768) := sorry

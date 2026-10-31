@@ -69,6 +69,11 @@ glue draws the numbers and passes them in, so the sequence is the one Braids pro
   The first port had exactly this bug; the differential test found it at once. Parenthesize every shifted product.
 - Braids' interpolation helpers return `int16_t`, so their result is cut to 16 bits before the next step. Leaving it
   in 32 bits matched everywhere except in the buzz at extreme pitches (five samples in a million).
+- The product inside `Interpolate824` and `Crossfade` overflows `int32_t` whenever the two values are more
+  than 32767 apart, which the comb tables (steps up to 32495, so not quite) and the waves (byte steps up to
+  253, so yes) and any crossfade of two far-apart waves can reach. Braids' C++ wraps in practice and so does the
+  Lean; `blend_sixteen_between` and `wavetables_read_between_bytes` prove the wrap is exactly cancelled by the
+  cut to 16 bits, so the result is the intended value. No code was changed for it.
 - A structure that crosses an `if` stays an object and allocates. Write each result as its own `let`.
 
 - `int32_t * uint32_t` in C++ is unsigned: the exciter's decay (`Excitation::Process`) multiplies that way and

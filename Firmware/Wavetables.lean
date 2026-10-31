@@ -19,7 +19,7 @@ for bytes, which returns a 16-bit value). -/
 @[inline] def Wavetables.read (wave phase : UInt32) : Int32 :=
   let a := (Wavetables.waveByte wave (Analog.tableIndex phase)).toUInt32.toInt32
   let b := (Wavetables.waveByte wave (Analog.tableIndex phase + 1)).toUInt32.toInt32
-  (((a <<< 8) + (((b - a) * (phase &&& 0xFFFFFF).toInt32) >>> 16)) - 32768).toInt16.toInt32
+  ((a * (256 : Int32) + (((b - a) * (phase &&& 0xFFFFFF).toInt32) >>> 16)) - 32768).toInt16.toInt32
 
 /-- Two waves at the same phase, blended by `balance` (16 bits; Braids' `Crossfade`). -/
 @[inline] def Wavetables.crossfade (waveA waveB phase balance : UInt32) : Int32 :=

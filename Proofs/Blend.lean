@@ -97,13 +97,13 @@ theorem blend_eight_between (a b : Int32) (index : UInt32)
     split <;> omega
   rw [blend_keep16 _ (by omega) (by omega), inner]
   exact bt
-/-- Blending two 16-bit values at most 32767 apart by a 16-bit fraction (`Interpolate824`) lands between them,
-with no wrap on the way.
+/-- Blending two 16-bit values by a 16-bit fraction (`Interpolate824`) lands between them, for any two values.
+The product inside can wrap in 32 bits (Braids' own C++ does so for steep comb and wave tables), but the wrap is
+a multiple of 2^16 and the cut to 16 bits cancels it exactly, so the result is the intended value.
 Why it matters: this is the blend inside every table read and every wave crossfade; the result can never
-exceed what it blends. -/
+exceed what it blends, and the overflow in the original is proved harmless rather than assumed. -/
 theorem blend_sixteen_between (a b : Int32) (frac : UInt32)
-    (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767)
-    (near : -32767 ≤ b.toInt - a.toInt ∧ b.toInt - a.toInt ≤ 32767) :
+    (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
     min a.toInt b.toInt ≤ (a + (((b - a) * (frac &&& 0xFFFF).toInt32) >>> 16)).toInt16.toInt32.toInt ∧
       (a + (((b - a) * (frac &&& 0xFFFF).toInt32) >>> 16)).toInt16.toInt32.toInt ≤ max a.toInt b.toInt := by
   have f := blend_and_ffff frac
@@ -111,21 +111,8 @@ theorem blend_sixteen_between (a b : Int32) (frac : UInt32)
     blend_small_toInt32 _ (by omega)
   have d : (b - a).toInt = b.toInt - a.toInt := by
     rw [Int32.toInt_sub]; simp [Int.bmod_def]; split <;> omega
-  have p : ((b - a) * (frac &&& 0xFFFF).toInt32).toInt =
-      (b.toInt - a.toInt) * ((frac &&& 0xFFFF).toNat : Int) := by
-    rw [Int32.toInt_mul, d, t]
-    have := Int.mul_le_mul_of_nonneg_right near.2 (by omega : (0 : Int) ≤ (frac &&& 0xFFFF).toNat)
-    have := Int.mul_le_mul_of_nonneg_right near.1 (by omega : (0 : Int) ≤ (frac &&& 0xFFFF).toNat)
-    generalize (b.toInt - a.toInt) * ((frac &&& 0xFFFF).toNat : Int) = q at *
-    simp only [Int.bmod_def]
-    split <;> omega
   have bt := blend_between a.toInt b.toInt ((frac &&& 0xFFFF).toNat : Int) 65536 (by decide) (by omega)
-  have inner : (a + (((b - a) * (frac &&& 0xFFFF).toInt32) >>> 16)).toInt =
-      a.toInt + (b.toInt - a.toInt) * ((frac &&& 0xFFFF).toNat : Int) / 65536 := by
-    rw [Int32.toInt_add, blend_shift_sixteen, p]
-    generalize (b.toInt - a.toInt) * ((frac &&& 0xFFFF).toNat : Int) / 65536 = q at *
-    simp [Int.bmod_def]
-    split <;> omega
-  rw [blend_keep16 _ (by omega) (by omega), inner]
-  exact bt
-
+  rw [Int16.toInt_toInt32, Int32.toInt_toInt16, Int32.toInt_add, blend_shift_sixteen, Int32.toInt_mul, d, t]
+  generalize (b.toInt - a.toInt) * ((frac &&& 0xFFFF).toNat : Int) = P at *
+  simp only [Int.bmod_def]
+  split <;> split <;> split <;> omega
