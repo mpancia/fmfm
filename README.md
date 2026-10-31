@@ -15,13 +15,15 @@ Then open http://localhost:8000/ and click **Power on**. Four lanes start playin
 | SELECT | choose a lane |
 | KNOB 1, 2, 3, 4 | hits per bar, steps per bar, speed, scale of the chosen lane |
 | ALGORITHM | tempo |
+| PRESETS | voice of the chosen lane: saw, pulse, FM, feedback FM, sine (hold GLO: MIDI-in channel) |
 | keys, OCT- OCT+ | play the sines by hand |
 
 Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
 snaps it to the scale. That logic is Lean, and `docs/PROOFS.md` lists what is proved about it.
 
-The lanes sound through oscillators ported from Mutable Instruments' Braids (`voices/braids.h`, MIT): lane 1 a
-band-limited saw, lane 2 a pulse, lane 3 two-operator FM, lane 4 feedback FM. The keys play a plain sine.
+The lanes sound through oscillators ported from Mutable Instruments' Braids (`voices/braids.h`, MIT): a
+band-limited saw, a pulse, two-operator FM and feedback FM, plus a sine. Each lane starts on a different one and
+any lane can use any of them. The keys play a plain sine.
 
 The simulator runs the real firmware app (`fw/firmware/src/dinghy.c`) compiled to WebAssembly, with the FM-1's
 screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed. See `docs/SIMULATOR.md`.

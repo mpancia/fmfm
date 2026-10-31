@@ -7,7 +7,7 @@
  *   SELECT     choose a lane
  *   KNOB 1-4   hits per bar, steps per bar, speed, scale (of the chosen lane)
  *   ALGORITHM  tempo
- *   PRESETS    MIDI channel for notes coming in
+ *   PRESETS    voice of the chosen lane; hold GLO to set the MIDI channel for notes coming in instead
  *   OCT- OCT+  octave of the keys; the keys play the sines too
  *
  * Rules of the chip (no FPU, no 64-bit division): docs/RULES.md. Platform calls: docs/API.md. */
@@ -117,9 +117,11 @@ static const char *const SPEED_NAME[] = {"1/48", "1/32", "1/24", "1/16", "1/12",
 #define NSPEED (sizeof SPEED / sizeof SPEED[0])
 
 static lean_object *lane[NL];
-static struct { uint8_t hits, steps, speed, scale, last; } cfg[NL] = {
-    {4, 16, 3, 0, 0}, {5, 8, 5, 0, 0}, {7, 16, 3, 0, 0}, {3, 8, 4, 0, 0}};
-static const uint8_t LANE_SHAPE[NL] = {BRAIDS_SAW, BRAIDS_SQUARE, BRAIDS_FM, BRAIDS_FEEDBACK_FM};
+static const uint8_t VOICE_SHAPE[] = {BRAIDS_SAW, BRAIDS_SQUARE, BRAIDS_FM, BRAIDS_FEEDBACK_FM, BRAIDS_SINE};
+static const char *const VOICE_NAME[] = {"SAW", "PULSE", "FM", "FBK", "SINE"};
+#define NVOICE (sizeof VOICE_SHAPE / sizeof VOICE_SHAPE[0])
+static struct { uint8_t hits, steps, speed, scale, voice, last; } cfg[NL] = {
+    {4, 16, 3, 0, 0, 0}, {5, 8, 5, 0, 1, 0}, {7, 16, 3, 0, 2, 0}, {3, 8, 4, 0, 3, 0}};
 static const uint8_t LANE_LOW[NL] = {36, 48, 60, 72};
 static const uint8_t LANE_SPAN[NL] = {12, 12, 24, 12};
 static uint32_t bpm = 100, running = 1, tick_acc, tick_ms, selected;
@@ -141,7 +143,7 @@ static void lane_report(uint32_t i, uint32_t out_ch)   /* play what the lane jus
 {
     uint32_t off = fm1_lane_off_of(lane[i]), on = fm1_lane_on_of(lane[i]);
     if (off < 128u) { stop(off); midi_send(0x80u | (out_ch + i), off, 0); }
-    if (on < 128u) { play(on, 100, LANE_SHAPE[i]); midi_send(0x90u | (out_ch + i), on, 100); cfg[i].last = (uint8_t)on; }
+    if (on < 128u) { play(on, 100, VOICE_SHAPE[cfg[i].voice]); midi_send(0x90u | (out_ch + i), on, 100); cfg[i].last = (uint8_t)on; }
 }
 
 static void clock_poll(uint32_t out_ch)         /* 24 ticks a quarter note: bpm * 4 hundred-thousandths of a tick a ms */
@@ -214,7 +216,8 @@ static void draw_lane(uint32_t i)
     for (a = SCALE_NAME[cfg[i].scale]; *a; ) *p++ = *a++;
     *p = 0;
     cv_text(6, 20, &FONT_S, s, i == selected ? col : C_OFF);
-    if (cfg[i].last) { note_name(name, cfg[i].last); cv_text(200, 20, &FONT_S, name, col); }
+    cv_text(164, 20, &FONT_S, VOICE_NAME[cfg[i].voice], i == selected ? col : C_OFF);
+    if (cfg[i].last) { note_name(name, cfg[i].last); cv_text(208, 20, &FONT_S, name, col); }
     cv_blit(0, ROW_Y(i));
 }
 
@@ -285,10 +288,15 @@ static void app_main(void)
         if (b & (1u << BTN_OCT_UP) && oct < 2) { set.oct = (uint8_t)(oct + 1); dirty = 1; t_change = fm1_ms; }
         if (b & (1u << BTN_PLAY)) { if (running) clock_stop(0); else running = 1; }
         if ((e = fm1_enc_take(ENC_PRESETS)) != 0) {
-            int32_t c = (int32_t)set.ch + e;
-            set.ch = (uint8_t)(c < 0 ? 0 : c > 16 ? 16 : c);
-            dirty = 1;
-            t_change = fm1_ms;
+            if (fm1_in.buttons >> BTN_GLO & 1u) {           /* GLO held: the MIDI channel */
+                int32_t c = (int32_t)set.ch + e;
+                set.ch = (uint8_t)(c < 0 ? 0 : c > 16 ? 16 : c);
+                dirty = 1;
+                t_change = fm1_ms;
+            } else {                                        /* a voice for the chosen lane: next notes use it */
+                int32_t v = (int32_t)cfg[selected].voice + e;
+                cfg[selected].voice = (uint8_t)(v < 0 ? 0 : v >= (int32_t)NVOICE ? (int32_t)NVOICE - 1 : v);
+            }
         }
         if ((e = fm1_enc_take(ENC_SELECT)) != 0) selected = (selected + NL + (uint32_t)(e % (int32_t)NL)) % NL;
         if ((e = fm1_enc_take(ENC_ALGORITHM)) != 0) {
@@ -327,7 +335,7 @@ static void app_main(void)
         for (k = 0; k < NL; k++) {
             uint64_t sig = (uint64_t)fm1_lane_step_of(lane[k]) | (uint64_t)cfg[k].hits << 6 | (uint64_t)cfg[k].steps << 12
                          | (uint64_t)cfg[k].speed << 18 | (uint64_t)cfg[k].scale << 22 | (uint64_t)cfg[k].last << 26
-                         | (uint64_t)(k == selected) << 34;
+                         | (uint64_t)cfg[k].voice << 34 | (uint64_t)(k == selected) << 38;
             if (sig != row_drawn[k]) { row_drawn[k] = sig; draw_lane(k); }
         }
         if ((st = (uint32_t)(oct + 2) | (uint32_t)set.ch << 4 | bpm << 10 | running << 20) != status_drawn) {

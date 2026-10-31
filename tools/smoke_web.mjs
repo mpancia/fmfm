@@ -7,11 +7,16 @@ const BTN_PLAY = 12, BTN_OCT_UP = 1;
 let mem, inp, ms = 0, reports = [], frame = new Uint16Array(240 * 240);
 const peaks = new Map();                               // second -> loudest sample in it
 const frames = [];
+const shots = {};
 const events = [];                                     // [ms, fn(dataview)]
 const at = (t, fn) => events.push([t, fn]);
 const press = (id) => (d) => d.setUint32(8, d.getUint32(8, true) | 1 << id, true);
 at(4000, press(BTN_PLAY));                             // stop
 at(6000, press(BTN_PLAY));                             // start again
+const PRESETS = 6;
+at(4500, (d) => d.setInt32(16 + 4 * PRESETS, 1, true));   // while stopped: next voice for lane 1
+at(4400, () => { shots.before = frame; });
+at(4700, () => { shots.after = frame; });
 const END = 9000;
 const imports = { env: {
   js_sync(t) {
@@ -43,5 +48,10 @@ ok('lanes make sound with no key pressed', peak(500, 4000) > 1000);
 ok('PLAY stops all sound (no stuck note)', peak(4500, 6000) === 0);
 ok('PLAY starts it again', peak(6500, 9000) > 1000);
 ok('the screen changes as steps advance', frames.length > 4 && changed(frames[2], frames[3]) > 50);
+const rowPixels = (f, row) => f.slice((22 + row * 42) * 240, (22 + row * 42 + 40) * 240);
+const voiceChangedOnlyLane1 = shots.before && shots.after &&
+  changed(rowPixels(shots.before, 0), rowPixels(shots.after, 0)) > 0 &&
+  [1, 2, 3].every((r) => changed(rowPixels(shots.before, r), rowPixels(shots.after, r)) === 0);
+ok('PRESETS changes the voice shown on the chosen lane only', voiceChangedOnlyLane1);
 ok('no Lean runtime reports', reports.length === 0);
 console.log({ peakBefore: peak(500, 4000), peakStopped: peak(4500, 6000), peakAfter: peak(6500, 9000), reports });
