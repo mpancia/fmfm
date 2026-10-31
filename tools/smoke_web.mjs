@@ -3,8 +3,8 @@
 // should and nothing else, a saved patch loads back unchanged, every note algorithm, a chord progression and
 // every Braids shape run without the firmware or the Lean runtime failing.
 import fs from 'fs';
-const mod = await WebAssembly.compile(fs.readFileSync('build/web/dinghy.wasm'));
-const BTN = { PLAY: 12, EDIT: 6, SEQ: 11, GLO: 7, HOME: 8, SAVE: 9 };
+const mod = await WebAssembly.compile(fs.readFileSync(process.env.WASM || 'build/web/dinghy.wasm'));
+const BTN = { PLAY: 12, EDIT: 6, SEQ: 11, GLO: 7, HOME: 8, SAVE: 9, FX: 2, LFO: 5, ENV: 4 };
 const ENC = { SELECT: 0, ALGORITHM: 1, K1: 2, K2: 3, K3: 4, K4: 5, PRESETS: 6 };
 let mem, inp, ms = 0, reports = [], frame = new Uint16Array(240 * 240);
 const peaks = new Map();                               // half-second -> loudest sample in it
@@ -36,7 +36,10 @@ const imports = { env: {
 // 0-0.8 s: the startup screen; a button press at 0.8 s skips it. Then it plays on its own until 4 s.
 at(800, press(BTN.HOME));
 at(400, shot('boot'));
-// 0-4 s: it plays on its own. 4-6 s: stopped, so screens can be compared.
+// 0-4 s: it plays on its own. At 3 s the reverb return goes to zero so that a stopped sequencer is silent.
+// 4-6 s: stopped, so screens can be compared.
+at(3000, press(BTN.FX));                                                    // the FX page: send, decay, bright, return
+at(3100, turn(ENC.K4, -20)); at(3150, press(BTN.HOME));
 at(4000, press(BTN.PLAY));
 at(4100, press(BTN.HOME)); at(4150, shot('home'));
 at(4200, press(BTN.EDIT)); at(4250, shot('sound page'));
@@ -57,10 +60,18 @@ for (let i = 0; i < 6; i++) at(6600 + i * 1000, turn(ENC.K2, 3));               
 // a chord progression and a key change (GLO: HARMONY; knob 1 key, 3 chords)
 at(12500, press(BTN.GLO)); at(12600, turn(ENC.K3, 2)); at(12700, turn(ENC.K1, 3));
 at(17000, turn(ENC.K3, 2));
+// the FX, LFO and ENV buttons open their pages; an LFO on lane 1's chance keeps the music going
+at(19000, press(BTN.FX)); at(19100, shot('fx'));
+at(19200, press(BTN.LFO)); at(19300, shot('lfo')); at(19350, turn(ENC.K1, 1)); at(19400, turn(ENC.K3, 20));
+at(19500, press(BTN.ENV)); at(19600, shot('env'));
 // every Braids shape in turn (EDIT: SOUND; knob 1 is the shape)
 at(20000, press(BTN.EDIT));
 for (let i = 0; i < 47; i++) at(20100 + i * 200, turn(ENC.K1, 1));
-const END = 30000;
+// the reverb: send and return full up, play, stop, and the tail must ring on, then die away
+at(30000, press(BTN.FX));
+at(30100, turn(ENC.K1, 20)); at(30110, turn(ENC.K4, 20)); at(30200, press(BTN.HOME));
+at(31500, press(BTN.PLAY));
+const END = 38000;
 events.sort((a, b) => a[0] - b[0]);
 const inst = await WebAssembly.instantiate(mod, imports);
 mem = inst.exports.memory; inp = inst.exports.web_in_ptr();
@@ -76,7 +87,8 @@ const audible = (from, to) => { let n = 0, all = 0; for (let t = from; t < to; t
 
 ok('the startup screen draws Alfred and the title', changed(shots.boot, new Uint16Array(240 * 240)) > 3000);
 ok('lanes make sound with no key pressed', peak(1000, 4000) > 1000);
-ok('PLAY stops all sound (no stuck note)', peak(4500, 6000) === 0);
+ok('PLAY stops every note; only the reverb tail is left and it dies away', peak(5500, 6000) < 400 && peak(5500, 6000) < peak(4000, 4500));
+const tail = [peak(32000, 32500), peak(33000, 33500), peak(36000, 36500)];
 ok('the preset browser opens over the page', changed(shots['sound page'], shots['sound browser']) > 1500);
 ok('SELECT in the browser chooses another family', changed(shots['sound browser'], shots.family) > 500);
 ok('a button closes the browser', changed(shots['sound page'], shots['home 2']) > 0 && changed(shots.family, shots['home 2']) > 1500);
@@ -93,5 +105,8 @@ const chords = audible(12500, 20000);
 ok(`a chord progression keeps playing (${chords[0]} of ${chords[1]} half-seconds audible)`, chords[0] >= 0.75 * chords[1]);
 const shapes = audible(20500, 29500);
 ok(`every shape plays without crashing the firmware (${shapes[0]} of ${shapes[1]} half-seconds audible)`, shapes[0] >= 0.8 * shapes[1]);
+ok(`the reverb tail rings on after PLAY stops and then dies away (${tail.join(', ')})`, tail[0] > 300 && tail[1] < tail[0] && tail[2] <= tail[1]);
+ok('FX, LFO and ENV open three different pages', changed(shots.fx, shots.lfo) > 500 && changed(shots.lfo, shots.env) > 500 && changed(shots.fx, shots.env) > 500);
 ok('no Lean runtime reports', reports.length === 0);
 console.log({ reports });
+if (process.env.PEAKS) console.log([...peaks].map(([h, p]) => `${h * 0.5}s:${p}`).join(' '));

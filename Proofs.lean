@@ -5,4 +5,5 @@ import Proofs.Quantizer
 import Proofs.Notes
 import Proofs.Lane
 import Proofs.Analog
+import Proofs.Reverb
 import Proofs.Lfo

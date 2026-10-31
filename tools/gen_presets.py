@@ -195,7 +195,7 @@ def longest_shape(name):
 
 
 # hand patches: note algorithm, chance, amount, mutate, chord follow, level, by lane position
-HAND_EXTRAS = [(1, 100, 2, 10, 0, 100), (5, 100, 8, 15, 0, 100), (5, 100, 16, 8, 0, 100), (0, 85, 4, 10, 0, 100)]
+HAND_EXTRAS = [(1, 100, 2, 10, 0, 100, 15), (5, 100, 8, 15, 0, 100, 35), (5, 100, 16, 8, 0, 100, 30), (0, 85, 4, 10, 0, 100, 45)]
 # by role: choices of (algo, chance, amount, mutate, chord)
 ROLE_EXTRAS = {
     "bass": [(1, 100, 2, 10, 0), (2, 100, 4, 10, 0), (3, 100, 4, 10, 0), (4, 100, 4, 10, 0), (0, 90, 4, 10, 0)],
@@ -205,6 +205,11 @@ ROLE_EXTRAS = {
     "kick": [(0, 100, 1, 0, 0)], "snare": [(0, 100, 1, 0, 0)], "hat": [(0, 85, 1, 0, 0), (0, 100, 1, 0, 0)],
 }
 # chord progressions (semitones above the key, one per bar or two): index into PROGRESSIONS in dinghy.c
+# reverb send by role, in percent
+ROLE_SEND = {"bass": 8, "pad": 45, "lead": 28, "bell": 50, "kick": 5, "snare": 15, "hat": 12}
+# reverb decay, brightness and return by mood
+MOOD_REVERB = {"calm": (75, 55, 55), "dream": (80, 50, 60), "drive": (35, 65, 40), "pulse": (30, 70, 35), "drift": (90, 45, 65),
+               "shimmer": (70, 80, 60), "machine": (30, 75, 35), "folk": (55, 60, 45)}
 PROGRESSION_NAMES = ["OFF", "I-IV-V-I", "I-V-vi-IV", "vi-IV-I-V", "ii-V-I-I", "i-VI-III-VII", "I-iii-IV-V", "i-iv-v-i"]
 MOOD_PROGRESSIONS = {"calm": [2, 3, 6], "dream": [3, 2, 0], "drive": [5, 7, 0], "pulse": [0], "drift": [0, 4],
                      "shimmer": [2, 3, 6], "machine": [0], "folk": [1, 2, 6]}
@@ -234,8 +239,8 @@ def generated_patches(count):
             algo, chance, amount, mutate, _ = rng.choice(ROLE_EXTRAS[role])
             chord = (2 if role == "bass" else 1 if role == "pad" else 0) if progression else 0
             cells.append((min(rng.choice(hits), st), st, rng.choice(speeds), scale if role not in ("kick", "snare", "hat") else 7,
-                          sound, low, span, rng.randrange(1, 1000), (algo, chance, amount, mutate, chord, 100)))
-        out.append((name, rng.randrange(lo, hi + 1), rng.randrange(12), cells, progression, rate))
+                          sound, low, span, rng.randrange(1, 1000), (algo, chance, amount, mutate, chord, 100, ROLE_SEND[role])))
+        out.append((name, rng.randrange(lo, hi + 1), rng.randrange(12), cells, progression, rate, MOOD_REVERB[mood_name]))
     return out
 
 
@@ -266,10 +271,14 @@ def render(measurements):
            "typedef struct { const char *name; uint8_t shape, attack, release, env; uint16_t timbre, color, gain; } sound_t;",
            "typedef struct {",
            "    uint8_t hits, steps, speed, scale, sound, low, span;     /* rhythm, scale, sound, note range */",
-           "    uint8_t algo, chance, amount, mutate, chord, level;      /* note algorithm, chord follow (0 off 1 scale 2 triad) */",
+           "    uint8_t algo, chance, amount, mutate, chord, level, send; /* note algorithm, chord follow (0 off 1 scale 2 triad), reverb send */",
            "    uint16_t seed;",
            "} patch_lane_t;",
-           "typedef struct { const char *name; uint8_t bpm, key, progression, rate, scale_lock; patch_lane_t lane[4]; } patch_t;", "",
+           "typedef struct {",
+           "    const char *name; uint8_t bpm, key, progression, rate, scale_lock;",
+           "    uint8_t reverb[3];                                        /* decay, brightness, return */",
+           "    patch_lane_t lane[4];",
+           "} patch_t;", "",
            f"#define NSOUNDS {len(snd)}u", "static const sound_t SOUNDS[NSOUNDS] = {"]
     for s in snd:
         out.append(f'    {{"{s["name"]}", {s["shape"]}, {s["attack"]}, {s["release"]}, {s["env"]}, {s["timbre"]}, '
@@ -281,13 +290,13 @@ def render(measurements):
     out.append("static const patch_t PATCHES[NPATCHES] = {")
     for patch in allp:
         name, bpm, key, lanes = patch[:4]
-        progression, rate = patch[4:] if len(patch) > 4 else (0, 1)
+        progression, rate, reverb = patch[4:] if len(patch) > 4 else (0, 1, (50, 60, 50))
         cells = []
         for pos, lane in enumerate(lanes):
             h, st, sp, sc, snd_name, low, span, seed = lane[:8]
-            extra = lane[8] if len(lane) > 8 else HAND_EXTRAS[pos] if span > 1 else (0, 100, 1, 0, 0, 100)
+            extra = lane[8] if len(lane) > 8 else HAND_EXTRAS[pos] if span > 1 else (0, 100, 1, 0, 0, 100, ROLE_SEND['hat'])
             cells.append(f"{{{h}, {st}, {sp}, {sc}, {resolve(snd_name, index)}, {low}, {span}, {', '.join(map(str, extra))}, {seed}}}")
-        out.append(f'    {{"{name}", {bpm}, {key}, {progression}, {rate}, 0, {{{", ".join(cells)}}}}},')
+        out.append(f'    {{"{name}", {bpm}, {key}, {progression}, {rate}, 0, {{{", ".join(map(str, reverb))}}}, {{{", ".join(cells)}}}}},')
     out.append("};")
     return "\n".join(out) + "\n"
 

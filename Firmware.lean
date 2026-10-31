@@ -25,3 +25,5 @@ import Firmware.Physical
 import Firmware.PhysicalApi
 import Firmware.Macro
 import Firmware.MacroApi
+import Firmware.Reverb
+import Firmware.ReverbApi

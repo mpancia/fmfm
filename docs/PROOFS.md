@@ -80,6 +80,12 @@ Why it matters: stopping the clock cannot leave the lane with a timer and no not
 
 Why it matters: pressing stop never leaves a note hanging.
 
+## Lfo
+
+**`lfo_modulate_in_range`**: A modulated value stays a percentage, 0 to 100, for any base, depth and phase.
+
+Why it matters: a modulator can never push a lane's chance, level or timbre setting out of the range the rest of the firmware expects, however it is set.
+
 ## Notes
 
 **`notes_start_valid`**: A fresh note memory is consistent for any range from 1 to 65535 positions and any loop length from 1 to 16.
@@ -109,3 +115,21 @@ Why it matters: quantizing keeps the shape of the melody; no note jumps by an oc
 **`random_below_lt`**: A random pick is always below its limit, so it is a valid index into a list of `limit` choices.
 
 Why it matters: a pick one too big would read past the end of a note list or a step table.
+
+## Reverb
+
+**`reverb_position_in_ring`**: A sample position is always inside the shared delay memory, whatever the write position, line start and offset.
+
+Why it matters: a read or write can never land outside the memory, so no setting of a knob can crash the reverb.
+
+**`reverb_lines_fit_and_do_not_overlap`**: At every scale up to 400 (353 is the shipped one), each delay line ends inside the memory, and each line starts one sample after the previous one ends.
+
+Why it matters: the ten lines never overlap, so one line cannot overwrite another, and none runs off the end.
+
+**`reverb_gains_below_one`**: For every decay-time setting, the loop gain is positive and below 1.0 (at most 0.98), and for every brightness setting the low-pass amount is too (at most 0.97).
+
+Why it matters: the tail always dies away; no knob position makes the reverb feed back on itself and grow. This is about the gain settings, not a proof that the whole network is stable.
+
+**`reverb_compress_saturates`**: The signal stored in the delay memory is the signal divided by 8, rounded towards zero, and it saturates at the ends of the 16-bit range instead of wrapping around: from 262144 up it stores 32767, from -262152 down it stores -32768, and in between it is within 7 of the signal (times 8).
+
+Why it matters: a loud signal in the loops clips like an overdriven analogue stage; it never wraps to the opposite sign, which is the harsh noise a digital reverb is known for.

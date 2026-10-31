@@ -34,6 +34,9 @@ same button again moves to the group's next page. The four knobs set the four va
 | SAVE | keep the patch in the slot chosen on GLO > BANKS |
 | keys, OCT- OCT+ | play the chosen lane's sound by hand |
 
+The FX button opens the reverb send (Clouds' reverb, ported to Lean): SEND of the chosen lane, DECAY, BRIGHT and
+RETURN. See `docs/FX.md`.
+
 Note algorithms (SEQ > NOTES), per lane: RANDOM, WALK (random steps of up to AMOUNT notes), UP, DOWN, BOUNCE, and
 LOOP (a memory of AMOUNT notes that replays, with MUTATE percent chance of replacing a note each time).
 Chord progressions (GLO > HARMONY) change the chord every bar or more; a lane follows them in SEQ > RANGE:
@@ -102,6 +105,8 @@ Proofs cover the Lean code in `Firmware/`. They do not cover:
   Lean (`Firmware/Analog.lean` to `Macro.lean`), checked sample for sample against the original by `make test-lean`;
   the per-block setup, the delay lines and the glue loops are C and unproved (`docs/LEAN-ENGINES.md`). `make audit`
   checks levels; nobody has listened to it on hardware.
+- `fx/reverb_glue.c`: the reverb network and its delay memory (the arithmetic is Lean; the order of operations is C, copied
+  from Clouds). Checked against Clouds' original by `make test-lean`; not heard (`docs/FX.md`).
 - `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
 - The hardware, and `web/web_host.c` for the simulator.
 - Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.
