@@ -8,6 +8,6 @@ sh tools/build_lean_fw.sh $T
 ROOT=$PWD
 cd fw
 JIELI_TOOLCHAIN=$ROOT/vendor/toolchain AC79_SDK=$ROOT/vendor/ac79 PATH=$ROOT/.venv/bin:$PATH \
-DINGHY_DEFS="-I$PREFIX/include -I$ROOT/rt" \
+DINGHY_DEFS="-I$PREFIX/include -I$ROOT/rt -I$ROOT/voices" \
 DINGHY_LINK="$(echo $ROOT/build/lean/$T/*.o) $ROOT/build/init/$T/libInit.a" \
     sh build.sh

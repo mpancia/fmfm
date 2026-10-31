@@ -15,31 +15,44 @@ static void app_idle(void);
 #define LCD_IDLE app_idle
 #include "platform.c"
 #include "fm1_lean.h"
+#include "braids.h"
 
 /* ---- the sound (runs in the audio ISR: keep it short, no flash, no screen) */
 #define NV 6u                                   /* voices */
 static struct {
     volatile uint32_t inc;                      /* phase step per frame: f * 2^32 / 44100 */
+    volatile uint32_t mod_inc;                  /* the FM modulator's step */
     volatile int32_t gate;                      /* target level, Q15: 0 = released */
+    volatile int32_t attenuation;               /* feedback FM: less index on high notes */
     int32_t amp;                                /* the level now: glides to gate, no clicks */
-    uint32_t ph, age;
+    uint32_t age;
+    braids_t osc;
+    volatile uint8_t shape;
     uint8_t note;
 } voice[NV];
 
-static int32_t sine(uint32_t ph)                /* a full cycle over 2^32 -> -32767..32767 (a refined parabola) */
+/* one sample of a voice. The timbre follows the level: bright and narrow at the attack, softer as it dies away. */
+static int32_t voice_sample(uint32_t v, int32_t amp)
 {
-    int32_t x = (int32_t)ph >> 16, ax = x < 0 ? -x : x, y, ay;
-    y = (x * (32768 - ax)) >> 13;               /* 4x(1-|x|), Q15 */
-    ay = y < 0 ? -y : y;
-    y += ((((y * ay) >> 15) - y) * 7373) >> 15; /* + 0.225 (y|y| - y) */
-    return y > 32767 ? 32767 : y < -32767 ? -32767 : y;
+    int32_t out, index = amp * 4 > 32767 ? 32767 : amp * 4;
+    switch (voice[v].shape) {
+    case BRAIDS_SAW: out = braids_saw(&voice[v].osc, voice[v].inc); break;
+    case BRAIDS_SQUARE: out = braids_square(&voice[v].osc, voice[v].inc, amp * 3); break;
+    case BRAIDS_FM: out = braids_fm(&voice[v].osc, voice[v].inc, voice[v].mod_inc, index); break;
+    case BRAIDS_FEEDBACK_FM:
+        out = braids_feedback_fm(&voice[v].osc, voice[v].inc, voice[v].mod_inc, index, voice[v].attenuation);
+        break;
+    default:
+        voice[v].osc.phase += voice[v].inc;
+        out = braids_sine(voice[v].osc.phase);
+    }
+    return out;
 }
 
 static void app_audio(int32_t *out, uint32_t n)
 {
     uint32_t v, i;
     for (v = 0; v < NV; v++) {
-        uint32_t ph = voice[v].ph, step = voice[v].inc;
         int32_t amp = voice[v].amp, g = voice[v].gate;
         if (!amp && !g)
             continue;
@@ -47,35 +60,37 @@ static void app_audio(int32_t *out, uint32_t n)
             int32_t s;
             if (amp < g) { amp += 48; if (amp > g) amp = g; }        /* attack ~5 ms */
             else if (amp > g) { amp -= 6; if (amp < g) amp = g; }    /* release ~45 ms */
-            ph += step;
-            s = (sine(ph) * amp) >> 15;
+            s = (voice_sample(v, amp) * amp) >> 15;
             out[2u * i] += s;
             out[2u * i + 1u] += s;
         }
-        voice[v].ph = ph;
         voice[v].amp = amp;
     }
 }
 
 /* ---- notes (main loop) */
-static const uint32_t INC_C9[12] = {            /* MIDI 120..131 (C9..B9); lower octaves shift right */
-    815363807u, 863847862u, 915214929u, 969636441u, 1027294024u, 1088380105u,
-    1153098554u, 1221665363u, 1294309365u, 1371273005u, 1452813141u, 1539201906u};
 static uint32_t ages;
+#define FM_RATIO_SHIFT 0                        /* modulator pitch above the carrier, in 1/128 semitone: 0 = same pitch */
 
-static void play(uint32_t note, uint32_t vel)
+static void play(uint32_t note, uint32_t vel, uint32_t shape)
 {
     uint32_t v, pick = 0, best = 0xFFFFFFFFu;
+    int32_t pitch = (int32_t)note << 7, att;
     if (note > 127u || !vel) return;
     for (v = 0; v < NV; v++) {                  /* the same note, else a free voice, else the oldest */
         uint32_t score = voice[v].note == note && voice[v].gate ? 0u
                        : voice[v].gate ? 0x80000000u + voice[v].age : (uint32_t)voice[v].amp + 1u;
         if (score < best) { best = score; pick = v; }
     }
+    att = 32767 - (pitch - (72 << 7) + FM_RATIO_SHIFT) * 4;
     voice[pick].note = (uint8_t)note;
     voice[pick].age = ++ages;
-    voice[pick].inc = INC_C9[note % 12u] >> (10u - note / 12u);
-    voice[pick].gate = (int32_t)(vel * 60u);    /* 127 -> 7620: six voices stay under full scale */
+    voice[pick].shape = (uint8_t)shape;
+    voice[pick].inc = braids_pitch_inc(pitch);
+    voice[pick].mod_inc = braids_pitch_inc(pitch + (12 << 7) + FM_RATIO_SHIFT) >> 1;   /* an octave up, halved: same pitch */
+    voice[pick].attenuation = att < 0 ? 0 : att > 32767 ? 32767 : att;
+    voice[pick].osc.mod_phase = 0;
+    voice[pick].gate = (int32_t)(vel * 40u);    /* 127 -> 5080: six voices stay under full scale */
 }
 static void stop(uint32_t note)
 {
@@ -104,6 +119,7 @@ static const char *const SPEED_NAME[] = {"1/48", "1/32", "1/24", "1/16", "1/12",
 static lean_object *lane[NL];
 static struct { uint8_t hits, steps, speed, scale, last; } cfg[NL] = {
     {4, 16, 3, 0, 0}, {5, 8, 5, 0, 0}, {7, 16, 3, 0, 0}, {3, 8, 4, 0, 0}};
+static const uint8_t LANE_SHAPE[NL] = {BRAIDS_SAW, BRAIDS_SQUARE, BRAIDS_FM, BRAIDS_FEEDBACK_FM};
 static const uint8_t LANE_LOW[NL] = {36, 48, 60, 72};
 static const uint8_t LANE_SPAN[NL] = {12, 12, 24, 12};
 static uint32_t bpm = 100, running = 1, tick_acc, tick_ms, selected;
@@ -125,7 +141,7 @@ static void lane_report(uint32_t i, uint32_t out_ch)   /* play what the lane jus
 {
     uint32_t off = fm1_lane_off_of(lane[i]), on = fm1_lane_on_of(lane[i]);
     if (off < 128u) { stop(off); midi_send(0x80u | (out_ch + i), off, 0); }
-    if (on < 128u) { play(on, 100); midi_send(0x90u | (out_ch + i), on, 100); cfg[i].last = (uint8_t)on; }
+    if (on < 128u) { play(on, 100, LANE_SHAPE[i]); midi_send(0x90u | (out_ch + i), on, 100); cfg[i].last = (uint8_t)on; }
 }
 
 static void clock_poll(uint32_t out_ch)         /* 24 ticks a quarter note: bpm * 4 hundred-thousandths of a tick a ms */
@@ -226,7 +242,7 @@ static void midi_in(void)
     while (midi_get(&st, &d1, &d2) != 0) {
         uint32_t ty = st & 0xF0u;
         if (set.ch && (st & 15u) != set.ch - 1u) continue;
-        if (ty == 0x90u && d2) play(d1, d2);
+        if (ty == 0x90u && d2) play(d1, d2, BRAIDS_SINE);
         else if (ty == 0x80u || ty == 0x90u) stop(d1);
     }
 }
@@ -260,7 +276,7 @@ static void app_main(void)
         up = prev & ~keys;
         prev = keys;
         for (k = 0; k < 27u; k++) {             /* a key stops the note it started: the octave may change meanwhile */
-            if (down >> k & 1u) { held[k] = (uint8_t)(base + k); play(held[k], 100); midi_send(0x90u | 15u, held[k], 100); }
+            if (down >> k & 1u) { held[k] = (uint8_t)(base + k); play(held[k], 100, BRAIDS_SINE); midi_send(0x90u | 15u, held[k], 100); }
             if (up >> k & 1u) { stop(held[k]); midi_send(0x80u | 15u, held[k], 0); }
         }
 

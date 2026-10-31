@@ -20,6 +20,9 @@ Then open http://localhost:8000/ and click **Power on**. Four lanes start playin
 Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
 snaps it to the scale. That logic is Lean, and `docs/PROOFS.md` lists what is proved about it.
 
+The lanes sound through oscillators ported from Mutable Instruments' Braids (`voices/braids.h`, MIT): lane 1 a
+band-limited saw, lane 2 a pulse, lane 3 two-operator FM, lane 4 feedback FM. The keys play a plain sine.
+
 The simulator runs the real firmware app (`fw/firmware/src/dinghy.c`) compiled to WebAssembly, with the FM-1's
 screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed. See `docs/SIMULATOR.md`.
 
@@ -73,6 +76,7 @@ Proofs cover the Lean code in `Firmware/`. They do not cover:
 
 - `rt/lean_rt.c`: the small Lean runtime (allocator, freeing, arrays, panics). See `docs/LEAN-ON-CHIP.md`.
 - Lean's compiler (Lean to C) and JieLi's clang (C to chip code).
+- `voices/braids.h`: the C port of the Braids oscillators. Not proved. Its pitch was checked against the note names with a one-off spectrum test; nobody has listened to it on hardware.
 - `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
 - The hardware, and `web/web_host.c` for the simulator.
 - Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.

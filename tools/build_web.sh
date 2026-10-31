@@ -11,7 +11,7 @@ OUT=build/web
 mkdir -p "$OUT" build/bin
 ln -sf "$PREFIX/bin/ld.lld" build/bin/wasm-ld         # lld picks its wasm personality from its own name
 (cd fw && $CC -O2 -Wall -Wno-unused-function -DDINGHY_WEB -DAPP_VER='"web"' \
-    -Ifirmware/hal -Ifirmware/src -Ifirmware/gen -c firmware/src/dinghy.c -o ../build/dinghy_web.o)
+    -Ifirmware/hal -Ifirmware/src -Ifirmware/gen -I../voices -c firmware/src/dinghy.c -o ../build/dinghy_web.o)
 EXPORTS=$(sed -n 's/^@\[export \([A-Za-z0-9_]*\)\].*/\1/p' Firmware/*.lean)
 build/bin/wasm-ld --no-entry --export=web_run --export=web_in_ptr -z stack-size=1048576 \
     build/dinghy_web.o build/lean/$T/*.o build/init/$T/libInit.a -o "$OUT/dinghy.wasm"
