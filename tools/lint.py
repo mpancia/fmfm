@@ -152,7 +152,7 @@ for f in files:
 
 if subprocess.run([sys.executable, str(ROOT / "tools/proof_index.py"), "--check"], cwd=ROOT).returncode:
     errors.append("docs/PROOFS.md is out of date")
-for script in (["tools/gen_presets.py", "--check"], ["tools/braids_tables.py", "--rate", "44100", "--check"]):
+for script in (["tools/gen_alfred.py", "--check"], ["tools/gen_presets.py", "--check"], ["tools/braids_tables.py", "--rate", "44100", "--check"]):
     if subprocess.run([sys.executable, *script], cwd=ROOT, stdout=subprocess.DEVNULL).returncode:
         errors.append(f"{' '.join(script)} failed: regenerate with --write")
 for w in warnings: print("warn ", w)
