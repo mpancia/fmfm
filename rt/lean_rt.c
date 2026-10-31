@@ -173,8 +173,8 @@ lean_object *lean_array_push(lean_object *a, lean_object *v)
 {
     lean_object *r = lean_is_exclusive(a) && lean_array_capacity(a) > lean_array_size(a) ? a : lean_copy_expand_array(a, lean_array_capacity(a) < lean_array_size(a) + 1u);
     size_t sz = lean_array_size(r);
+    ((lean_array_object *)r)->m_size = sz + 1u;     /* first: set_core checks the index against the size */
     lean_array_set_core(r, sz, v);
-    ((lean_array_object *)r)->m_size = sz + 1u;
     return r;
 }
 

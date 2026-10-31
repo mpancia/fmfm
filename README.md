@@ -9,17 +9,31 @@ make install && make run
 
 Then open http://localhost:8000/ and click **Power on**. Four lanes start playing at once.
 
+The panel is menu driven, in the manner of Mutable Dreams. Four buttons pick a group of pages, and pressing the
+same button again moves to the group's next page. The four knobs set the four values shown on screen.
+
+| Group | Pages (knobs 1 to 4) |
+|---|---|
+| HOME | overview of the four lanes: hits, steps, speed, chance |
+| SEQ | RHYTHM: hits, steps, speed, chance. NOTES: algorithm, amount, mutate, range. RANGE: scale, low note, chord follow |
+| EDIT | SOUND: shape, timbre, colour, level. ENVELOPE: attack, release, envelope-to-timbre. MIX: the four lane levels |
+| GLO | HARMONY: key, scale lock, chord progression, bars per chord. SYSTEM: tempo, keys octave. MIDI: in and out channels. BANKS: patch, save slot |
+
 | Control | Does |
 |---|---|
+| SELECT | choose a lane (in the browser: sound family, or ten patches at a time) |
+| PRESETS | open the browser and scroll: sounds (199) in EDIT, patches (122 factory, 8 user) elsewhere |
+| ALGORITHM | tempo |
 | PLAY | start or stop the clock (stopping silences every lane) |
-| SELECT | choose a lane; SEL button mutes it |
-| PRESETS | sound preset of the chosen lane (199 of them) |
-| HOME held + PRESETS | patch: 123 factory patches, then 8 user slots |
-| SAVE | keep the current patch in a user slot (the chosen one, else slot 1) |
-| ALGORITHM | tempo (on the SOUND page: the Braids shape, 48 of them) |
-| GLO held + PRESETS / ALGORITHM | MIDI-in channel / key |
-| knobs 1 to 4 | PATTERN page: hits, steps, speed, scale. EDIT = SOUND page: timbre, colour, level, octave. ENV = ENVELOPE page: attack, release, envelope-to-timbre |
+| SEL | mute the chosen lane |
+| REC | roll a new variation of the chosen lane |
+| SAVE | keep the patch in the slot chosen on GLO > BANKS |
 | keys, OCT- OCT+ | play the chosen lane's sound by hand |
+
+Note algorithms (SEQ > NOTES), per lane: RANDOM, WALK (random steps of up to AMOUNT notes), UP, DOWN, BOUNCE, and
+LOOP (a memory of AMOUNT notes that replays, with MUTATE percent chance of replacing a note each time).
+Chord progressions (GLO > HARMONY) change the chord every bar or more; a lane follows them in SEQ > RANGE:
+SCALE moves its scale to the chord root, TRIAD keeps only the chord's notes.
 
 Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
 snaps it to the scale. That logic is Lean, and `docs/PROOFS.md` lists what is proved about it.

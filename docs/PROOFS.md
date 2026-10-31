@@ -30,9 +30,13 @@ Why it matters: bad numbers from the screen or a saved file cannot put a lane in
 
 Why it matters: turning a knob mid-song can never leave the lane with a position or timer out of range.
 
+**`lane_set_notes_valid`**: Changing the note algorithm keeps a consistent lane consistent, whatever numbers are given.
+
+Why it matters: switching a lane from random to loop in the middle of a song cannot leave its loop position outside the loop.
+
 **`lane_tick_valid`**: A tick keeps a consistent lane consistent.
 
-Why it matters: however long the music runs, the counters stay in range and the sounding note and its timer stay in step.
+Why it matters: however long the music runs, the counters stay in range, the note memory stays sound, and the sounding note and its timer stay in step.
 
 **`lane_gate_end_stops_note`**: When a sounding note's gate runs out, the tick reports it as stopped.
 
@@ -42,9 +46,13 @@ Why it matters: no note stays on after its gate, so no stuck notes.
 
 Why it matters: a lane never has two notes on at once, so every note-on has exactly one note-off.
 
+**`lane_note_only_on_hit`**: A note starts only on a step the rhythm marks as a hit.
+
+Why it matters: the Euclidean pattern is respected; a rest never plays, whatever the note algorithm or the play chance say.
+
 **`lane_note_in_scale`**: A note a tick starts is a valid MIDI note and is in the lane's scale.
 
-Why it matters: the lane can never play a note the voices reject, or a note outside the key you chose.
+Why it matters: the lane can never play a note the voices reject, or a note outside the key you chose, whichever note algorithm it uses.
 
 **`lane_silence_valid`**: Silencing a consistent lane leaves it consistent.
 
@@ -53,6 +61,16 @@ Why it matters: stopping the clock cannot leave the lane with a timer and no not
 **`lane_silence_stops_note`**: Silencing reports the sounding note as stopped and leaves nothing sounding.
 
 Why it matters: pressing stop never leaves a note hanging.
+
+## Notes
+
+**`notes_start_valid`**: A fresh note memory is consistent for any range from 1 to 65535 positions and any loop length from 1 to 16.
+
+Why it matters: the lane starts in a state the algorithms can rely on, whatever the seed.
+
+**`notes_choose_stays_in_range`**: Whichever algorithm picks, the pitch is inside the range and the memory stays consistent.
+
+Why it matters: the note can never land outside the range the lane was given, and no algorithm can corrupt the memory the next pick depends on, however long it runs.
 
 ## Quantizer
 

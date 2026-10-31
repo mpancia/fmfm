@@ -11,6 +11,7 @@ lean_object *fm1_lane_make(uint32_t hits, uint32_t steps, uint32_t div, uint32_t
                            uint32_t seed);
 lean_object *fm1_lane_tick(lean_object *lane);
 lean_object *fm1_lane_reconfigure(lean_object *lane, uint32_t hits, uint32_t steps, uint32_t div, uint32_t mask);
+lean_object *fm1_lane_set_notes(lean_object *lane, uint32_t algo, uint32_t prob, uint32_t amount, uint32_t mutate);
 lean_object *fm1_lane_silence(lean_object *lane);
 
 /* each consumes the lane */

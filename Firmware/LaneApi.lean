@@ -16,6 +16,12 @@ def laneTick (lane : Lane) : Lane := lane.tick
 def laneReconfigure (lane : Lane) (hits steps div mask : UInt32) : Lane :=
   lane.reconfigure hits.toNat steps.toNat div.toNat mask.toNat
 
+/-- C entry: change how the lane picks notes (algorithm 0 to 5, play chance, walk size or loop length, loop
+mutation chance). -/
+@[export fm1_lane_set_notes]
+def laneSetNotes (lane : Lane) (algo prob amount mutate : UInt32) : Lane :=
+  lane.setNotes algo.toNat prob.toNat amount.toNat mutate.toNat
+
 /-- C entry: stop the sounding note (the clock stopped); `fm1_lane_off` then reports it. -/
 @[export fm1_lane_silence]
 def laneSilence (lane : Lane) : Lane := lane.silence
