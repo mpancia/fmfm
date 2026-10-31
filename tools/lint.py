@@ -52,7 +52,7 @@ def md_check(f, lines):
 
 LEAN_BAD = [
     (r"\bsorry\b", "sorry"), (r"\badmit\b", "admit"), (r"^\s*axiom\b", "new axiom"),
-    (r"native_decide", "native_decide adds an axiom"), (r"maxHeartbeats\s+0\b", "maxHeartbeats 0"),
+    (r"native_decide|bv_decide", "native_decide and bv_decide add an axiom per use"), (r"maxHeartbeats\s+0\b", "maxHeartbeats 0"),
     (r"implemented_by|\bunsafe\b", "implemented_by/unsafe"), (r"skipKernelTC", "skipKernelTC"),
     (r"^\s*partial def", "partial def cannot be reasoned about"),
 ]

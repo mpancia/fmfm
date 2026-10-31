@@ -233,7 +233,7 @@ A proof earns its place by ruling out a bug someone would care about. A proof th
   `True`, `x = x`, or `¬ False`. Keep an `example` only when it shows a hypothesis can be met (section 4).
 - **Proof style.** Short tactic scripts. Use `simp`, `omega`, `grind`, `decide` where they close the goal and say
   so. Split a proof into lemmas when it passes about 15 lines, not before.
-- **Check the whole repo.** `make lint` rejects `sorry`, `admit`, new axioms, `native_decide`,
+- **Check the whole repo.** `make lint` rejects `sorry`, `admit`, new axioms, `native_decide`, `bv_decide` (each use adds an axiom, so `lake check` fails),
   `maxHeartbeats 0`, `partial def`, `unsafe`, and `x = x` theorems, and warns on undocumented declarations and
   theorem-heavy files. `make check` adds the kernel replay.
 
