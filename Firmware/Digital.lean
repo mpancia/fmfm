@@ -7,7 +7,7 @@ set_option compiler.extract_closed false
 
 Port of the FM, feedback FM, chaotic FM, triple ring modulator, toy and digital modulation engines of Braids
 (`digital_oscillator.cc`, Emilie Gillet, MIT). Like `Firmware/Analog.lean`: pure scalar functions, one result
-structure per engine, each field exported on its own by `Firmware/DigitalApi.lean`, loops and buffers in
+record per engine, each field exported on its own by `Firmware/DigitalApi.lean`, loops and buffers in
 `voices/digital_glue.c`. Lean shifts bind tighter than `*` and `+`, so shifted products are parenthesized.
 -/
 

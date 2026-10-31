@@ -20,13 +20,25 @@ structure. `make test-lean` fails to link if any Lean runtime symbol is left.
 
 ## What is ported
 
-| Engine | Lean | Notes |
-|---|---|---|
-| all nine analog oscillators: saw, variable saw, CSAW, square, triangle, sine, triangle fold, sine fold, buzz | yes | including sync in and out |
-| FM, feedback FM, chaotic FM, triple ring mod, toy, digital modulation | yes | `Firmware/Digital.lean`; no sync out |
-| other digital engines (vowels, strings, drums, wavetables, noise, about 25 more) | no | C++ |
+Every engine's sample arithmetic is Lean. The modules, each with an `Api` twin of C entry points and a C loop file
+in `voices/`:
 
-The 48 macro shapes are built from these. A shape is only as ported as the oscillators it uses.
+| Module | Engines | Glue |
+|---|---|---|
+| `Firmware/Analog.lean` | saw, variable saw, CSAW, square, triangle, sine, triangle fold, sine fold, buzz (with sync in and out) | `analog_glue.c` |
+| `Firmware/Digital.lean` | FM, feedback FM, chaotic FM, triple ring mod, toy, digital modulation | `digital_glue.c` |
+| `Firmware/Filters.lean` | saw swarm, the four digital filters, vosim, harmonics | `filters_glue.c` |
+| `Firmware/Vowels.lean` | vowel, FOF vowel, question mark | `vowels_glue.c` |
+| `Firmware/Wavetables.lean` | wavetables, wave map, wave line, paraphonic waves | `wavetables_glue.c` |
+| `Firmware/Noise.lean` | filtered, twin peaks, clocked and particle noise, granular cloud | `noise_glue.c` |
+| `Firmware/Percussion.lean` | kick, snare, cymbal, struck bell, struck drum, and Braids' `Svf` and `Excitation` | `percussion_glue.c` |
+| `Firmware/Physical.lean` | comb filter, plucked, bowed, blown, fluted | `physical_glue.c` |
+| `Firmware/Macro.lean` | the macro oscillator's mixing of the above | `macro_glue.c` |
+
+What stays C++ in `voices/braids/`: the per-block setup (pitch to phase step, filter coefficients, which waves
+or partials a block uses, the hysteresis on parameters), the delay lines and state arrays (the glue does every
+load and store; Lean gets numbers and returns the numbers to store), and Braids' random number generator (the
+glue draws the numbers and passes them in, so the sequence is the one Braids produces).
 
 ## How a port is checked
 
@@ -34,15 +46,18 @@ The 48 macro shapes are built from these. A shape is only as ported as the oscil
   side by side, with the original's namespace renamed, and compares every output sample.
   - `tests/analog_diff.cc`: the nine oscillators, 6000 blocks each, random pitch and parameter, random sync pulses,
     with and without the sync output. Also prints the time per sample of both.
-  - `tests/voice_diff.cc` (24 million samples; a long steady-pitch run lets the digital modulation reach its whole symbol cycle): the whole voice, all 48 shapes, 1.15 million samples. This is the guard for every
-    port: a shape that is still C++ must stay identical, and a ported one must too.
+  - `tests/voice_diff.cc`: the whole voice, all 48 shapes, 58 million samples: random pitch and parameters with
+    note strikes, then a long run at a steady pitch (the digital modulation's symbol stream and the question
+    mark's whole message take that long). This is the guard for every port.
+  - Each port was also checked by mutation: changing one constant in the Lean must make the test report
+    differences. The steady runs were added when a mutation went unnoticed.
 - `make proofs` lists what is proved about the Lean arithmetic (see `docs/PROOFS.md`): the edge corrections stay in
   range, and the triangle's sample is exactly the sum of its halves, so it cannot wrap.
 
 ## What is trusted
 
-- The tables (`Analog.sineTable`, `sineFoldTable`, `triFoldTable`, `combTable`, each an `extern`): Braids' data, read
-  by C accessors in `analog_oscillator.cc`. The Lean code blends neighbouring entries; the differential test shows
+- The tables (every `@[extern "fm1_braids_*"]` in `Firmware/`): Braids' data, read by C accessors in
+  `voices/braids/analog_oscillator.cc`, `digital_oscillator.cc` and `lean_*_tables.cc`. The Lean code blends neighbouring entries; the differential test shows
   the blend matches the original over the real tables.
 - Division by zero: Lean gives 0, C++ would trap. The step is above 65536 for any audible pitch, so the engine never
   divides by zero; the proofs do not cover a step below that.
@@ -56,8 +71,15 @@ The 48 macro shapes are built from these. A shape is only as ported as the oscil
   in 32 bits matched everywhere except in the buzz at extreme pitches (five samples in a million).
 - A structure that crosses an `if` stays an object and allocates. Write each result as its own `let`.
 
-## Order of the rest
+- `int32_t * uint32_t` in C++ is unsigned: the exciter's decay (`Excitation::Process`) multiplies that way and
+  shifts logically. Signed in Lean, the kick and snare differed.
+- A filter's high-pass output is not clipped in Braids; typing it `Int16` in the step record cut it.
+- Braids' `int8_t` delay lines: the glue sign-extends on load and truncates on store; Lean sees `Int32` in and
+  returns the byte.
 
-1. Engines with tables and filters: vosim, vowels, digital filters, saw swarm, harmonics.
-2. Engines with delay lines and big state (comb, plucked, bowed, blown, fluted, bells, drums, granular): these need
-   arrays, so they need either a runtime that is safe in the interrupt or state kept in C memory.
+## What is not done
+
+- No proofs about the engines beyond the four analog ones (`Proofs/Analog.lean`). The guarantee for the rest is
+  the differential test.
+- The chip's CPU cost of the Lean path is unmeasured; on x86 the analog oscillators run at about 1.3 times the
+  original's time per sample.

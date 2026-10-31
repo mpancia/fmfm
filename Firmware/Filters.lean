@@ -43,6 +43,7 @@ structure FilterStep where
   polarity : UInt8
   out : Int16
 
+/-- Where the resonance phase restarts on each cycle (Braids' `kPhaseReset`): nothing, a half or a quarter cycle. -/
 @[inline] def Filters.phaseReset (index : UInt8) : UInt32 :=
   if index == 0 then 0 else if index == 2 then 0x40000000 else 0x80000000
 
@@ -111,7 +112,8 @@ structure VosimStep where
 /-- A harmonic's amplitude, a step closer to its target. -/
 @[inline] def Filters.harmonicGlide (amplitude target : Int32) : Int32 := amplitude + ((target - amplitude) >>> 8)
 
-/-- The harmonics engine's output pair from the summed harmonics: the clipped sum, and the average of it with
-the last sample. -/
+/-- The harmonics engine's sample: the clipped sum. -/
 @[inline] def Filters.harmonicsOut (sum : Int32) : Int32 := Digital.clip sum
+
+/-- The in-between sample of the engines that run at half rate: the average of the clipped sum with the last one. -/
 @[inline] def Filters.harmonicsMid (sum previous : Int32) : Int32 := (Digital.clip sum + previous) >>> 1
