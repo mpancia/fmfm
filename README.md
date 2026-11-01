@@ -42,9 +42,9 @@ RETURN), then DELAY (a tempo-synced ping-pong echo on the same send: TIME as a n
 Note algorithms (SEQ > NOTES), per lane: RANDOM, WALK (random steps of up to AMOUNT notes), UP, DOWN, BOUNCE, and
 LOOP (a memory of AMOUNT notes that replays, with MUTATE percent chance of replacing a note each time).
 Chord progressions (GLO > HARMONY, written as scale degrees so 1-4-5-1 is I IV V in a major key and i iv v in a
-minor one) change the chord every bar or more; a lane follows them in SEQ > RANGE: SCALE moves its scale to the
-chord root, TRIAD keeps only the chord's notes (the first, third and fifth of the key's scale from the chord root,
-so a lane on TRIAD never leaves the key: `harmony_triad_in_key`).
+minor one) change the chord every bar or more; a lane follows them in SEQ > RANGE: 7TH keeps the chord's seventh (the first, third, fifth and seventh note of the key's scale from the chord root),
+TRIAD its triad; both are built from the key's scale, so a lane following chords never leaves the key
+(`harmony_follow_in_key`).
 
 Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
 snaps it to the scale. That logic is Lean, and so are the sound engines, the effects and the patch format; the

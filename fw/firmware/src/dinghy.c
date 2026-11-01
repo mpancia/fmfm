@@ -161,7 +161,7 @@ static const char *const FEEL_NAME[] = {"EUCLID", "ROTATE", "AUTOMAT", "RATCHET"
 #define NFEEL (sizeof FEEL_NAME / sizeof FEEL_NAME[0])
 static const char *const FEEL_LABEL[NFEEL][3] = {{"", "", ""}, {"ROTATE", "ACCENTS", ""}, {"RULE", "", ""}, {"RATCHET", "SUBHITS", ""}};
 #define NALGO (sizeof ALGO_NAME / sizeof ALGO_NAME[0])
-static const char *const CHORD_NAME[] = {"OFF", "SCALE", "TRIAD"};
+static const char *const CHORD_NAME[] = {"OFF", "7TH", "TRIAD"};
 static const char *const KEY_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 /* chord progressions as scale degrees, one chord a step: Harmony.degree in Firmware/Harmony.lean; 0 is no progression */
 static const char *const PROGRESSION_NAME[] = {"OFF", "1-4-5-1", "1-5-6-4", "6-4-1-5", "2-5-1-1", "1-6-3-7", "1-3-4-5",
@@ -476,6 +476,35 @@ static void play_start(void)
     lanes_remask();
 }
 
+/* AUTO (GLO > BANKS, knob 4): the device performs on its own. It plays the demo songs in turn, 32 bars each;
+ * at bars 8, 16 and 24 a lane gets a new variation (as REC does), so a song develops before the next one.
+ * Turning AUTO on starts the clock on the first demo (or the one playing); PLAY stopping turns it off. */
+static uint32_t demo_auto, demo_pick, demo_bar_done;   /* AUTO on; the demo song the knob picked; the bar the last step was taken at */
+static void demo_start(uint32_t on)
+{
+    demo_auto = on;
+    demo_bar_done = 0;
+    if (!on) return;
+    if (!(patch_index < NPATCHES && PATCHES[patch_index].group == 0u)) patch_load(demo_pick);
+    if (!running) play_start();
+}
+static void demo_poll(void)
+{
+    uint32_t bar = tick_count / 96u;
+    if (!demo_auto || !running || bar == demo_bar_done) return;
+    demo_bar_done = bar;
+    if (bar >= 32u) {                           /* the next song */
+        uint32_t next = patch_index < NPATCHES && PATCHES[patch_index].group == 0u ? (patch_index + 1u) % NDEMO : demo_pick;
+        demo_pick = next;
+        patch_load(next);                       /* patch_set starts the bar count again */
+        demo_bar_done = 0;
+    } else if (bar % 8u == 0) {                 /* a variation on one lane: the same roll as REC */
+        uint32_t i = (bar / 8u - 1u) % NL;
+        cfg[i].seed = (uint16_t)(cfg[i].seed * 5u + 1u);
+        lane_remake(i);
+    }
+}
+
 /* ---- pages: four values on screen, four knobs under them */
 enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO, G_ARP };
 enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_REVERB, P_DELAY, P_HARMONY, P_SYSTEM, P_MIDI,
@@ -494,7 +523,7 @@ static const char *const PAGE_LABEL[NPAGES][4] = {
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
     {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"}, {"TIME", "FEEDBK", "TONE", "RETURN"},
     {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", ""},
-    {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "DEMO", ""}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"}};
+    {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "DEMO", "AUTO"}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"}};
 static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO, P_ARP};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
 static uint32_t browse_by, browse_type;                                  /* sounds grouped by engine (0) or by type (1) */
@@ -503,7 +532,7 @@ static uint8_t browse_list[NSOUNDS > NBROWSE ? NSOUNDS : NBROWSE];
 static const char *const PATCH_GROUP[] = {"ALL", "DEMOS", "SONGS", "CALM", "DREAM", "DRIVE", "PULSE", "DRIFT", "SHIMMER",
                                           "MACHINE", "FOLK", "USER"};
 #define NPATCH_GROUP (sizeof PATCH_GROUP / sizeof PATCH_GROUP[0])
-static uint32_t browse_patch_group, demo_pick;
+static uint32_t browse_patch_group;
 static uint32_t browse_count;
 
 static struct { uint8_t oct, ch, look; } set = {0, 0, ALFRED_LOOK};   /* what survives a power-off */
@@ -651,6 +680,7 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
             uint32_t demo = patch_index < NPATCHES && PATCHES[patch_index].group == 0u ? patch_index : demo_pick;
             p = put_str(p, PATCHES[demo].name); *fill = frac(demo, NDEMO - 1u);
         }
+        if (k == 3) { p = put_str(p, demo_auto ? "ON" : "OFF"); *fill = demo_auto ? 255u : 0u; }
         break;
     default: break;
     }
@@ -768,6 +798,7 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
             demo_pick = (uint32_t)clamp((int32_t)demo + d, 0, (int32_t)NDEMO - 1);
             patch_load(demo_pick);
         }
+        if (k == 3) demo_start(d > 0);
         break;
     default: break;
     }
@@ -1128,7 +1159,7 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
     uint32_t g[] = {page, selected, patch_index, bpm, key, progression, rate_bars, scale_lock, running, browse_mode, browse_pos,
                     arp_cfg.mode | arp_cfg.rate << 8 | arp_cfg.octaves << 16 | arp_cfg.gate << 24, arp_cfg.latch,
                     browse_family, browse_by, browse_type, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
-                    reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount};
+                    reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount, demo_auto};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
     for (i = 0; i < NL; i++) h = (h ^ (lfo[i].target | lfo[i].rate << 8 | lfo[i].depth << 16)) * 16777619u;
     for (i = 0; i < sizeof g / sizeof g[0]; i++) h = (h ^ g[i]) * 16777619u;
@@ -1241,6 +1272,7 @@ static void app_main(void)
         }
 #endif
         clock_poll();
+        demo_poll();
         if (delay_bpm != bpm) delay_apply();    /* the echo follows the tempo */
         { static uint32_t lfo_ms; if (fm1_ms != lfo_ms) { lfo_tick(fm1_ms - lfo_ms); lfo_ms = fm1_ms; } }
 
@@ -1269,7 +1301,7 @@ static void app_main(void)
         if (b & ~(1u << BTN_PLAY)) browse_mode = 0;
         if (b & (1u << BTN_OCT_DOWN) && oct > -2) { set.oct = (uint8_t)(oct - 1); dirty = 1; t_change = fm1_ms; }
         if (b & (1u << BTN_OCT_UP) && oct < 2) { set.oct = (uint8_t)(oct + 1); dirty = 1; t_change = fm1_ms; }
-        if (b & (1u << BTN_PLAY)) { if (running) { running = 0; stopped_ms = fm1_ms; silence_lanes(); arp_silence(); arp = fm1_arp_clear(arp); arp_cfg.latch = 0; } else play_start(); }
+        if (b & (1u << BTN_PLAY)) { if (running) { running = 0; demo_auto = 0; stopped_ms = fm1_ms; silence_lanes(); arp_silence(); arp = fm1_arp_clear(arp); arp_cfg.latch = 0; } else play_start(); }
         if (b & (1u << BTN_HOME)) goto_group(G_HOME);
         if (b & (1u << BTN_SEQ)) goto_group(G_SEQ);
         if (b & (1u << BTN_EDIT)) goto_group(G_EDIT);

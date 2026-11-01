@@ -26,20 +26,25 @@
 
 <section class="ruled"><div class="wrap">
   <div>
-    <h1>A generative sequencer for the FM-1, with its promises proved in Lean.</h1>
+    <h1>A sequencer that plays by itself, for the M-VAVE FM-1, with the things it promises proved in Lean.</h1>
   </div>
   <div>
-    <p>Four lanes each divide the clock into a rhythm and pick notes for it from a scale. The voice is Mutable
-    Instruments' Braids with all 48 of its shapes, and a reverb and a ping-pong delay sit on a send. It ships with 128
-    patches. Alfred the butler bows at startup and waits in the corner whenever the clock stops.</p>
-    <p>The sequencer, the voices' arithmetic, the effects, the mix and the patch format are Lean 4, compiled to the
-    chip. Lean's kernel checks {{theorems}} theorems about that code. The rest of the firmware is C, and the README
-    lists it as trusted.</p>
+    <p>The FM-1 is a pocket keyboard with a 240-pixel screen, seven encoders and a speaker, and this firmware
+    replaces what it came with by four lanes that each divide the clock into a rhythm and then choose, note by
+    note, something to play from a scale, so that a bar of sixteenths in C minor and a slower bar on the same
+    chord can sit next to each other for an hour without either one falling behind. The voice is Braids, the
+    Mutable Instruments oscillator, every one of its 48 shapes, with a reverb and a ping-pong delay hanging off a
+    send. There are 128 patches to start from. Alfred the butler bows when the unit boots and goes to stand in the
+    corner of the screen whenever you stop the clock.</p>
+    <p>Most of what runs is Lean 4: the lanes, the arithmetic of every Braids engine, the two effects, the mix and
+    the patch format are compiled from Lean to C and then to the chip, and {{theorems}} theorems about that code go
+    through Lean's kernel on every build. What is left in C (the screen, the drivers, the loops that call the Lean)
+    the README lists as trusted rather than proved, and nobody has yet heard any of it on a physical FM-1.</p>
     <p>
       <a class="button solid" href="sim/">Try it in the browser</a>
       <a class="button" href="installer.html">Install on an FM-1</a>
     </p>
-    <p class="label">The simulator is the real firmware compiled to WebAssembly. Chrome or Edge for MIDI in.</p>
+    <p class="label">The simulator is the same firmware compiled to WebAssembly, so what you hear there is what the chip would play. Chrome or Edge if you want MIDI in.</p>
   </div>
 </div></section>
 
@@ -48,20 +53,24 @@
   <div class="cols">
     <div>
       <p class="label">Rhythm</p>
-      <p>Euclidean bars of 1 to 32 steps at eight clock divisions, or a rotated bar with accents, a cellular automaton,
-      or ratchets. Each lane runs at its own speed, and where a lane stands in its bar depends only on how many clock
-      ticks have passed, so the four cannot drift apart (<code>run_clock_never_drifts</code>).</p>
+      <p>A lane's bar is Euclidean by default, 1 to 32 steps with the hits spread as evenly as they can be, at any
+      of eight clock divisions; or it can be a rotated bar with accents, a one-dimensional cellular automaton, or
+      ratchets. Since where a lane stands in its bar is a function of the tick count alone, four lanes at four
+      speeds come back into line on the bar whatever their notes did in between
+      (<code>run_clock_never_drifts</code>).</p>
     </div>
     <div>
       <p class="label">Notes</p>
-      <p>Random, walk, up, down, bounce, loop, Turing, step, Markov, grammar or chord tones, inside a range and a scale.
-      A chord progression can move the whole scale or hold a lane to the triad. Whatever the algorithm, every note a
-      lane plays is in its scale (<code>lane_note_in_scale</code>).</p>
+      <p>Eleven ways to choose the next note, from a plain random draw through walks, bounces and a mutating loop to
+      a Turing machine, a Markov chain and a small grammar, all of them kept inside a range and a scale. A chord
+      progression can move the whole scale a few semitones or hold a lane to the triad. Whichever you pick, the note
+      that comes out is in the scale (<code>lane_note_in_scale</code>), and that one is a theorem.</p>
     </div>
     <div>
       <p class="label">Sound</p>
-      <p>199 sounds across Braids' analog, digital, physical, percussion, vowel, wavetable and noise engines, with
-      envelope and timbre control, an LFO a lane, an arpeggiator on the keys, and the two sends.</p>
+      <p>199 sounds, drawn from Braids' analog, digital, physical, percussion, vowel, wavetable and noise engines,
+      each with an envelope and a timbre knob. Every lane has an LFO. The keys have an arpeggiator. Both effects are
+      sends, so a lane can be dry while another swims.</p>
     </div>
   </div>
 </div></section>
@@ -87,17 +96,19 @@
 <section class="ruled" id="proved"><div class="wrap">
   <div>
     <h2>What is proved</h2>
-    <p class="label">{{theorems}} theorems, standard axioms only, checked by Lean's kernel and by <code>lake comparator</code>.</p>
+    <p class="label">{{theorems}} theorems, on the three standard axioms and nothing else, checked by Lean's kernel and replayed by five independent checkers under <code>lake comparator</code>.</p>
   </div>
   <div>
     <table class="ledger">
       <tr><th>Area</th><th class="num">Theorems</th><th>What is promised</th></tr>
       {{groups}}
     </table>
-    <p style="margin-top: 22px">Each theorem's statement and the reason it is worth having are in
-    <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a>; the README groups them and
-    lists what is trusted rather than proved: the screen, the drivers, the one-line accessors that read Braids'
-    tables, and the C that calls the Lean code. Nobody has heard it on a physical FM-1 yet.</p>
+    <p style="margin-top: 22px">Every theorem is listed in
+    <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a> with its statement and a
+    sentence on why anyone should care, and the README says which parts are trusted instead: the screen, the drivers,
+    the one-line accessors that read Braids' tables, and the C loops that call the Lean. The proofs are about the
+    code the chip runs, generated from the same Lean, with the arithmetic of every engine checked sample for sample
+    against the original Braids. They are not about the hardware, which none of this has touched.</p>
   </div>
 </div></section>
 

@@ -29,11 +29,12 @@ run: web
 web:
 	sh tools/build_web.sh
 
-# Headless test of the web build: boots the firmware in node, plays notes, checks sound, screen and LEDs; then renders
-# every demo song and checks its level.
+# Headless tests of the web build: boots the firmware in node, plays notes, checks sound, screen and LEDs; renders
+# every demo song and checks its level; plays every factory patch and fails on clipping or silence.
 test: web
 	node tools/smoke_web.mjs
 	node tools/smoke_demos.mjs
+	node tools/check_patches.mjs
 
 # Builds the installable firmware package fw/build/dinghy.fwsc (does NOT flash anything).
 # Includes the Lean code from Firmware/ and its runtime (rt/).

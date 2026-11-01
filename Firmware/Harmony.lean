@@ -18,20 +18,27 @@ def Harmony.rotate (mask root : Nat) : Nat :=
 def Harmony.tones (mask root : Nat) : List Nat :=
   (List.range 12).filter (fun d => mask.testBit ((root + d) % 12)) |>.map (fun d => (root + d) % 12)
 
-/-- The chord on `root`: the first, third and fifth note of the scale from there (fewer if the scale is short).
-An empty scale gives the scale back. -/
-def Harmony.triad (mask root : Nat) : Nat :=
+/-- A chord of `count` notes stacked in thirds on `root`: every other note of the scale from there, counting
+round for a short scale. An empty scale gives the scale back. -/
+def Harmony.stack (mask root count : Nat) : Nat :=
   let tones := Harmony.tones mask root
   if tones.isEmpty then mask
-  else (List.range 3).foldl (fun acc d => acc ||| (1 <<< tones.getD ((d * 2) % tones.length) 0)) 0
+  else (List.range count).foldl (fun acc d => acc ||| (1 <<< tones.getD ((d * 2) % tones.length) 0)) 0
 
-/-- The mask a lane plays in: scale number `scale`, in `key`; with `follow` 1 (SCALE) the scale's shape moved
-to the chord, `chordRoot` semitones above the key; with `follow` 2 (TRIAD) the chord itself, the first, third
-and fifth note of the key's scale from the chord root, so its notes are always notes of the key. -/
+/-- The triad on `root`: the first, third and fifth note of the scale from there. -/
+def Harmony.triad (mask root : Nat) : Nat := Harmony.stack mask root 3
+
+/-- The seventh chord on `root`: the triad and the seventh. -/
+def Harmony.seventh (mask root : Nat) : Nat := Harmony.stack mask root 4
+
+/-- The mask a lane plays in: scale number `scale`, in `key`, and with chord follow the chord on `chordRoot`
+semitones above the key, built from the key's own scale so its notes are always notes of the key: `follow` 1
+(7TH) is the seventh chord, the first, third, fifth and seventh note of the key's scale from the chord root;
+`follow` 2 (TRIAD) is the first, third and fifth. -/
 def Harmony.laneMask (scale key chordRoot follow : Nat) : Nat :=
-  let mask := Harmony.scale scale
-  let root := (key + (if follow = 0 then 0 else chordRoot)) % 12
-  if follow = 2 then Harmony.triad (Harmony.rotate mask (key % 12)) root else Harmony.rotate mask root
+  let inKey := Harmony.rotate (Harmony.scale scale) (key % 12)
+  let root := (key + chordRoot) % 12
+  if follow = 2 then Harmony.triad inKey root else if follow = 1 then Harmony.seventh inKey root else inKey
 
 /-- The chord progressions on GLO > HARMONY, as scale degrees (0 is the key's root, 4 the fifth note of the
 scale), four chords each, chord `s`: 0 is no progression, then 1-4-5-1, 1-5-6-4, 6-4-1-5, 2-5-1-1, 1-6-3-7,
