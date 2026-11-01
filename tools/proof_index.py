@@ -33,8 +33,8 @@ GROUPS = [
      "are below one so tails die away, and their filters and interpolation cannot overshoot.",
      ["Mix", "Reverb", "Delay"]),
     ("Patches",
-     "A saved patch loads back exactly as saved, and a slot holding anything else is rejected whole.",
-     ["Patch"]),
+     "A saved patch loads back exactly as saved, a slot holding anything else is rejected whole, and every factory patch is in range.",
+     ["Patch", "Presets"]),
 ]
 BEGIN, END = "<!-- proofs:begin -->", "<!-- proofs:end -->"
 

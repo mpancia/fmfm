@@ -18,3 +18,17 @@ theorem random_below_lt (state limit : UInt32) (positive : 0 < limit.toNat) (sma
   have : UInt32.toNat 16 % 32 = 16 := by decide
   rw [this]
   omega
+
+/-- The generator never stands still: no state maps to itself, so a random lane can never freeze on one value.
+`next x = x` would need `(a - 1) * x ≡ -c` modulo 2^32; `a - 1` is a multiple of 4 and `c` is odd, so the two
+sides have different parity. (Hull and Dobell's conditions for the full period include these two facts.)
+Why it matters: whatever the seed, the next draw is a different state, so random, walk and the play chance
+keep moving; a stuck generator would play one note forever. -/
+theorem random_never_stands_still (state : UInt32) : Random.next state ≠ state := by
+  intro same
+  unfold Random.next at same
+  have h := congrArg UInt32.toNat same
+  rw [UInt32.toNat_add, UInt32.toNat_mul] at h
+  simp only [UInt32.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h
+  have lt := UInt32.toNat_lt state
+  omega

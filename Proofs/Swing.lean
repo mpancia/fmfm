@@ -46,3 +46,36 @@ theorem swing_keeps_time (phase swing : UInt32) (first : phase.toNat < 12) :
   rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le, f]; simp; omega), f]
   simp only [UInt32.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
   omega
+
+/-- The tick lengths only see the setting clamped to 100. -/
+private theorem swing_clamp_setting (phase swing : UInt32) :
+    Swing.tickLength phase swing = Swing.tickLength phase (min swing 100) := by
+  unfold Swing.tickLength
+  have m : min (min swing 100) 100 = min swing 100 := by
+    by_cases h : swing ≤ 100
+    · simp [UInt32.min_def, h]
+    · simp [UInt32.min_def, h]
+  rw [m]
+
+/-- Checked for every setting: the 24 ticks of a quarter note add up to 240000, twenty-four straight ticks. -/
+private theorem swing_every_quarter_exact :
+    ∀ swing : Fin 101,
+      (List.range 24).foldl (fun acc phase => acc + (Swing.tickLength phase.toUInt32 swing.val.toUInt32).toNat) 0
+        = 240000 := by
+  decide +kernel
+
+/-- A quarter note under swing is exactly 24 straight ticks long, at every setting, and every tick inside
+it starts strictly after the one before (each is at least 3334).
+Why it matters: swing is a feel, not a tempo change: a quarter note, a bar and a song take the time the
+TEMPO knob says, a MIDI clock sent out would stay in step with one received, and no two ticks can fall
+together. -/
+theorem swing_quarter_note_exact (swing : UInt32) :
+    (List.range 24).foldl (fun acc phase => acc + (Swing.tickLength phase.toUInt32 swing).toNat) 0 = 240000 ∧
+      ∀ phase, 3334 ≤ (Swing.tickLength phase swing).toNat := by
+  constructor
+  · have small : (min swing 100).toNat ≤ 100 := swing_clamped swing
+    have := swing_every_quarter_exact ⟨(min swing 100).toNat, by omega⟩
+    simp only [UInt32.ofNat_toNat] at this
+    simp only [swing_clamp_setting _ swing]
+    exact this
+  · intro phase; exact (swing_tick_in_range phase swing).1

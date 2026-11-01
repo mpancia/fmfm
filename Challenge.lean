@@ -120,6 +120,10 @@ theorem delay_store_saturates (signal : Int32) :
     (signal.toInt ≤ -32768 → (Delay.store signal).toInt = -32768) ∧
     (-32768 ≤ signal.toInt → signal.toInt ≤ 32767 → (Delay.store signal).toInt = signal.toInt) := sorry
 
+theorem delay_echoes_die_away (echo feedback : Int32) (read : echo.toInt.natAbs ≤ 32768)
+    (nonneg : 0 ≤ feedback.toInt) (unit : feedback.toInt ≤ 31129) (n : Nat) :
+    (Delay.hops echo feedback n).toInt.natAbs * 20 ^ n ≤ echo.toInt.natAbs * 19 ^ n + 20 * 20 ^ n := sorry
+
 -- Proofs/Digital.lean
 theorem digital_mix_between_inputs (a b : Int32) (balance : UInt32) (hbal : balance.toNat ≤ 65535)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
@@ -776,6 +780,9 @@ theorem pitch_table_reads_inside (pitch : Int16) :
 
 theorem pitch_increment_bounded (pitch : Int16) : (Pitch.phaseIncrement pitch).toNat < 2 ^ 31 := sorry
 
+-- Proofs/Presets.lean
+theorem presets_all_fit : ∀ p ∈ Presets.all, p.Fits := sorry
+
 -- Proofs/Quantizer.lean
 theorem quantizer_snap_keeps_scale_notes (mask note : Nat) (inside : Quantizer.inScale mask note = true) :
     Quantizer.snap mask note = note := sorry
@@ -786,9 +793,14 @@ theorem quantizer_snap_in_scale (mask note : Nat) (small : mask < 4096) (notEmpt
 theorem quantizer_snap_is_near (mask note : Nat) (small : mask < 4096) (notEmpty : mask ≠ 0)
     (low : 6 ≤ note) : Quantizer.snap mask note ≤ note + 6 ∧ note ≤ Quantizer.snap mask note + 6 := sorry
 
+theorem quantizer_snap_monotone (mask a b : Nat) (small : mask < 4096) (notEmpty : mask ≠ 0) (low : 6 ≤ a)
+    (order : a ≤ b) : Quantizer.snap mask a ≤ Quantizer.snap mask b := sorry
+
 -- Proofs/Random.lean
 theorem random_below_lt (state limit : UInt32) (positive : 0 < limit.toNat) (small : limit.toNat ≤ 65535) :
     (Random.below state limit).toNat < limit.toNat := sorry
+
+theorem random_never_stands_still (state : UInt32) : Random.next state ≠ state := sorry
 
 -- Proofs/Reverb.lean
 theorem reverb_position_in_ring (write base offset : UInt32) :
@@ -896,6 +908,10 @@ theorem run_clock_never_drifts (hits steps div mask low span : Nat) (seed : UInt
     (l.run (List.replicate n .tick)).step = Lane.stepAfter l.div l.steps n ∧
       (l.run (List.replicate n .tick)).count = n % l.div := sorry
 
+theorem run_bar_plays_every_hit (hits steps div mask low span : Nat) (seed : UInt32) :
+    let l := (Lane.make hits steps div mask low span seed).setNotes 0 100 1 0
+    Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) = l.hits := sorry
+
 -- Proofs/Smooth.lean
 theorem smooth_parameter_between (start target xfade : Int32)
     (startInRange : 0 ≤ start.toInt ∧ start.toInt ≤ 32767)
@@ -929,6 +945,10 @@ theorem swing_tick_in_range (phase swing : UInt32) :
 
 theorem swing_keeps_time (phase swing : UInt32) (first : phase.toNat < 12) :
     (Swing.tickLength phase swing).toNat + (Swing.tickLength (phase + 12) swing).toNat = 20000 := sorry
+
+theorem swing_quarter_note_exact (swing : UInt32) :
+    (List.range 24).foldl (fun acc phase => acc + (Swing.tickLength phase.toUInt32 swing).toNat) 0 = 240000 ∧
+      ∀ phase, 3334 ≤ (Swing.tickLength phase swing).toNat := sorry
 
 -- Proofs/Tables.lean
 theorem tables_phase_reads_inside_257 (phase : UInt32) :

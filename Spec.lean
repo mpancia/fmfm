@@ -10,3 +10,5 @@ import Spec.Arp
 import Spec.Rhythm
 import Spec.Machine
 import Spec.Harmony
+import Spec.Delay
+import Spec.Presets

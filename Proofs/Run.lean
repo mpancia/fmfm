@@ -1,5 +1,7 @@
 import Spec.Run
+import Spec.Euclid
 import Proofs.Lane
+import Proofs.Euclid
 
 /-- Moving the clock on does not touch the sounding note. -/
 private theorem run_moved_playing (l : Lane) : l.moved.playing = l.playing := rfl
@@ -146,3 +148,171 @@ theorem run_clock_never_drifts (hits steps div mask low span : Nat) (seed : UInt
     simp only [List.replicate_succ, Lane.run, Lane.apply]
     rw [show k + (n + 1) = k + 1 + n by omega]
     exact later
+
+/-- A plain lane: the Euclidean source and a play chance of 100. -/
+private def Lane.Plain (l : Lane) : Prop := l.rhythm.kind = 0 ∧ l.prob = 100
+
+/-- Whether tick `n` of a plain lane plays: it is the pulse of its step and that step is a hit. -/
+private def run_plays (hits steps div n : Nat) : Bool :=
+  decide ((n + 1) % div = 0) && Euclid.hit hits steps ((n / div) % steps)
+
+/-- How many of the ticks `k` to `k + count - 1` play. -/
+private def run_ons (hits steps div k : Nat) : Nat → Nat
+  | 0 => 0
+  | count + 1 => (if run_plays hits steps div k then 1 else 0) + run_ons hits steps div (k + 1) count
+
+/-- A plain lane whose clock stands at tick `n` starts a note on this tick exactly when `run_plays` says. -/
+private theorem run_plain_tick_on (l : Lane) (n : Nat) (plain : l.Plain) (divPos : 0 < l.div)
+    (count : l.count = n % l.div) (step : l.step = (n / l.div) % l.steps) :
+    l.tick.on.isSome = run_plays l.hits l.steps l.div n := by
+  have chance : Lane.draw (Random.next (Random.next (Random.next l.rng))) 100 < l.prob := by
+    rw [plain.2]
+    exact random_below_lt _ 100 (by decide) (by decide)
+  have plays : l.plays = l.isHit := by
+    unfold Lane.plays; simp [chance]
+  have pulse : l.atStep = decide ((n + 1) % l.div = 0) := by
+    unfold Lane.atStep Divider.tick
+    rw [count]
+    have rBelow := Nat.mod_lt n divPos
+    have next : (n + 1) % l.div = if n % l.div + 1 = l.div then 0 else n % l.div + 1 := by
+      have decomp : n + 1 = l.div * (n / l.div) + n % l.div + 1 := by
+        have := Nat.div_add_mod n l.div; omega
+      rw [decomp]; exact (run_count_succ l.div (n / l.div) (n % l.div) divPos rBelow).1
+    rw [next]
+    by_cases full : n % l.div + 1 = l.div
+    · rw [ite_eq_left (by omega), ite_eq_left full]; simp
+    · rw [ite_eq_right (by omega), ite_eq_right full]; simp
+  have sub : l.subHit = if (n + 1) % l.div = 0 then some 0 else none := by
+    unfold Lane.subHit; rw [plain.1, ite_eq_right (by decide), pulse]; simp
+  have hitStep : l.hitStep = l.step := by
+    unfold Lane.hitStep; rw [sub]; split
+    · rename_i heq; split at heq <;> simp at heq
+    · rfl
+  have hit : l.isHit = run_plays l.hits l.steps l.div n := by
+    unfold Lane.isHit run_plays
+    rw [sub, hitStep, step]
+    unfold Rhythm.hit Rhythm.subPlays Rhythm.source
+    rw [plain.1]
+    by_cases p : (n + 1) % l.div = 0 <;> simp [p]
+  have on : l.tick.on.isSome = l.plays := by
+    unfold Lane.tick; split <;> (try split) <;> simp_all
+  rw [on, plays, hit]
+
+/-- A tick keeps a plain lane plain. -/
+private theorem run_tick_plain (l : Lane) (plain : l.Plain) :
+    l.tick.Plain ∧ l.tick.hits = l.hits ∧ l.tick.prob = l.prob := by
+  have m : l.tick.rhythm = l.moved.rhythm ∧ l.tick.prob = l.prob ∧ l.tick.hits = l.hits := by
+    unfold Lane.tick; split <;> (try split) <;> exact ⟨rfl, rfl, rfl⟩
+  have kind : l.moved.rhythm.kind = 0 := by
+    unfold Lane.moved Rhythm.endBar; dsimp only
+    split
+    · rw [ite_eq_right (by rw [plain.1]; decide)]; exact plain.1
+    · exact plain.1
+  exact ⟨⟨m.1 ▸ kind, m.2.1 ▸ plain.2⟩, m.2.2, m.2.1⟩
+
+/-- The note-ons of a run of ticks from a plain lane at tick `k` are the ticks `run_plays` says play. -/
+private theorem run_plain_ons (n : Nat) : ∀ (k : Nat) (m : Lane), m.Plain → 0 < m.div →
+    m.count = k % m.div → m.step = (k / m.div) % m.steps →
+    Lane.noteOns (m.trace (List.replicate n .tick)) = run_ons m.hits m.steps m.div k n := by
+  induction n with
+  | zero => intro k m _ _ _ _; simp [Lane.trace, Lane.noteOns, run_ons]
+  | succ n ih =>
+    intro k m plain divPos count step
+    have t := run_tick_clock m k divPos count step
+    have on := run_plain_tick_on m k plain divPos count step
+    have keep := run_tick_plain m plain
+    have later := ih (k + 1) m.tick keep.1 (t.2.2.1 ▸ divPos) (by rw [t.1, t.2.2.1]) (by rw [t.2.1, t.2.2.1, t.2.2.2])
+    have ⟨ons, _⟩ := run_counts_cons (m.tick.off, m.tick.on) (m.tick.trace (List.replicate n .tick))
+    rw [List.replicate_succ]
+    show Lane.noteOns ((m.tick.off, m.tick.on) :: m.tick.trace (List.replicate n .tick)) = _
+    rw [ons, later, keep.2.1, t.2.2.1, t.2.2.2]
+    show (if m.tick.on.isSome = true then 1 else 0) + _ = _
+    rw [on]
+    rfl
+
+/-- Counting over two stretches of ticks is counting over each. -/
+private theorem run_ons_add (hits steps div : Nat) (a : Nat) : ∀ (k b : Nat),
+    run_ons hits steps div k (a + b) = run_ons hits steps div k a + run_ons hits steps div (k + a) b := by
+  induction a with
+  | zero => intro k b; simp [run_ons]
+  | succ a ih =>
+    intro k b
+    rw [show k + (a + 1) = k + 1 + a by omega, show a + 1 + b = (a + b) + 1 by omega]
+    show (if run_plays hits steps div k then 1 else 0) + run_ons hits steps div (k + 1) (a + b) =
+      (if run_plays hits steps div k then 1 else 0) + run_ons hits steps div (k + 1) a + run_ons hits steps div (k + 1 + a) b
+    rw [ih (k + 1) b]; omega
+
+/-- Of the `div` ticks of step `s` (ticks `s * div` on), exactly the last one is a pulse, and it plays when the
+step is a hit. -/
+private theorem run_ons_step (hits steps div s : Nat) (divPos : 0 < div) (inBar : s < steps) :
+    run_ons hits steps div (s * div) div = if Euclid.hit hits steps s then 1 else 0 := by
+  suffices h : ∀ r, r ≤ div →
+      run_ons hits steps div (s * div + (div - r)) r = if r = 0 then 0 else if Euclid.hit hits steps s then 1 else 0 by
+    have := h div (Nat.le_refl _)
+    rw [Nat.sub_self, Nat.add_zero] at this
+    rw [this, ite_eq_right (by omega)]
+  intro r
+  induction r with
+  | zero => intro _; simp [run_ons]
+  | succ r ih =>
+    intro le
+    unfold run_ons run_plays
+    have offset : s * div + (div - (r + 1)) = div * s + (div - (r + 1)) := by rw [Nat.mul_comm]
+    have below : div - (r + 1) < div := by omega
+    have quot : (div * s + (div - (r + 1))) / div = s := by rw [Nat.mul_add_div divPos, Nat.div_eq_of_lt below]; simp
+    have stepMod : s % steps = s := Nat.mod_eq_of_lt inBar
+    have pulse : (div * s + (div - (r + 1)) + 1) % div = 0 ↔ r = 0 := by
+      rw [Nat.add_assoc, Nat.mul_add_mod]
+      constructor
+      · intro h
+        have : div - (r + 1) + 1 < div ∨ div - (r + 1) + 1 = div := by omega
+        rcases this with lt | eq
+        · rw [Nat.mod_eq_of_lt lt] at h; omega
+        · omega
+      · intro h; subst h; rw [show div - (0 + 1) + 1 = div by omega, Nat.mod_self]
+    rw [offset, quot, stepMod]
+    have next : div * s + (div - (r + 1)) + 1 = s * div + (div - r) := by rw [Nat.mul_comm]; omega
+    by_cases z : r = 0
+    · subst z
+      have p : (div * s + (div - (0 + 1)) + 1) % div = 0 := pulse.mpr rfl
+      rw [decide_eq_true p, Bool.true_and, next, ih (by omega)]
+      simp
+    · have np : ¬ (div * s + (div - (r + 1)) + 1) % div = 0 := fun h => z (pulse.mp h)
+      rw [decide_eq_false np, Bool.false_and, next, ih (by omega)]
+      simp [z]
+
+/-- Over the first `s` steps of a bar, the ticks that play are the hits among those steps. -/
+private theorem run_ons_steps (hits steps div : Nat) (divPos : 0 < div) : ∀ s, s ≤ steps →
+    run_ons hits steps div 0 (s * div) = Euclid.countHits hits steps s := by
+  intro s
+  induction s with
+  | zero => intro _; simp [run_ons, Euclid.countHits]
+  | succ s ih =>
+    intro le
+    rw [Nat.succ_mul, run_ons_add, Nat.zero_add, ih (by omega), run_ons_step hits steps div s divPos (by omega)]
+    rfl
+
+/-- A plain lane (the Euclidean source, play chance 100) plays exactly `hits` notes in a bar: over the
+`steps * div` ticks of a bar from a fresh lane, the trace has `hits` note-ons, for any settings at all (`make`
+holds them to what the knobs can produce).
+Why it matters: the safety theorems say a lane never plays on a rest; this one says it does play on every
+hit. The bar has the density the HITS knob asks for, no note missing: the machine makes the music it
+promises, not merely nothing wrong. -/
+theorem run_bar_plays_every_hit (hits steps div mask low span : Nat) (seed : UInt32) :
+    let l := (Lane.make hits steps div mask low span seed).setNotes 0 100 1 0
+    Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) = l.hits := by
+  intro l
+  have valid := lane_set_notes_valid (Lane.make hits steps div mask low span seed)
+    (lane_make_valid hits steps div mask low span seed) 0 100 1 0
+  have divPos : 0 < l.div := valid.divPositive
+  have stepsPos : 1 ≤ l.steps := valid.stepsPositive
+  have plain : l.Plain := by
+    refine ⟨?_, ?_⟩
+    · show ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).rhythm.kind = 0
+      simp [Lane.setNotes, Lane.make, Rhythm.make]
+    · show ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).prob = 100
+      simp [Lane.setNotes]
+  have fresh : l.count = 0 ∧ l.step = 0 := ⟨rfl, rfl⟩
+  rw [run_plain_ons (l.steps * l.div) 0 l plain divPos (by simp [fresh.1]) (by simp [fresh.2]),
+    run_ons_steps l.hits l.steps l.div divPos l.steps (Nat.le_refl _)]
+  exact euclid_hit_count l.hits l.steps stepsPos valid.hitsFit

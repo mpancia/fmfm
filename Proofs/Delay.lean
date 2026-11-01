@@ -1,4 +1,5 @@
 import Firmware.Delay
+import Spec.Delay
 
 /-- `min t 100` is at most 100. -/
 private theorem delay_clamped_setting (t : UInt32) : (min t 100).toNat ≤ 100 := by
@@ -194,3 +195,64 @@ theorem delay_store_saturates (signal : Int32) :
       have same : Int.bmod signal.toInt (2 ^ 16) = signal.toInt := Int.bmod_eq_of_le (by omega) (by omega)
       rw [same]
       exact ⟨fun h => by omega, fun h => by omega, fun _ _ => rfl⟩
+
+/-- The line's store never makes a sample larger in size: it saturates. -/
+private theorem delay_store_shrinks (signal : Int32) : (Delay.store signal).toInt.natAbs ≤ signal.toInt.natAbs := by
+  have ⟨above, below, inside⟩ := delay_store_saturates signal
+  rcases Nat.lt_or_ge 32767 signal.toInt.natAbs with big | small
+  · rcases Int.le_total 0 signal.toInt with pos | neg
+    · rw [above (by omega)]; omega
+    · rw [below (by omega)]; omega
+  · rw [inside (by omega) (by omega)]; exact Nat.le_refl _
+
+/-- Reading a stored sample back is exact. -/
+private theorem delay_fetch_value (stored : Int16) : (Delay.fetch stored).toInt = stored.toInt := by
+  unfold Delay.fetch; exact Int16.toInt_toInt32 stored
+
+/-- An echo going round the undriven line `n` times is at most its starting size times `(19/20)^n`, plus 20
+(the roundings of the hops, one each, kept below 20 by the same ratio), for every feedback setting; so
+however loud the echo started, after enough hops it is within 20 counts of silence (a count being 1/32768).
+Why it matters: the delay's tail ends. Full feedback is 0.95, not 1.0, and this says what that buys: the
+echoes cannot pile their rounding into a hum that never stops, and nothing a knob does can keep them alive.
+(The tone control only lowers each hop further.) -/
+theorem delay_echoes_die_away (echo feedback : Int32) (read : echo.toInt.natAbs ≤ 32768)
+    (nonneg : 0 ≤ feedback.toInt) (unit : feedback.toInt ≤ 31129) (n : Nat) :
+    (Delay.hops echo feedback n).toInt.natAbs * 20 ^ n ≤ echo.toInt.natAbs * 19 ^ n + 20 * 20 ^ n := by
+  suffices h : (Delay.hops echo feedback n).toInt.natAbs ≤ 32768 ∧
+      (Delay.hops echo feedback n).toInt.natAbs * 20 ^ n ≤ echo.toInt.natAbs * 19 ^ n + 20 * 20 ^ n from h.2
+  induction n with
+  | zero => simp [Delay.hops, read]
+  | succ n ih =>
+    have stored := delay_store_shrinks (Delay.input 0 (Delay.hops echo feedback n) feedback)
+    have hop := delay_echo_shrinks (Delay.hops echo feedback n) feedback (by omega) nonneg unit
+    have fits : (Delay.hops echo feedback (n + 1)).toInt.natAbs ≤ 32768 := by
+      show (Delay.fetch (Delay.store (Delay.input 0 (Delay.hops echo feedback n) feedback))).toInt.natAbs ≤ _
+      rw [delay_fetch_value]
+      have := Int16.le_toInt (Delay.store (Delay.input 0 (Delay.hops echo feedback n) feedback))
+      have := Int16.toInt_lt (Delay.store (Delay.input 0 (Delay.hops echo feedback n) feedback))
+      omega
+    refine ⟨fits, ?_⟩
+    obtain ⟨_, ih⟩ := ih
+    have fetched : (Delay.hops echo feedback (n + 1)).toInt.natAbs ≤
+        (Delay.hops echo feedback n).toInt.natAbs * 19 / 20 + 1 := by
+      show (Delay.fetch (Delay.store (Delay.input 0 (Delay.hops echo feedback n) feedback))).toInt.natAbs ≤ _
+      rw [delay_fetch_value]
+      exact Nat.le_trans stored hop
+    have mono : (Delay.hops echo feedback (n + 1)).toInt.natAbs * 20 ≤
+        (Delay.hops echo feedback n).toInt.natAbs * 19 + 20 := by
+      have := Nat.mul_le_mul_right 20 fetched
+      have q := Nat.div_mul_le_self ((Delay.hops echo feedback n).toInt.natAbs * 19) 20
+      omega
+    generalize (Delay.hops echo feedback (n + 1)).toInt.natAbs = x at *
+    generalize (Delay.hops echo feedback n).toInt.natAbs = y at *
+    generalize echo.toInt.natAbs = e at *
+    have step1 : x * 20 ^ (n + 1) = x * 20 * 20 ^ n := by rw [Nat.pow_succ, Nat.mul_comm (20 ^ n) 20, Nat.mul_assoc]
+    have step2 : x * 20 * 20 ^ n ≤ (y * 19 + 20) * 20 ^ n := Nat.mul_le_mul_right _ mono
+    have step3 : (y * 19 + 20) * 20 ^ n = y * 20 ^ n * 19 + 20 * 20 ^ n := by
+      rw [Nat.add_mul, Nat.mul_right_comm]
+    have step4 : y * 20 ^ n * 19 ≤ (e * 19 ^ n + 20 * 20 ^ n) * 19 := Nat.mul_le_mul_right 19 ih
+    have step5 : (e * 19 ^ n + 20 * 20 ^ n) * 19 + 20 * 20 ^ n = e * 19 ^ (n + 1) + 20 * 20 ^ (n + 1) := by
+      rw [Nat.pow_succ, Nat.pow_succ 20, Nat.add_mul, Nat.mul_assoc, Nat.mul_assoc]
+      generalize 19 ^ n = p; generalize 20 ^ n = q
+      omega
+    omega

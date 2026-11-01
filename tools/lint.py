@@ -145,6 +145,7 @@ for f in files:
     except UnicodeDecodeError: continue
     if f.endswith(".md"): md_check(f, lines)
     elif f == "Challenge.lean": pass      # generated: the statements with sorry for proofs, for Comparator; gen_challenge.py --check keeps it honest
+    elif f == "Spec/Presets.lean": pass   # generated data (gen_presets.py --check keeps it with presets.h); its lines are long
     elif f.endswith(".lean"): lean_check(f, lines)
     elif f.endswith(C_LIKE): c_check(f, lines)
     elif f.endswith((".sh", ".py", "Makefile", ".toml")): sh_py_check(f, lines)

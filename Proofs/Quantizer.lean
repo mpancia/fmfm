@@ -115,3 +115,87 @@ theorem quantizer_snap_is_near (mask note : Nat) (small : mask < 4096) (notEmpty
     (low : 6 ≤ note) : Quantizer.snap mask note ≤ note + 6 ∧ note ≤ Quantizer.snap mask note + 6 := by
   obtain ⟨dist, near, ⟨moved, _⟩⟩ := quantizer_snap_found mask note small notEmpty low
   omega
+
+/-- An octave up, the scale looks the same. -/
+private theorem quantizer_in_scale_octave (mask n : Nat) : Quantizer.inScale mask (n + 12) = Quantizer.inScale mask n := by
+  unfold Quantizer.inScale; rw [Nat.add_mod_right]
+
+/-- A distance search an octave up finds the note an octave up, as long as the distance fits under the note. -/
+private theorem quantizer_at_octave (mask n d : Nat) (fits : d ≤ n) :
+    Quantizer.at mask (n + 12) d = (Quantizer.at mask n d).map (· + 12) := by
+  unfold Quantizer.at
+  have below : n + 12 - d = n - d + 12 := by omega
+  rw [below, quantizer_in_scale_octave, show n + 12 + d = n + d + 12 by omega, quantizer_in_scale_octave]
+  simp only [show d ≤ n + 12 from by omega, fits, decide_true, Bool.true_and]
+  split
+  · rfl
+  · split <;> rfl
+
+/-- The search an octave up finds the note an octave up, while every distance it tries fits under the note. -/
+private theorem quantizer_search_octave (mask n : Nat) : ∀ tries d, d + tries ≤ n + 1 →
+    Quantizer.search mask (n + 12) tries d = Quantizer.search mask n tries d + 12 := by
+  intro tries
+  induction tries with
+  | zero => intro d _; rfl
+  | succ t ih =>
+    intro d fits
+    unfold Quantizer.search
+    rw [quantizer_at_octave mask n d (by omega)]
+    cases Quantizer.at mask n d with
+    | some found => rfl
+    | none => simp only [Option.map_none]; exact ih (d + 1) (by omega)
+
+/-- Snapping a note an octave up gives the snapped note an octave up, for notes of at least 6. -/
+private theorem quantizer_snap_octave (mask n : Nat) (low : 6 ≤ n) :
+    Quantizer.snap mask (n + 12) = Quantizer.snap mask n + 12 :=
+  quantizer_search_octave mask n 7 0 (by omega)
+
+/-- The check, with the scale split so the computer check stays shallow: within an octave, the next note up
+never snaps lower. -/
+private theorem quantizer_monotone_split :
+    ∀ high, high < 64 → ∀ low, low < 64 → high * 64 + low ≠ 0 → ∀ a, a < 12 →
+      Quantizer.snap (high * 64 + low) (a + 6) ≤ Quantizer.snap (high * 64 + low) (a + 7) := by
+  decide +kernel
+
+/-- For every non-empty scale, the next note up from a note of 6 to 17 never snaps lower. -/
+private theorem quantizer_monotone_next (mask a : Nat) (small : mask < 4096) (notEmpty : mask ≠ 0)
+    (low : 6 ≤ a) (high : a < 18) : Quantizer.snap mask a ≤ Quantizer.snap mask (a + 1) := by
+  have split : mask = mask / 64 * 64 + mask % 64 := by omega
+  have := quantizer_monotone_split (mask / 64) (by omega) (mask % 64) (by omega) (by omega) (a - 6) (by omega)
+  rw [show a - 6 + 6 = a by omega, show a - 6 + 7 = a + 1 by omega] at this
+  rw [split]; exact this
+
+/-- Octaves up, the snap moves by octaves. -/
+private theorem quantizer_snap_octaves (mask base : Nat) (low : 6 ≤ base) : ∀ j,
+    Quantizer.snap mask (base + 12 * j) = Quantizer.snap mask base + 12 * j := by
+  intro j
+  induction j with
+  | zero => simp
+  | succ j ih =>
+    rw [show base + 12 * (j + 1) = (base + 12 * j) + 12 by omega, quantizer_snap_octave mask _ (by omega), ih]
+    omega
+
+/-- The next note up never snaps lower, for any note of at least 6: the octave check, moved by octaves. -/
+private theorem quantizer_monotone_step (mask a : Nat) (small : mask < 4096) (notEmpty : mask ≠ 0) (low : 6 ≤ a) :
+    Quantizer.snap mask a ≤ Quantizer.snap mask (a + 1) := by
+  have aEq : a = (a - 6) % 12 + 6 + 12 * ((a - 6) / 12) := by have := Nat.div_add_mod (a - 6) 12; omega
+  have next := quantizer_monotone_next mask ((a - 6) % 12 + 6) small notEmpty (by omega) (by omega)
+  rw [aEq, quantizer_snap_octaves mask _ (by omega), show (a - 6) % 12 + 6 + 12 * ((a - 6) / 12) + 1 =
+    ((a - 6) % 12 + 6 + 1) + 12 * ((a - 6) / 12) by omega, quantizer_snap_octaves mask _ (by omega)]
+  omega
+
+/-- The quantizer never inverts an interval: of two notes at least 6, the higher never snaps below where the
+lower snaps, for every non-empty scale.
+Why it matters: UP goes up, DOWN goes down and a WALK keeps its direction after the snap to the scale;
+quantising can merge two notes onto one scale note, but it cannot swap their order and turn a rising line
+into a falling one. (Notes of at least 6 only, as the other snap theorems: below that the search cannot look
+a full six semitones down.) -/
+theorem quantizer_snap_monotone (mask a b : Nat) (small : mask < 4096) (notEmpty : mask ≠ 0) (low : 6 ≤ a)
+    (order : a ≤ b) : Quantizer.snap mask a ≤ Quantizer.snap mask b := by
+  obtain ⟨d, rfl⟩ : ∃ d, b = a + d := ⟨b - a, by omega⟩
+  induction d with
+  | zero => exact Nat.le_refl _
+  | succ d ih =>
+    have := quantizer_monotone_step mask (a + d) small notEmpty (by omega)
+    rw [show a + (d + 1) = a + d + 1 by omega]
+    exact Nat.le_trans (ih (by omega)) this

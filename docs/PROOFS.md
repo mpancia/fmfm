@@ -187,6 +187,14 @@ stores 32767, from -32768 down it stores -32768, and in between it stores the si
 Why it matters: a send louder than full scale clips at the top of the line, as tape would, rather than flipping sign
 into a click that would then echo.
 
+**`delay_echoes_die_away`**: An echo going round the undriven line `n` times is at most its starting size times
+`(19/20)^n`, plus 20 (the roundings of the hops, one each, kept below 20 by the same ratio), for every feedback setting;
+so however loud the echo started, after enough hops it is within 20 counts of silence (a count being 1/32768).
+
+Why it matters: the delay's tail ends. Full feedback is 0.95, not 1.0, and this says what that buys: the echoes cannot
+pile their rounding into a hum that never stops, and nothing a knob does can keep them alive. (The tone control only
+lowers each hop further.)
+
 ## Digital
 
 **`digital_mix_between_inputs`**: A crossfade of two 16-bit values never leaves the range between them (give or take one
@@ -998,6 +1006,16 @@ Why it matters: the table's top entry is above half a cycle, so this bound comes
 at least one octave below the table, and a step below half a cycle means the oscillators never run past Nyquist by
 construction.
 
+## Presets
+
+**`presets_all_fit`**: Every factory patch is one the knobs could have produced: all 128 satisfy `Patch.Fits`, every
+global and every lane setting in range, checked value by value.
+
+Why it matters: the firmware trusts its own patch table without the checks a loaded slot gets
+(`patch_decode_only_fits`); this closes that gap, so no shipped patch can hand a lane a sound index, scale, step count
+or note range it would read past a table with. It is also a check on the generator: a patch written by hand or by a mood
+table that strays out of range fails the build.
+
 ## Quantizer
 
 **`quantizer_snap_keeps_scale_notes`**: A note that is already in the scale stays as it is.
@@ -1013,11 +1031,25 @@ Why it matters: the melody can never play a note outside the key you chose.
 
 Why it matters: quantizing keeps the shape of the melody; no note jumps by an octave.
 
+**`quantizer_snap_monotone`**: The quantizer never inverts an interval: of two notes at least 6, the higher never snaps
+below where the lower snaps, for every non-empty scale.
+
+Why it matters: UP goes up, DOWN goes down and a WALK keeps its direction after the snap to the scale; quantising can
+merge two notes onto one scale note, but it cannot swap their order and turn a rising line into a falling one. (Notes of
+at least 6 only, as the other snap theorems: below that the search cannot look a full six semitones down.)
+
 ## Random
 
 **`random_below_lt`**: A random pick is always below its limit, so it is a valid index into a list of `limit` choices.
 
 Why it matters: a pick one too big would read past the end of a note list or a step table.
+
+**`random_never_stands_still`**: The generator never stands still: no state maps to itself, so a random lane can never
+freeze on one value. `next x = x` would need `(a - 1) * x ≡ -c` modulo 2^32; `a - 1` is a multiple of 4 and `c` is odd,
+so the two sides have different parity. (Hull and Dobell's conditions for the full period include these two facts.)
+
+Why it matters: whatever the seed, the next draw is a different state, so random, walk and the play chance keep moving;
+a stuck generator would play one note forever.
 
 ## Reverb
 
@@ -1158,6 +1190,14 @@ played.
 Why it matters: the step position depends only on the tick count, so four lanes at different speeds stay in phase
 forever: nothing a note does can make a lane drift.
 
+**`run_bar_plays_every_hit`**: A plain lane (the Euclidean source, play chance 100) plays exactly `hits` notes in a bar:
+over the `steps * div` ticks of a bar from a fresh lane, the trace has `hits` note-ons, for any settings at all (`make`
+holds them to what the knobs can produce).
+
+Why it matters: the safety theorems say a lane never plays on a rest; this one says it does play on every hit. The bar
+has the density the HITS knob asks for, no note missing: the machine makes the music it promises, not merely nothing
+wrong.
+
 ## Smooth
 
 **`smooth_parameter_between`**: A smoothed parameter never leaves the range between the value it moves from and the
@@ -1203,6 +1243,12 @@ twelve ticks of a pair of eighths take exactly 24 straight ticks, whatever the s
 Why it matters: swing moves notes inside each pair of eighths and nothing else: a bar is as long as it was, the four
 lanes stay in phase with each other and with a MIDI clock, and `run_clock_never_drifts` still holds for the swung clock,
 tick for tick.
+
+**`swing_quarter_note_exact`**: A quarter note under swing is exactly 24 straight ticks long, at every setting, and
+every tick inside it starts strictly after the one before (each is at least 3334).
+
+Why it matters: swing is a feel, not a tempo change: a quarter note, a bar and a song take the time the TEMPO knob says,
+a MIDI clock sent out would stay in step with one received, and no two ticks can fall together.
 
 ## Tables
 
