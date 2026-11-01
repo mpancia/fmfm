@@ -171,7 +171,7 @@ static struct {
     uint8_t chance, level;                      /* live values the lane plays with */
     sound_t sound;
 } lfo[NL];
-static uint32_t reverb_time = 50, reverb_bright = 60, reverb_amount = 50;   /* the send reverb: decay, brightness, return */
+static uint32_t reverb_time = 50, reverb_bright = 60, reverb_amount = 70;   /* the send reverb: decay, brightness, return */
 static uint32_t bpm = 100, key, progression, rate_bars = 1, scale_lock, running = 1, tick_acc, tick_ms, tick_count, chord_index;
 static uint32_t selected, patch_index, save_slot, midi_out_base;
 static char patch_name[20] = "INIT";
@@ -238,7 +238,7 @@ static void lanes_remask(void)                  /* the key, scale lock or chord 
 
 static void reverb_apply(void)
 {
-    int32_t gain = (int32_t)(reverb_amount * 655u);         /* 100 is a gain of 2.0 */
+    int32_t gain = (int32_t)(reverb_amount * 328u);         /* 100 is a gain of 1.0 */
     fm1_reverb_tune(reverb_time, reverb_bright);
     if (!reverb_return && gain) {               /* while the return was off the reverb did not run: drop the stale tail */
         reverb_ready = 0;

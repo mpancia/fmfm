@@ -11,7 +11,7 @@ in Lean.
 | SEND | how much of the chosen lane goes to the reverb (0 to 100%, kept in the patch) |
 | DECAY | how long the tail rings (0 to 100%; the loop gain runs from 0.35 to 0.98) |
 | BRIGHT | how dark or bright the tail is (the low-pass in each loop, 0.6 to 0.97) |
-| RETURN | how loud the wet signal is in the mix (0 to 100%; 100% is a gain of 2.0) |
+| RETURN | how loud the wet signal is in the mix (0 to 100%; 100% is a gain of 1.0) |
 
 DECAY, BRIGHT and RETURN belong to the patch; SEND belongs to each lane. With RETURN at 0 the reverb does not run at
 all (it costs nothing), and when it comes back on the old tail is dropped.
@@ -42,7 +42,7 @@ from `Reverb::Process`; the arithmetic of each step is Lean.
 
 ### What is proved
 
-See `docs/PROOFS.md`, section Reverb, nine theorems:
+See `docs/PROOFS.md`, section Reverb, eleven theorems:
 
 - every position is inside the memory; at every scale up to 400 the ten delay lines fit and never overlap;
 - the two modulated reads (the first diffuser and the long delay of the second loop) stay inside their own line
@@ -51,7 +51,17 @@ See `docs/PROOFS.md`, section Reverb, nine theorems:
   and never grows, rounding included;
 - one step of the low-pass lands between its state and its input, and an interpolated read lands between its two
   neighbours, so neither can overshoot;
-- the stored sample saturates instead of wrapping.
+- the stored sample saturates instead of wrapping;
+- one trip round the two loops with nothing coming in scales a sample by the decay gain squared, plus at most
+  one unit of rounding, so an undriven tail shrinks every trip (`reverb_round_trip_decays`);
+- the wet sample handed to the mix is within 2^29 + 2^21 and its return at any RETURN setting is exact
+  (`reverb_wet_never_overflows`); `mix_bus_never_wraps` takes exactly that bound, so the two promises join.
+
+These last two are about `Spec/Reverb.lean`, which writes down the glue's sequence of calls for one sample
+with the memory reads as parameters. That the spec is the glue is checked, not assumed: `make test-lean`
+runs `tests/reverb_spec_diff.c`, which records what the glue reads before each of 20000 samples (a burst,
+a settings change, the tail) and `tests/reverb_spec.lean` recomputes both outputs from the spec; they agree
+on every sample, and swapping two reads in the spec makes 18342 of them disagree.
 
 Not proved: that the whole network is stable. Each step is shown not to grow a sample on its own, but the allpasses
 add a delayed sample to a scaled one, and the two loops feed each other; the gain budget is Clouds' design and what
@@ -70,9 +80,20 @@ the test shows is that the tail dies away.
   inputs (clicks at three settings, a noise burst, a sine burst).
 - `make test` checks in the simulator that the tail rings on after PLAY stops and then dies away.
 
+### Levels
+
+Measured with `tools/render_web.mjs` (the simulator's output as a WAV, with its loudness by the second):
+
+- INIT at its defaults (sends 15 to 45%, return 70%): the wet signal is 12.6 dB under the dry mix.
+- DECAY 0 dies within a second of PLAY stopping; DECAY 50 falls about 13 dB a second (RT60 near 4 s);
+  DECAY 100 (loop gain 0.98) is a wash that keeps building while the lanes play, as it does in Clouds.
+- The worst case, every send, DECAY and RETURN at 100% for 30 s, reaches -10 dBFS RMS and clips 45 samples.
+  With a return of 2.0 it clipped 3.7% of its samples, which is why 100% is now a gain of 1.0.
+- All 121 factory patches, 9 s each: peaks from -17 to -2.2 dBFS, no clipping, none silent.
+
 ### Not done, not measured
 
-- Not heard: the numbers say the port follows Clouds, not that the settings are good.
+- Not heard: the numbers say the port follows Clouds and that nothing clips, not that it sounds good.
 - Not measured on the chip: the cost is about 20 multiplies per sample per channel, plus the voices. The memory is
   64 KiB of the pool (the pool use is 267 KiB of 344 KiB).
 - No delay, no chorus, no other Clouds parts (granular, pitch shifter, diffuser). The diffuser inside the reverb is

@@ -208,8 +208,8 @@ ROLE_EXTRAS = {
 # reverb send by role, in percent
 ROLE_SEND = {"bass": 8, "pad": 45, "lead": 28, "bell": 50, "kick": 5, "snare": 15, "hat": 12}
 # reverb decay, brightness and return by mood
-MOOD_REVERB = {"calm": (75, 55, 55), "dream": (80, 50, 60), "drive": (35, 65, 40), "pulse": (30, 70, 35), "drift": (90, 45, 65),
-               "shimmer": (70, 80, 60), "machine": (30, 75, 35), "folk": (55, 60, 45)}
+MOOD_REVERB = {"calm": (75, 55, 75), "dream": (80, 50, 80), "drive": (35, 65, 55), "pulse": (30, 70, 50), "drift": (90, 45, 85),
+               "shimmer": (70, 80, 80), "machine": (30, 75, 50), "folk": (55, 60, 65)}
 PROGRESSION_NAMES = ["OFF", "I-IV-V-I", "I-V-vi-IV", "vi-IV-I-V", "ii-V-I-I", "i-VI-III-VII", "I-iii-IV-V", "i-iv-v-i"]
 MOOD_PROGRESSIONS = {"calm": [2, 3, 6], "dream": [3, 2, 0], "drive": [5, 7, 0], "pulse": [0], "drift": [0, 4],
                      "shimmer": [2, 3, 6], "machine": [0], "folk": [1, 2, 6]}
@@ -290,7 +290,7 @@ def render(measurements):
     out.append("static const patch_t PATCHES[NPATCHES] = {")
     for patch in allp:
         name, bpm, key, lanes = patch[:4]
-        progression, rate, reverb = patch[4:] if len(patch) > 4 else (0, 1, (50, 60, 50))
+        progression, rate, reverb = patch[4:] if len(patch) > 4 else (0, 1, (50, 60, 70))
         cells = []
         for pos, lane in enumerate(lanes):
             h, st, sp, sc, snd_name, low, span, seed = lane[:8]
