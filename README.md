@@ -59,7 +59,11 @@ snaps it to the scale. That logic is Lean, and so are the sound engines, the eff
 section "What is proved" below says what is promised about each.
 
 The sound is Mutable Instruments' Braids, all 48 of its oscillator shapes, compiled from its own source
-(`voices/`). `make audit` checks every factory sound.
+(`voices/`), and after them eight shapes of a four-operator FM voice written in Lean from the first line
+(`Firmware/Fm.lean`, `voices/fm_glue.c`): FM PIANO, BELL, BASS, BRASS, GLASS, MALLET, ORGAN and CLANG, each an
+algorithm with ratios, depths and per-operator envelopes, TIMBRE the modulation depth and COLOR the feedback.
+Its sine is a polynomial, not a table, so the kernel can check it (`fm_sine_bounded`, `fm_sine_continuous`),
+and a voice costs about what the dearest Braids shape does. `make audit` checks every factory sound.
 
 The simulator runs the real firmware app (`fw/firmware/src/dinghy.c`) compiled to WebAssembly, with the FM-1's
 screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed. See `docs/SIMULATOR.md`.
@@ -67,7 +71,7 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-243 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+253 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
 <details><summary><b>The sequencer</b>: 82 theorems</summary>
@@ -162,11 +166,12 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 
 </details>
 
-<details><summary><b>The voices</b>: 85 theorems</summary>
+<details><summary><b>The voices</b>: 95 theorems</summary>
 
-Braids' engines, ported to Lean sample for sample. Every table read stays inside its table, the facts about the tables
-are checked rather than assumed, and each engine's sample is the exact arithmetic clipped rather than wrapped, except
-where Braids itself can overflow (listed in docs/LEAN-ENGINES.md).
+Braids' engines, ported to Lean sample for sample, and the FM voice written in Lean from the first line (a polynomial
+sine with no table, bounded and continuous by a check over every input). Every table read stays inside its table, the
+facts about the tables are checked rather than assumed, and each engine's sample is the exact arithmetic clipped rather
+than wrapped, except where Braids itself can overflow (listed in docs/LEAN-ENGINES.md).
 
 | Theorem | Says | Protects against |
 |---|---|---|
@@ -186,6 +191,16 @@ where Braids itself can overflow (listed in docs/LEAN-ENGINES.md).
 | `braids_data_rate_top` | No grain envelope rate entry passes 32768, the table's last, at any index. | `noise_setup_grain_rate_bounded` shifts the entry up three places and needs the result below 2^18 to keep the grain's envelope reads inside their table; this checks the top against the numbers Braids ships instead of assuming it. |
 | `braids_data_vowel_amplitudes_are_nibbles` | Every vowel formant amplitude is a nibble (at most 15), for any vowel and formant. | the formant tables are indexed by the phase's top nibble or-ed with the amplitude (`tables_formant_reads_inside_256`), so an amplitude above 15 would read past them; this checks the data Braids ships instead of assuming it. |
 | `braids_data_wavetable_steps_at_most_16` | Every wavetable definition has at most 16 steps, for any table index. | `wavetables_setup_table_in_table` multiplies the parameter by the step count and needs the pointer's step and the one after it inside the 17 steps of a definition; this checks the counts Braids ships (4, 8 or 16) instead of assuming them. |
+| `fm_sine_bounded` | The sine is a quarter value with a sign: between -32767 and 32767, for every phase. | an operator can never hand its modulators or the mix more than full scale, whatever phase the modulation pushed it to; and there is no table, so there is nothing to read past: the polynomial is checked here for every input, not trusted. |
+| `fm_sine_exact_at_quarters` | The sine is exact where it matters: 0 at the start, 32767 at a quarter, 0 at a half, -32767 at three quarters, 32767 being one. | an operator at rest sits at zero, and a sine at its peak is exactly full scale, so the levels and depths of the shapes mean what they say. |
+| `fm_sine_continuous` | The quarter sine is continuous: from one position to the next it rises by at most two and falls by at most one (the fall is rounding; the fit itself rises throughout), for every position. | no step in the waveform, so no click or buzz from the polynomial itself; the sine the operators read is smooth to within the last bit, checked at all 32767 positions. |
+| `fm_operator_never_wraps` | An operator's output is its sine through its envelope: at most 32767 in size for any envelope up to one (2^24), and nothing wraps on the way. | every operator's output is a sample in range whatever its modulators did; the modulators' pushes are modular and the output is bounded, so no setting of depths can make an operator misbehave. |
+| `fm_carry_never_amplifies` | A carrier's share never exceeds its output: the level is at most one (32767). | the mix of carriers is at most the sum of their levels, so a shape with levels summing to one cannot clip (`fm_shapes_in_range`), and `Fm.saturate` only ever acts on a louder setting. |
+| `fm_saturate_in_range` | The sample out of the voice is a 16-bit value within 32767 either way, and a sum already in range passes unchanged. | the hold at full scale is a saturation, never a wrap: a loud shape goes flat, not inside out. |
+| `fm_envelope_only_falls` | The envelope one block on is no higher, and no lower than 15/16 of itself, for any rate below 65536 and any envelope up to one; nothing wraps. | an operator's envelope only ever falls, and a block cannot take more than a sixteenth of it: the shapes' tails are smooth and a modulator never comes back once it has gone. |
+| `fm_increment_below_nyquist` | An operator's increment is at most half a cycle a sample, whatever the pitch and ratio. | half a cycle a sample is the Nyquist limit; an operator asked for more is held there rather than wrapping to a wrong low pitch. |
+| `fm_algorithms_well_founded` | In every algorithm, a modulator is a higher-numbered operator than the one it modulates, and operator 1 always carries. | computing a sample from operator 4 down to 1, every modulator's output is already this sample's (no one-sample lag, no cycle except the declared feedback on 4), and every algorithm makes a sound. |
+| `fm_shapes_in_range` | Every shape's settings are in the ranges the theorems above need: ratios at most 16 (4096 in Q8), levels at most one (32767), rates below 65536, and the carrier levels of a shape add up to at most one. | with `fm_carry_never_amplifies` the eight shapes cannot clip at full envelope, and with `fm_envelope_only_falls` their envelopes behave; the numbers in the tables are checked, not trusted. |
 | `analog_this_blep_range` | The correction a step edge adds to its own sample is between 0 and 16383. | the band-limiting correction can never be large enough to throw a sample out of range. |
 | `analog_next_blep_range` | The correction a step edge leaves for the next sample is between -16383 and 0. | like the correction for its own sample, it can never throw a sample out of range. |
 | `analog_triangle_half_range` | Each half of a triangle step lies between -16384 and 16383. | the two halves can be added without ever leaving the range of a 16-bit sample. |

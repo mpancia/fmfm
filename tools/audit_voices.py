@@ -19,6 +19,7 @@ RATE = 44100
 # shapes whose top partials fall above the Nyquist limit: silent in the top octaves, so patches keep them low
 LOW_ONLY = {21, 24}
 PERCUSSIVE = {28, 32, 33, 34, 35, 36, 45, 47}      # level depends on pitch by design
+FM_SHAPES = range(48, 56)                           # the four-operator FM voice (Firmware/Fm.lean), after Braids
 SETTINGS = [(t, c) for t in (4096, 16384, 28672) for c in (4096, 16384, 28672)]
 
 
@@ -74,7 +75,7 @@ def measure(shape, timbre, color, note=60):
 
 def all_measurements():
     build()
-    return [measure(s, t, c) for s in range(48) for t, c in SETTINGS]
+    return [measure(s, t, c) for s in range(56) for t, c in SETTINGS]
 
 
 def notes_for(shape):
@@ -103,10 +104,10 @@ def sound_problems(name, shape, timbre, color, gain):
 def check_sounds():
     import re
     text = (ROOT / "voices/presets.h").read_text()
-    rows = re.findall(r'\{"([^"]+)", (\d+), (\d+), (\d+), (\d+), (\d+), (\d+), (\d+)\}', text.split("NPATCHES")[0])
+    rows = re.findall(r'\{"([^"]+)", (\d+), (\d+), (\d+), (\d+), (\d+), (\d+), (\d+), (\d+)\}', text.split("NPATCHES")[0])
     build()
     bad = []
-    for name, shape, _attack, _release, _env, timbre, color, gain in rows:
+    for name, shape, _type, _attack, _release, _env, timbre, color, gain in rows:
         bad += sound_problems(name, int(shape), int(timbre), int(color), int(gain))
     print(f"audit: {len(rows)} sounds, {len(bad)} problems")
     for line in bad:

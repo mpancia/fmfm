@@ -48,6 +48,13 @@ The six-voice rows are averaged over a run that is a quarter silent, so the soun
 3 SQR is about 700 a voice; CSAW about 400. Of 48 shapes, 3 SQR, WAVE LINE, WAVE PARA, WAVE MAP and HARMONIC are the
 costly ones (2900 to 3230 for six); most sit at 2400 to 2600.
 
+The FM voice (shapes 48 to 55, `Firmware/Fm.lean`), counted the same way on one voice alone (a perf counter round
+`braids_voice_render`, x86-64, `-O2`): 238 instructions a sample against 256 for 3 SQR and 112 for CSAW, so it
+sits with the costly Braids shapes, a little under the dearest. Four operators each cost a degree-5 sine
+polynomial (six multiplies), a push and an envelope; the envelopes move once a block of 16 samples, which took
+the voice from 306 to 238. Six FM voices with reverb are the "six 3 SQR" row above: fine at 320 MHz, over
+budget at 240.
+
 ## Does it fit
 
 Assume one chip instruction a cycle plus a third for memory and the divides (1.3 cycles an instruction), and the

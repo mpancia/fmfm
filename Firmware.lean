@@ -63,3 +63,5 @@ import Firmware.NoiseSetup
 import Firmware.NoiseSetupApi
 import Firmware.WavetablesSetup
 import Firmware.WavetablesSetupApi
+import Firmware.Fm
+import Firmware.FmApi

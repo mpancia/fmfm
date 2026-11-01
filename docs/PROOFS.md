@@ -371,6 +371,66 @@ entries rise from one to the next and the top one is 25078 (`Proofs/BraidsData.l
 Why it matters: the coefficient multiplies the filter's band-pass state on every sample; a positive 15-bit coefficient
 is the range that keeps that product in step with the original's.
 
+## Fm
+
+**`fm_sine_bounded`**: The sine is a quarter value with a sign: between -32767 and 32767, for every phase.
+
+Why it matters: an operator can never hand its modulators or the mix more than full scale, whatever phase the modulation
+pushed it to; and there is no table, so there is nothing to read past: the polynomial is checked here for every input,
+not trusted.
+
+**`fm_sine_exact_at_quarters`**: The sine is exact where it matters: 0 at the start, 32767 at a quarter, 0 at a half,
+-32767 at three quarters, 32767 being one.
+
+Why it matters: an operator at rest sits at zero, and a sine at its peak is exactly full scale, so the levels and depths
+of the shapes mean what they say.
+
+**`fm_sine_continuous`**: The quarter sine is continuous: from one position to the next it rises by at most two and
+falls by at most one (the fall is rounding; the fit itself rises throughout), for every position.
+
+Why it matters: no step in the waveform, so no click or buzz from the polynomial itself; the sine the operators read is
+smooth to within the last bit, checked at all 32767 positions.
+
+**`fm_operator_never_wraps`**: An operator's output is its sine through its envelope: at most 32767 in size for any
+envelope up to one (2^24), and nothing wraps on the way.
+
+Why it matters: every operator's output is a sample in range whatever its modulators did; the modulators' pushes are
+modular and the output is bounded, so no setting of depths can make an operator misbehave.
+
+**`fm_carry_never_amplifies`**: A carrier's share never exceeds its output: the level is at most one (32767).
+
+Why it matters: the mix of carriers is at most the sum of their levels, so a shape with levels summing to one cannot
+clip (`fm_shapes_in_range`), and `Fm.saturate` only ever acts on a louder setting.
+
+**`fm_saturate_in_range`**: The sample out of the voice is a 16-bit value within 32767 either way, and a sum already in
+range passes unchanged.
+
+Why it matters: the hold at full scale is a saturation, never a wrap: a loud shape goes flat, not inside out.
+
+**`fm_envelope_only_falls`**: The envelope one block on is no higher, and no lower than 15/16 of itself, for any rate
+below 65536 and any envelope up to one; nothing wraps.
+
+Why it matters: an operator's envelope only ever falls, and a block cannot take more than a sixteenth of it: the shapes'
+tails are smooth and a modulator never comes back once it has gone.
+
+**`fm_increment_below_nyquist`**: An operator's increment is at most half a cycle a sample, whatever the pitch and
+ratio.
+
+Why it matters: half a cycle a sample is the Nyquist limit; an operator asked for more is held there rather than
+wrapping to a wrong low pitch.
+
+**`fm_algorithms_well_founded`**: In every algorithm, a modulator is a higher-numbered operator than the one it
+modulates, and operator 1 always carries.
+
+Why it matters: computing a sample from operator 4 down to 1, every modulator's output is already this sample's (no
+one-sample lag, no cycle except the declared feedback on 4), and every algorithm makes a sound.
+
+**`fm_shapes_in_range`**: Every shape's settings are in the ranges the theorems above need: ratios at most 16 (4096 in
+Q8), levels at most one (32767), rates below 65536, and the carrier levels of a shape add up to at most one.
+
+Why it matters: with `fm_carry_never_amplifies` the eight shapes cannot clip at full envelope, and with
+`fm_envelope_only_falls` their envelopes behave; the numbers in the tables are checked, not trusted.
+
 ## Harmony
 
 **`harmony_mask_never_empty`**: The mask handed to a lane always has at least one note and fits in 12 bits, for every

@@ -9,6 +9,7 @@ the hand-written table below, naming sounds as "SHAPE WORD".
                                    so Proofs/Presets.lean can check that every one fits the knob ranges)
   tools/gen_presets.py --check     fail if either is out of date (make lint runs this)
 """
+import re
 import sys
 from pathlib import Path
 
@@ -22,16 +23,19 @@ NAMES = ["CSAW", "MORPH", "SAW SQR", "SIN TRI", "BUZZ", "SQR SUB", "SAW SUB", "S
          "3 SQR", "3 TRI", "3 SIN", "3 RING", "SWARM", "SAW COMB", "TOY", "FLT LP", "FLT PK", "FLT BP", "FLT HP",
          "VOSIM", "VOWEL", "VOWEL F", "HARMONIC", "FM", "FBK FM", "CHAOS FM", "PLUCK", "BOW", "BLOW", "FLUTE",
          "BELL", "DRUM", "KICK", "CYMBAL", "SNARE", "WAVETBL", "WAVE MAP", "WAVE LN", "WAVE PARA", "NOISE FLT",
-         "TWIN PK", "CLK NOISE", "GRANULAR", "PARTICLE", "DIGI MOD", "?"]
+         "TWIN PK", "CLK NOISE", "GRANULAR", "PARTICLE", "DIGI MOD", "?",
+         "FM PIANO", "FM BELL", "FM BASS", "FM BRASS", "FM GLASS", "FM MALLET", "FM ORGAN", "FM CLANG"]   # 48 on: Firmware/Fm.lean
 SHAPE = {n: i for i, n in enumerate(NAMES)}
-PERCUSSIVE = {"BELL", "DRUM", "KICK", "CYMBAL", "SNARE", "PARTICLE", "?", "PLUCK"}
+PERCUSSIVE = {"BELL", "DRUM", "KICK", "CYMBAL", "SNARE", "PARTICLE", "?", "PLUCK", "FM PIANO", "FM BELL", "FM MALLET",
+              "FM CLANG"}
+RINGING = {"PLUCK", "BELL", "DRUM", "FM PIANO", "FM BELL", "FM MALLET", "FM CLANG"}   # the long release class
 TARGET_RMS, PEAK_LIMIT = 9000.0, 30000.0
 
 # attack class 0..3 and release class 0..6 index the tables in dinghy.c (about 2/8/30/90 ms; 10 ms to 1.8 s)
 PAD_SHAPES = ["3 SAW", "SWARM", "VOWEL", "3 SIN", "WAVE MAP", "GRANULAR", "SAW COMB", "FLT LP", "HARMONIC",
-              "BLOW", "BOW", "TWIN PK"]
+              "BLOW", "BOW", "TWIN PK", "FM GLASS", "FM ORGAN", "FM BRASS"]
 PLUCK_SHAPES = ["CSAW", "MORPH", "SQR SUB", "SAW SUB", "3 SQR", "FM", "FBK FM", "CHAOS FM", "FLT LP", "WAVETBL",
-                "VOSIM", "DIGI MOD", "BUZZ"]
+                "VOSIM", "DIGI MOD", "BUZZ", "FM BASS"]
 WORDS = {5: ["DARK", "WARM", "MID", "BRIGHT", "SHARP"], 4: ["DARK", "MID", "BRIGHT", "SHARP"],
          3: ["DARK", "MID", "BRIGHT"], 2: ["DARK", "BRIGHT"], 1: ["MID"]}
 
@@ -66,7 +70,7 @@ def sounds(measurements):
     out = []
 
     def add(shape, word, r, attack, release, env):
-        kind = (1 if word == "PLUCK" or NAMES[shape] == "PLUCK" else 2 if word == "PAD"
+        kind = (1 if word == "PLUCK" or NAMES[shape] in ("PLUCK", "FM PIANO", "FM MALLET") else 2 if word == "PAD"
                 else 3 if NAMES[shape] in PERCUSSIVE else 0)                    # the sound's type: tone, pluck, pad, drum
         out.append({"name": f"{NAMES[shape]} {word}", "shape": shape, "type": kind, "timbre": r["timbre"],
                     "color": r["color"], "attack": attack, "release": release, "env": env, "gain": gain_q8(r)})
@@ -78,14 +82,14 @@ def sounds(measurements):
         if audit_voices.sound_problems(s["name"], s["shape"], s["timbre"], s["color"], s["gain"]):
             del out[before:]                    # a sound that fails the audit is not shipped
 
-    for shape in range(48):
+    for shape in range(len(NAMES)):
         name = NAMES[shape]
         chosen = pick(by_shape[shape])
         if not chosen:
             continue
         for r, word in zip(chosen, WORDS[len(chosen)]):
             if name in PERCUSSIVE:
-                add_checked(shape, word, r, 0, 5 if name in ("PLUCK", "BELL", "DRUM") else 4, 0)
+                add_checked(shape, word, r, 0, 5 if name in RINGING else 4, 0)
             else:
                 add_checked(shape, word, r, 1, 2, 0)
         mid = chosen[len(chosen) // 2] if chosen else None
@@ -307,10 +311,10 @@ DEMOS = [
      0, 1, (30, 70, 45), (1, 25, 80, 25)),
     # the Tonnetz: WALK LR through all 24 triads, a chord a bar (Proofs/Tonnetz.lean: a Hamiltonian cycle, one note
     # changing each move); a pad holds the triad, a bass and an arpeggio climb it, a bell wanders
-    ("TONNETZ", 72, 0, [(1, 4, 7, 0, "3 SIN PAD", 48, 12, 801, (10, 100, 3, 0, 2, 90, 45)),
-                        (2, 8, 5, 0, "SAW SUB DARK", 36, 12, 802, (2, 100, 1, 0, 2, 100, 10)),
-                        (5, 8, 4, 0, "PLUCK MID", 60, 12, 803, (2, 100, 1, 0, 2, 95, 35)),
-                        (2, 16, 3, 0, "BELL DARK", 72, 12, 804, (0, 60, 1, 0, 1, 75, 60))],
+    ("TONNETZ", 72, 0, [(1, 4, 7, 0, "FM GLASS PAD", 48, 12, 801, (10, 100, 3, 0, 2, 80, 45)),
+                        (2, 8, 5, 0, "FM BASS MID", 36, 12, 802, (2, 100, 1, 0, 2, 100, 10)),
+                        (5, 8, 4, 0, "FM PIANO MID", 60, 12, 803, (2, 100, 1, 0, 2, 90, 35)),
+                        (2, 16, 3, 0, "FM BELL MID", 72, 12, 804, (0, 60, 1, 0, 1, 70, 60))],
      8, 1, (80, 50, 70), (6, 40, 55, 30)),
     # a hexatonic cycle: WALK PL, six triads in E minor's neighbourhood, bowed and slow, two bars a chord
     ("HEXATONIC", 66, 4, [(1, 4, 7, 1, "VOWEL PAD", 48, 12, 811, (10, 100, 3, 0, 2, 90, 50)),
@@ -421,6 +425,11 @@ if __name__ == "__main__":
     elif "--check" in sys.argv:
         if not TARGET.exists() or TARGET.read_text() != text or not LEAN_TARGET.exists() or LEAN_TARGET.read_text() != lean_text:
             print("voices/presets.h or Spec/Presets.lean is out of date: run tools/gen_presets.py --write")
+            sys.exit(1)
+        nsounds = int(re.search(r"#define NSOUNDS (\d+)u", text).group(1))
+        patch_lean = (ROOT / "Firmware/Patch.lean").read_text()
+        if f"l.sound < {nsounds} ∧" not in patch_lean or f"{nsounds} sounds" not in patch_lean:
+            print(f"Firmware/Patch.lean: PatchLane.Fits must say `l.sound < {nsounds}` (NSOUNDS in voices/presets.h)")
             sys.exit(1)
     else:
         print(text)

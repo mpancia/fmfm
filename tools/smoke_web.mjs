@@ -68,7 +68,7 @@ at(19200, press(BTN.LFO)); at(19300, shot('lfo')); at(19350, turn(ENC.K1, 1)); a
 at(19500, press(BTN.ENV)); at(19600, shot('env'));
 // every Braids shape in turn (EDIT: SOUND; knob 1 is the shape)
 at(20000, press(BTN.EDIT));
-for (let i = 0; i < 47; i++) at(20100 + i * 200, turn(ENC.K1, 1));
+for (let i = 0; i < 55; i++) at(20100 + i * 170, turn(ENC.K1, 1));
 // the reverb: send and return full up, play, stop, and the tail must ring on, then die away
 at(30000, press(BTN.FX));
 at(30100, turn(ENC.K1, 20)); at(30110, turn(ENC.K4, 20)); at(30200, press(BTN.HOME));

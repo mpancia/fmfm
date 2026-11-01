@@ -259,6 +259,47 @@ theorem filters_setup_cutoff_in_range (pitch parameter : Int32) :
     0 ≤ (FiltersSetup.swarmCutoff pitch parameter).toInt ∧
       (FiltersSetup.swarmCutoff pitch parameter).toInt ≤ 25078 := sorry
 
+-- Proofs/Fm.lean
+theorem fm_sine_bounded (phase : UInt32) : (Fm.sineAt phase).toInt.natAbs ≤ 32767 := sorry
+
+theorem fm_sine_exact_at_quarters :
+    Fm.sineAt 0 = 0 ∧ Fm.sineAt 0x40000000 = 32767 ∧ Fm.sineAt 0x80000000 = 0 ∧
+        Fm.sineAt 0xC0000000 = -32767 := sorry
+
+theorem fm_sine_continuous (x : UInt32) (inside : x.toNat < 32767) :
+    (Fm.quarter x).toNat ≤ (Fm.quarter (x + 1)).toNat + 1 ∧
+      (Fm.quarter (x + 1)).toNat ≤ (Fm.quarter x).toNat + 2 := sorry
+
+theorem fm_operator_never_wraps (phase push envelope : UInt32) (unit : envelope.toNat ≤ 2 ^ 24) :
+    (Fm.operator phase push envelope).toInt.natAbs ≤ 32767 ∧
+      (Fm.operator phase push envelope).toInt = (Fm.sineAt (phase + push)).toInt *
+          (envelope.toNat / 256) / 65536 := sorry
+
+theorem fm_carry_never_amplifies (out : Int32) (level : UInt32) (sample : out.toInt.natAbs ≤ 32767)
+    (unit : level.toNat ≤ 32767) :
+    (Fm.carry out level).toInt.natAbs ≤ out.toInt.natAbs ∧
+      (Fm.carry out level).toInt = out.toInt * level.toNat / 32768 := sorry
+
+theorem fm_saturate_in_range (x : Int32) : (Fm.saturate x).toInt.natAbs ≤ 32767 ∧
+    (x.toInt.natAbs ≤ 32767 → (Fm.saturate x).toInt = x.toInt) := sorry
+
+theorem fm_envelope_only_falls (envelope rate : UInt32) (unit : envelope.toNat ≤ 2 ^ 24)
+    (small : rate.toNat < 65536) :
+    (Fm.envelopeStep envelope rate).toNat ≤ envelope.toNat ∧
+      envelope.toNat - envelope.toNat / 16 ≤ (Fm.envelopeStep envelope rate).toNat := sorry
+
+theorem fm_increment_below_nyquist (voiceInc ratio : UInt32) :
+    (Fm.increment voiceInc ratio).toNat ≤ 2 ^ 31 := sorry
+
+theorem fm_algorithms_well_founded (alg op source : UInt32) :
+    (Fm.modulates alg op source = true → op < source) ∧ Fm.carries alg 1 = true := sorry
+
+theorem fm_shapes_in_range (shape : UInt32) :
+    (∀ op : UInt32, (Fm.ratio shape op).toNat ≤ 4096 ∧ (Fm.level shape op).toNat ≤ 32767 ∧
+      (Fm.rate shape op).toNat < 65536) ∧
+    (Fm.level shape 1).toNat + (Fm.level shape 2).toNat + (Fm.level shape 3).toNat +
+        (Fm.level shape 4).toNat ≤ 32767 := sorry
+
 -- Proofs/Harmony.lean
 theorem harmony_mask_never_empty (scale key progression step follow : UInt32) :
     (harmonyMask scale key progression step follow).toNat ≠ 0 ∧
