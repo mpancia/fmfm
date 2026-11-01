@@ -242,12 +242,12 @@ theorem filters_setup_cutoff_in_range (pitch parameter : Int32) :
 theorem harmony_mask_never_empty (scale key root follow : UInt32) :
     (harmonyMask scale key root follow).toNat ≠ 0 ∧ (harmonyMask scale key root follow).toNat < 4096 := sorry
 
-theorem harmony_triad_in_key (scale key root : UInt32) :
-    (harmonyMask scale key root 2).toNat &&& (harmonyMask scale key 0 0).toNat =
-      (harmonyMask scale key root 2).toNat := sorry
+theorem harmony_follow_in_key (scale key root follow : UInt32) :
+    (harmonyMask scale key root follow).toNat &&& (harmonyMask scale key 0 0).toNat =
+      (harmonyMask scale key root follow).toNat := sorry
 
-theorem harmony_progression_chord_has_root (scale key progression step : UInt32) :
-    (harmonyMask scale key (harmonyChordRoot scale progression step) 2).toNat.testBit
+theorem harmony_progression_chord_has_root (scale key progression step follow : UInt32) :
+    (harmonyMask scale key (harmonyChordRoot scale progression step) follow).toNat.testBit
       ((key.toNat % 12 + (harmonyChordRoot scale progression step).toNat) % 12) = true := sorry
 
 theorem harmony_chord_root_in_key (scale progression step : UInt32) :

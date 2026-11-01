@@ -334,17 +334,17 @@ scale, key, chord and follow mode the firmware offers.
 Why it matters: `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for the
 chord-following lanes too, so a chord change can never leave a lane with nothing to play.
 
-**`harmony_triad_in_key`**: With TRIAD follow, every note a lane may play is a note of the key's scale, whatever chord
-it is on: the chord is the first, third and fifth of the key's scale from the chord root, not a shape moved to the root.
+**`harmony_follow_in_key`**: With chord follow, 7TH or TRIAD, every note a lane may play is a note of the key's scale,
+whatever chord it is on: the chord is stacked from the key's scale at the chord root, not a shape moved to the root.
 
-Why it matters: a chord progression played with TRIAD follow stays in the key. (The ii chord of C major is D F A, not D
+Why it matters: a chord progression played with chord follow stays in the key. (The ii chord of C major is D F A, not D
 F# A; the second is what a transposed shape gave, and trying to prove this is what caught it.)
 
-**`harmony_progression_chord_has_root`**: With TRIAD follow on a chord of a progression, the chord's root is among the
-lane's notes, in every scale and key.
+**`harmony_progression_chord_has_root`**: With chord follow on a chord of a progression, the chord's root is among the
+lane's notes, in every scale and key (and without follow it is too, being a note of the key).
 
 Why it matters: joined with `harmony_chord_root_in_key`, a progression's chord is a chord of the key with its root
-present; a lane following it can play the root, not only two upper notes of some other triad.
+present; a lane following it can play the root, not only upper notes of some other chord.
 
 **`harmony_chord_root_in_key`**: Every chord root is a note of the key's scale: whatever the progression, scale and
 chord, the root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave.

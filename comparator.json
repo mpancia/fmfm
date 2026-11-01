@@ -56,7 +56,7 @@
     "filters_setup_table_blend_le_top",
     "filters_setup_cutoff_in_range",
     "harmony_mask_never_empty",
-    "harmony_triad_in_key",
+    "harmony_follow_in_key",
     "harmony_progression_chord_has_root",
     "harmony_chord_root_in_key",
     "lane_make_valid",
