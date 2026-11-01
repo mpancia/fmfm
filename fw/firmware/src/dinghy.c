@@ -465,11 +465,16 @@ static const char *const PAGE_LABEL[NPAGES][4] = {
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
     {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"}, {"TIME", "FEEDBK", "TONE", "RETURN"},
     {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", ""},
-    {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "", ""}, {"TARGET", "RATE", "DEPTH", ""}};
+    {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "DEMO", ""}, {"TARGET", "RATE", "DEPTH", ""}};
 static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
 static uint32_t browse_by, browse_type;                                  /* sounds grouped by engine (0) or by type (1) */
-static uint8_t browse_list[NSOUNDS];
+static uint8_t browse_list[NSOUNDS > NBROWSE ? NSOUNDS : NBROWSE];
+/* the patch browser's groups: patch_t.group + 1, then the user slots */
+static const char *const PATCH_GROUP[] = {"ALL", "DEMOS", "SONGS", "CALM", "DREAM", "DRIVE", "PULSE", "DRIFT", "SHIMMER",
+                                          "MACHINE", "FOLK", "USER"};
+#define NPATCH_GROUP (sizeof PATCH_GROUP / sizeof PATCH_GROUP[0])
+static uint32_t browse_patch_group, demo_pick;
 static uint32_t browse_count;
 
 static struct { uint8_t oct, ch, look; } set = {0, 0, ALFRED_LOOK};   /* what survives a power-off */
@@ -607,6 +612,10 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
     case P_BANKS:
         if (k == 0) { p = patch_index >= NPATCHES ? put_str(p, "U") : put_str(p, "P"); p = put_num(p, patch_index >= NPATCHES ? patch_index - NPATCHES + 1u : patch_index + 1u); *fill = frac(patch_index, NBROWSE - 1u); }
         if (k == 1) { p = put_str(p, "USER "); p = put_num(p, save_slot + 1u); *fill = frac(save_slot, NUSER - 1u); }
+        if (k == 2) {                           /* the demo song playing, or the one the knob would load */
+            uint32_t demo = patch_index < NPATCHES && PATCHES[patch_index].group == 0u ? patch_index : demo_pick;
+            p = put_str(p, PATCHES[demo].name); *fill = frac(demo, NDEMO - 1u);
+        }
         break;
     default: break;
     }
@@ -712,6 +721,11 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
     case P_BANKS:
         if (k == 0) patch_load((uint32_t)clamp((int32_t)patch_index + d, 0, (int32_t)NBROWSE - 1));
         if (k == 1) save_slot = (uint32_t)clamp((int32_t)save_slot + d, 0, (int32_t)NUSER - 1);
+        if (k == 2) {                           /* DEMO: step through the demo songs, loading each */
+            uint32_t demo = patch_index < NPATCHES && PATCHES[patch_index].group == 0u ? patch_index : demo_pick;
+            demo_pick = (uint32_t)clamp((int32_t)demo + d, 0, (int32_t)NDEMO - 1);
+            patch_load(demo_pick);
+        }
         break;
     default: break;
     }
@@ -738,12 +752,26 @@ static int browse_fits(uint32_t i)              /* is sound `i` in the chosen gr
     return SOUNDS[i].shape >= FAMILY_FIRST[browse_family] && SOUNDS[i].shape <= FAMILY_LAST[browse_family];
 }
 
-static void browse_build(void)                  /* the sounds of the chosen group, in preset order */
+static int browse_patch_fits(uint32_t i)        /* is patch `i` (a user slot from NPATCHES) in the chosen group? */
+{
+    if (!browse_patch_group) return 1;
+    if (i >= NPATCHES) return browse_patch_group == NPATCH_GROUP - 1u;
+    return PATCHES[i].group + 1u == browse_patch_group;
+}
+
+static void browse_build(void)                  /* the sounds or patches of the chosen group, in preset order */
+{
+    uint32_t i, n = browse_mode == 1u ? NSOUNDS : NBROWSE;
+    browse_count = 0;
+    for (i = 0; i < n; i++)
+        if (browse_mode == 1u ? browse_fits(i) : browse_patch_fits(i)) browse_list[browse_count++] = (uint8_t)i;
+}
+
+static void browse_find(uint32_t item)          /* put the cursor on `item` of the list, or at the top */
 {
     uint32_t i;
-    browse_count = 0;
-    for (i = 0; i < NSOUNDS; i++)
-        if (browse_fits(i)) browse_list[browse_count++] = (uint8_t)i;
+    for (i = 0; i < browse_count && browse_list[i] != item; i++) {}
+    browse_pos = i < browse_count ? i : 0u;
 }
 
 static const char *browse_group(void)           /* the name of the chosen group */
@@ -756,13 +784,13 @@ static void browse_open(uint32_t mode)
     if (browse_mode != mode) {
         browse_mode = mode;
         if (mode == 1u) {
-            uint32_t i;
             browse_family = 0; browse_type = 0;
             browse_build();
-            for (i = 0; i < browse_count && browse_list[i] != cfg[selected].preset; i++) {}
-            browse_pos = i < browse_count ? i : 0u;
+            browse_find(cfg[selected].preset);
         } else {
-            browse_pos = patch_index;
+            browse_patch_group = 0;
+            browse_build();
+            browse_find(patch_index);
         }
     }
     browse_until = fm1_ms + 2500u;
@@ -776,9 +804,18 @@ static void browse_turn(int32_t d)              /* PRESETS: scroll, and the lane
         browse_pos = (uint32_t)clamp((int32_t)browse_pos + d, 0, (int32_t)browse_count - 1);
         set_sound(selected, browse_list[browse_pos]);
     } else {
-        browse_pos = (uint32_t)clamp((int32_t)browse_pos + d, 0, (int32_t)NBROWSE - 1);
-        patch_load(browse_pos);
+        if (!browse_count) return;
+        browse_pos = (uint32_t)clamp((int32_t)browse_pos + d, 0, (int32_t)browse_count - 1);
+        patch_load(browse_list[browse_pos]);
     }
+}
+
+static void browse_patch_group_turn(int32_t d)  /* SELECT while patches are open: another group */
+{
+    uint32_t next = (uint32_t)clamp((int32_t)browse_patch_group + d, 0, (int32_t)NPATCH_GROUP - 1);
+    browse_open(2u);
+    if (next != browse_patch_group) { browse_patch_group = next; browse_build(); browse_pos = 0; }
+    if (browse_count) patch_load(browse_list[browse_pos]);
 }
 
 static void browse_family_turn(int32_t d)       /* SELECT while sounds are open: another group (engine or type) */
@@ -792,13 +829,11 @@ static void browse_family_turn(int32_t d)       /* SELECT while sounds are open:
 
 static void browse_by_turn(void)                /* ALGO while sounds are open: group by engine or by type, keeping the sound */
 {
-    uint32_t i, sound = cfg[selected].preset;
     browse_open(1u);
     browse_by = !browse_by;
     browse_family = 0; browse_type = 0;
     browse_build();
-    for (i = 0; i < browse_count && browse_list[i] != sound; i++) {}
-    browse_pos = i < browse_count ? i : 0u;
+    browse_find(cfg[selected].preset);
 }
 
 /* ---- the screen */
@@ -985,11 +1020,12 @@ static void draw_home_foot(void)                /* HOME: the key and the chord; 
 
 static void draw_browser(void)
 {
-    uint32_t row, rows = 9, first, count = browse_mode == 1u ? browse_count : NBROWSE;
+    uint32_t row, rows = 9, first, count = browse_count;
     char s[44], *p = s;
     cv_begin(240, BAR_H, TH.dim);
-    p = put_str(s, browse_mode == 1u ? "SOUNDS  " : "PATCHES");
+    p = put_str(s, browse_mode == 1u ? "SOUNDS  " : "PATCHES  ");
     if (browse_mode == 1u) { p = put_str(p, browse_by ? "BY TYPE  " : "BY ENGINE  "); p = put_str(p, browse_group()); }
+    else p = put_str(p, PATCH_GROUP[browse_patch_group]);
     *p = 0;
     cv_text(6, 2, &FONT_S, s, TH.hi);
     cv_blit(0, 0);
@@ -997,16 +1033,16 @@ static void draw_browser(void)
     first = browse_pos < rows / 2u ? 0u : browse_pos - rows / 2u;
     if (first + rows > count) first = count > rows ? count - rows : 0u;
     for (row = 0; row < rows && first + row < count; row++) {
-        uint32_t index = first + row;
+        uint32_t index = first + row, item = browse_list[index];
         const char *name;
         char line[44], *q = line;
         uint16_t col = index == browse_pos ? LANE_COLOUR(selected) : TH.mid;
-        if (browse_mode == 1u) name = SOUNDS[browse_list[index]].name;
-        else if (index < NPATCHES) name = PATCHES[index].name;
+        if (browse_mode == 1u) name = SOUNDS[item].name;
+        else if (item < NPATCHES) name = PATCHES[item].name;
         else name = "USER SLOT";
-        q = put_num(q, index + 1u); *q++ = ' ';
+        q = put_num(q, item + 1u); *q++ = ' ';
         q = put_str(q, name);
-        if (browse_mode == 2u && index >= NPATCHES) { *q++ = ' '; q = put_num(q, index - NPATCHES + 1u); }
+        if (browse_mode == 2u && item >= NPATCHES) { *q++ = ' '; q = put_num(q, item - NPATCHES + 1u); }
         *q = 0;
         cv_begin(240, 20, TH.bg);
         if (index == browse_pos) cv_rect(0, 0, 3, 20, col);
@@ -1015,7 +1051,7 @@ static void draw_browser(void)
     }
     cv_begin(240, 22, TH.dim);
     cv_text(6, 3, &FONT_S, browse_mode == 1u ? (browse_by ? "SELECT TYPE   ALGO BY ENGINE" : "SELECT ENGINE   ALGO BY TYPE")
-                                           : "PRESETS SCROLL  SAVE KEEPS", TH.mid);
+                                           : "SELECT GROUP   SAVE KEEPS", TH.mid);
     cv_blit(0, 218);
 }
 
@@ -1184,7 +1220,7 @@ static void app_main(void)
         if ((e = fm1_enc_take(ENC_PRESETS)) != 0) browse_turn(e);
         if ((e = fm1_enc_take(ENC_SELECT)) != 0) {
             if (browse_mode == 1u) browse_family_turn(e);
-            else if (browse_mode == 2u) { browse_pos = (uint32_t)clamp((int32_t)browse_pos + 10 * e, 0, (int32_t)NBROWSE - 1); browse_until = fm1_ms + 2500u; patch_load(browse_pos); }
+            else if (browse_mode == 2u) browse_patch_group_turn(e);
             else selected = (selected + NL + (uint32_t)(e % (int32_t)NL)) % NL;
         }
         if ((e = fm1_enc_take(ENC_ALGORITHM)) != 0) {

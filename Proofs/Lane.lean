@@ -160,7 +160,7 @@ theorem lane_silence_stops_note (l : Lane) : l.silence.off = l.playing ∧ l.sil
 
 /-- Applying a lane's own settings back to it changes nothing, for a consistent lane whose settings are the
 ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 10, mutation up to 100 percent,
-a rhythm source in range with a live automaton row, the step sequencer's cursor inside its loop) and whose
+a rhythm source in range with a live automaton row that fits the bar, the step sequencer's cursor inside its loop) and whose
 gate is the one its speed gives. `make`, `reconfigure`, `setNotes` and `setRhythm` only ever produce such
 lanes.
 Why it matters: saving a patch and loading it again, or redrawing a knob at its current value, cannot alter
@@ -169,7 +169,8 @@ theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.st
     (divMax : l.div ≤ 96) (algoMax : l.rule.algo ≤ 10) (mutateMax : l.rule.mutate ≤ 100) (gate : l.gate = Lane.gateFor l.div)
     (cursor : l.notes.cursor < l.rule.amount) (kind : l.rhythm.kind ≤ 3) (rotate : l.rhythm.rotate < l.steps)
     (accents : l.rhythm.accents ≤ l.hits) (rule : l.rhythm.rule < 256) (ratchet : 1 ≤ l.rhythm.ratchet ∧ l.rhythm.ratchet ≤ 4)
-    (subHits : l.rhythm.subHits ≤ l.rhythm.ratchet) (row : l.rhythm.row < 2 ^ l.steps) (live : l.rhythm.row ≠ 0) :
+    (subHits : l.rhythm.subHits ≤ l.rhythm.ratchet) (row : Rhythm.cut l.steps l.rhythm.row = l.rhythm.row)
+    (live : l.rhythm.row ≠ 0) :
     l.reconfigure l.hits l.steps l.div l.mask = l ∧
       l.setNotes l.rule.algo l.prob l.rule.amount l.rule.mutate = l := by
   obtain ⟨steps, hits, div, maskNe, maskSmall, _, _, _, _, _, prob, amount, amountFits, ⟨_, slot, _, _⟩,
@@ -183,7 +184,7 @@ theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.st
   have rhythm : Rhythm.make l.rhythm.kind l.rhythm.rotate l.rhythm.accents l.rhythm.rule l.rhythm.ratchet
       l.rhythm.subHits (min l.hits l.steps) l.steps l.rhythm.row = l.rhythm := by
     unfold Rhythm.make
-    simp only [Nat.mod_eq_of_lt row, live, ite_false, Nat.min_eq_left hits]
+    simp only [row, live, ite_false, Nat.min_eq_left hits]
     have k : min 3 l.rhythm.kind = l.rhythm.kind := Nat.min_eq_right kind
     have r : l.rhythm.rotate % l.steps = l.rhythm.rotate := Nat.mod_eq_of_lt rotate
     have a : min l.rhythm.accents l.hits = l.rhythm.accents := Nat.min_eq_left accents

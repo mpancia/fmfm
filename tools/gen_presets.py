@@ -250,15 +250,56 @@ def generated_patches(count):
     return out
 
 
-# The boot patch, after Eno's Music for Airports: four lanes on bars of 7, 11, 13 and 5 steps (pairwise coprime,
-# so they realign only every 5005 steps), sparse, in D pentatonic over a slow I-V-vi-IV, with a long reverb.
-# Lane 1 holds the chord's notes; lane 2 is a locked five-note turing phrase on a turned bar; lane 3 a markov
-# bell; lane 4 a grammar on a pad that sometimes rests.
-INIT = ("AIRPORTS", 64, 2, [(1, 7, 7, 2, "3 SIN PAD", 36, 12, 101, (10, 100, 2, 0, 2, 100, 40)),
-                            (3, 11, 5, 2, "FLUTE MID", 60, 12, 102, (6, 100, 5, 0, 1, 100, 50), (1, 2, 1, 90, 1, 1)),
-                            (2, 13, 5, 2, "BELL DARK", 72, 12, 103, (8, 100, 1, 10, 1, 95, 60)),
-                            (1, 5, 7, 2, "GRANULAR PAD", 48, 7, 104, (9, 60, 1, 50, 1, 90, 55))],
-        2, 4, (90, 45, 80), (7, 50, 40, 35))
+# The demo songs: each shows the sequencers off (docs/SEQUENCERS.md). A lane is (hits, steps, speed, scale, sound,
+# low, span, seed, (algo, chance, amount, mutate, chord, level, send), (feel, rotate, accents, rule, ratchet, sub-hits)).
+# Algorithms: 0 random 1 walk 2 up 3 down 4 bounce 5 loop 6 turing 7 step 8 markov 9 grammar 10 chord.
+# Feel: 0 euclid 1 rotate 2 automaton 3 ratchet. The first demo is the boot patch.
+EUCLID = (0, 0, 0, 90, 1, 1)
+DEMOS = [
+    # a clockwork groove: a locked turing bass, an automaton on the hats, ratcheted FM stabs, a markov line
+    ("CLOCKWORK", 112, 2, [(4, 16, 3, 4, "SAW SUB DARK", 36, 12, 201, (6, 100, 8, 0, 2, 100, 10), (1, 0, 2, 90, 1, 1)),
+                           (6, 16, 3, 7, "CYMBAL MID", 60, 1, 202, (0, 100, 1, 0, 0, 70, 20), (2, 0, 0, 30, 1, 1)),
+                           (3, 8, 5, 4, "FM PLUCK", 60, 12, 203, (8, 100, 1, 15, 1, 85, 35), (3, 0, 0, 90, 3, 2)),
+                           (5, 12, 5, 4, "BELL DARK", 72, 12, 204, (1, 70, 2, 0, 1, 70, 60), (1, 3, 2, 90, 1, 1))],
+     2, 2, (60, 60, 60), (4, 40, 65, 35)),
+    # after Eno's Music for Airports: bars of 7, 11, 13 and 5 steps (pairwise coprime, so they realign only every
+    # 5005 steps), sparse, D pentatonic over a slow I-V-vi-IV, a long reverb
+    ("AIRPORTS", 64, 2, [(1, 7, 7, 2, "3 SIN PAD", 36, 12, 101, (10, 100, 2, 0, 2, 100, 40)),
+                         (3, 11, 5, 2, "FLUTE MID", 60, 12, 102, (6, 100, 5, 0, 1, 100, 50), (1, 2, 1, 90, 1, 1)),
+                         (2, 13, 5, 2, "BELL DARK", 72, 12, 103, (8, 100, 1, 10, 1, 95, 60)),
+                         (1, 5, 7, 2, "GRANULAR PAD", 48, 7, 104, (9, 60, 1, 50, 1, 90, 55))],
+     2, 4, (90, 45, 80), (7, 50, 40, 35)),
+    # after Reich: two plucks on the same locked phrase, one on 12 steps and one on 13, drifting apart and back
+    ("PHASES", 120, 7, [(12, 12, 3, 2, "PLUCK MID", 60, 12, 301, (6, 100, 12, 0, 0, 90, 25)),
+                        (13, 13, 3, 2, "PLUCK BRIGHT", 60, 12, 301, (6, 100, 12, 0, 0, 90, 25)),
+                        (1, 8, 7, 2, "SAW SUB DARK", 36, 7, 303, (2, 100, 1, 0, 0, 100, 10)),
+                        (2, 16, 5, 2, "BELL BRIGHT", 72, 12, 304, (0, 40, 1, 0, 0, 60, 60))],
+     0, 1, (50, 65, 55), (3, 30, 70, 25)),
+    # cellular automata: rule 90 draws its triangle on 32 steps, rule 110 crawls on 16, rule 30 boils underneath
+    ("SIERPINSKI", 96, 9, [(1, 32, 3, 9, "BELL MID", 72, 12, 401, (2, 100, 1, 0, 1, 90, 55), (2, 0, 0, 90, 1, 1)),
+                           (1, 16, 5, 9, "WAVETBL PLUCK", 60, 12, 402, (4, 100, 1, 0, 1, 85, 40), (2, 0, 0, 110, 1, 1)),
+                           (2, 16, 3, 9, "TOY MID", 48, 12, 403, (0, 80, 1, 0, 0, 60, 30), (2, 0, 0, 30, 1, 1)),
+                           (1, 4, 7, 9, "3 SAW PAD", 36, 12, 404, (10, 100, 3, 0, 2, 100, 45))],
+     6, 2, (70, 60, 65), (6, 45, 55, 40)),
+    # markov melodies in each style over a walking bass; play the keys and the lanes learn from you
+    ("MARKET", 96, 5, [(4, 8, 5, 4, "SQR SUB MID", 36, 12, 501, (1, 100, 2, 0, 2, 100, 10)),
+                       (5, 8, 3, 4, "VOWEL MID", 60, 12, 502, (8, 90, 1, 10, 1, 90, 35)),
+                       (3, 8, 5, 4, "MORPH WARM", 48, 12, 503, (8, 100, 4, 20, 1, 85, 30)),
+                       (3, 16, 3, 4, "BELL BRIGHT", 72, 12, 504, (8, 60, 2, 10, 1, 70, 60))],
+     5, 2, (55, 60, 60), (6, 35, 60, 30)),
+    # grammars: a fibonacci line, a thue-morse line and a round, in lydian, with the first lane holding the chord
+    ("FIBONACCI", 80, 0, [(1, 4, 7, 9, "3 SIN PAD", 36, 12, 601, (10, 100, 3, 0, 2, 100, 40)),
+                          (8, 8, 5, 9, "FLUTE MID", 60, 12, 602, (9, 100, 1, 75, 1, 95, 45)),
+                          (5, 8, 5, 9, "BOW MID", 48, 12, 603, (9, 100, 3, 50, 1, 85, 40)),
+                          (3, 8, 3, 9, "PLUCK BRIGHT", 72, 12, 604, (9, 80, 4, 100, 1, 80, 50))],
+     6, 2, (75, 55, 70), (6, 40, 50, 35)),
+    # ratchets: a four-on-the-floor kick, a rolling snare, hats that stutter, a bass that doubles up
+    ("RATCHETS", 128, 0, [(4, 16, 3, 7, "KICK MID", 36, 1, 701, (0, 100, 1, 0, 0, 100, 5)),
+                          (2, 16, 3, 7, "SNARE MID", 40, 1, 702, (0, 100, 1, 0, 0, 90, 15), (3, 0, 0, 90, 4, 3)),
+                          (8, 16, 3, 7, "CYMBAL MID", 60, 1, 703, (0, 90, 1, 0, 0, 60, 12), (3, 0, 0, 90, 2, 2)),
+                          (3, 8, 5, 3, "SAW SUB DARK", 36, 12, 704, (6, 100, 6, 5, 0, 100, 10), (3, 0, 0, 90, 2, 1))],
+     0, 1, (30, 70, 45), (1, 25, 80, 25)),
+]
 
 
 def resolve(name, index):
@@ -291,6 +332,7 @@ def render(measurements):
            "} patch_lane_t;",
            "typedef struct {",
            "    const char *name; uint8_t bpm, key, progression, rate, scale_lock;",
+           "    uint8_t group;                                            /* the browser's group: 0 demo, 1 song, 2 + mood */",
            "    uint8_t reverb[3];                                        /* decay, brightness, return */",
            "    uint8_t delay[4];                                         /* note value, feedback, tone, return */",
            "    patch_lane_t lane[4];",
@@ -300,9 +342,10 @@ def render(measurements):
         out.append(f'    {{"{s["name"]}", {s["shape"]}, {s["type"]}, {s["attack"]}, {s["release"]}, {s["env"]}, {s["timbre"]}, '
                    f'{s["color"]}, {s["gain"]}}},')
     out.append("};\n")
-    allp = [INIT] + PATCHES + generated_patches(96)
+    allp = DEMOS + PATCHES + generated_patches(96)
     assert len(snd) < 256, "patch lanes store the sound number in one byte"
     out.append(f"#define NPATCHES {len(allp)}u")
+    out.append(f"#define NDEMO {len(DEMOS)}u                                 /* the first NDEMO patches are the demo songs */")
     out.append("static const patch_t PATCHES[NPATCHES] = {")
     for patch in allp:
         name, bpm, key, lanes = patch[:4]
@@ -314,7 +357,8 @@ def render(measurements):
             feel = lane[9] if len(lane) > 9 else (0, 0, 0, 90, 1, 1)      # feel, rotate, accents, rule, ratchet, sub-hits
             cells.append(f"{{{h}, {st}, {sp}, {sc}, {resolve(snd_name, index)}, {low}, {span}, {', '.join(map(str, extra))}, {seed}, "
                          f"{', '.join(map(str, feel))}}}")
-        out.append(f'    {{"{name}", {bpm}, {key}, {progression}, {rate}, 0, {{{", ".join(map(str, reverb))}}}, {{{", ".join(map(str, delay))}}}, {{{", ".join(cells)}}}}},')
+        group = 0 if patch in DEMOS else 1 if patch in PATCHES else 2 + (allp.index(patch) - len(DEMOS) - len(PATCHES)) % len(MOODS)
+        out.append(f'    {{"{name}", {bpm}, {key}, {progression}, {rate}, 0, {group}, {{{", ".join(map(str, reverb))}}}, {{{", ".join(map(str, delay))}}}, {{{", ".join(cells)}}}}},')
     out.append("};")
     return "\n".join(out) + "\n"
 

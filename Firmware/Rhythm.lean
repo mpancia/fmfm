@@ -14,24 +14,28 @@ structure Rhythm where
   rule : Nat
   ratchet : Nat
   subHits : Nat
-  /-- The automaton's row of hits: bit `step` is set when the step plays. -/
-  row : Nat
+  /-- The automaton's row of hits: bit `step` is set when the step plays (32 bits, one a step). -/
+  row : UInt32
 
 /-- Bit `i` of `row`. -/
-def Rhythm.bit (row i : Nat) : Bool := row.testBit i
+def Rhythm.bit (row : UInt32) (i : Nat) : Bool := (row >>> i.toUInt32) &&& 1 != 0
+
+/-- The low `steps` bits of a row (all of it from 32 steps up). -/
+def Rhythm.cut (steps : Nat) (row : UInt32) : UInt32 :=
+  if steps < 32 then row &&& ((1 <<< steps.toUInt32) - 1) else row
 
 /-- One generation of an elementary cellular automaton over a ring of `steps` cells: each cell becomes bit
 `left * 4 + self * 2 + right` of `rule`, where its neighbours wrap around the bar. -/
-def Automaton.step (rule steps row : Nat) : Nat :=
+def Automaton.step (rule steps : Nat) (row : UInt32) : UInt32 :=
   (List.range steps).foldl (fun acc i =>
     let l := if Rhythm.bit row ((i + steps - 1) % steps) then 4 else 0
     let c := if Rhythm.bit row i then 2 else 0
     let r := if Rhythm.bit row ((i + 1) % steps) then 1 else 0
-    if Rhythm.bit rule (l + c + r) then acc ||| (1 <<< i) else acc) 0
+    if rule.testBit (l + c + r) then acc ||| (1 <<< i.toUInt32) else acc) 0
 
 /-- The Euclidean pattern as a row of bits. -/
-def Rhythm.seedRow (hits steps : Nat) : Nat :=
-  (List.range steps).foldl (fun acc i => if Euclid.hit hits steps i then acc ||| (1 <<< i) else acc) 0
+def Rhythm.seedRow (hits steps : Nat) : UInt32 :=
+  (List.range steps).foldl (fun acc i => if Euclid.hit hits steps i then acc ||| (1 <<< i.toUInt32) else acc) 0
 
 /-- The index of the step `step` looks at in the Euclidean pattern: turned back by `rotate` for kind 1. -/
 def Rhythm.source (r : Rhythm) (steps step : Nat) : Nat :=
@@ -64,8 +68,8 @@ def Rhythm.endBar (r : Rhythm) (steps : Nat) : Rhythm :=
 /-- Settings forced into range: kind 0 to 3, rotation below `steps`, accents at most the hits, a rule byte,
 ratchet 1 to 4 with sub-hits at most the ratchet. The row is cut to the bar and seeded from the pattern when
 it would be empty. -/
-def Rhythm.make (kind rotate accents rule ratchet subHits hits steps row : Nat) : Rhythm :=
+def Rhythm.make (kind rotate accents rule ratchet subHits hits steps : Nat) (row : UInt32) : Rhythm :=
   let ratchet := max 1 (min 4 ratchet)
-  let cut := row % (2 ^ steps)
+  let cut := Rhythm.cut steps row
   { kind := min 3 kind, rotate := rotate % steps, accents := min accents hits, rule := rule % 256, ratchet,
-    subHits := min subHits ratchet, row := if cut = 0 then Rhythm.seedRow hits steps % (2 ^ steps) else cut }
+    subHits := min subHits ratchet, row := if cut = 0 then Rhythm.cut steps (Rhythm.seedRow hits steps) else cut }

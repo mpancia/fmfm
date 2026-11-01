@@ -25,8 +25,8 @@ same button again moves to the group's next page. The four knobs set the four va
 
 | Control | Does |
 |---|---|
-| SELECT | choose a lane (in the browser: the sound group, or ten patches at a time) |
-| PRESETS | open the browser and scroll: sounds (199) in EDIT, patches (122 factory, 8 user) elsewhere. Sounds are grouped by engine (analog, filter, voice, FM, physical, percussion, wavetable, noise) or by type (tone, pluck, pad, drum); ALGO switches the grouping while the browser is open, SELECT picks the group |
+| SELECT | choose a lane (in the browser: the sound or patch group) |
+| PRESETS | open the browser and scroll: sounds (199) in EDIT, patches (128 factory, 8 user) elsewhere, grouped as ALL, DEMOS, SONGS, the moods and USER (SELECT picks the group). Sounds are grouped by engine (analog, filter, voice, FM, physical, percussion, wavetable, noise) or by type (tone, pluck, pad, drum); ALGO switches the grouping while the browser is open, SELECT picks the group |
 | ALGORITHM | tempo |
 | PLAY | start or stop the clock (stopping silences every lane) |
 | SEL | mute the chosen lane |

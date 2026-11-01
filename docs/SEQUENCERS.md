@@ -54,12 +54,18 @@ The FEEL settings are saved with the lane (`Firmware/Patch.lean`, layout version
 patch; `patch_decode_encode_round_trip` covers them, and a slot with a rotation past its steps or more
 accents than hits does not load). Version 1 slots from before no longer load.
 
-## The boot patch: AIRPORTS
+## The demo songs
 
-Patch 0, loaded at power-on, follows Brian Eno's *Music for Airports*: independent loops of incommensurable
-lengths, sparse, in one consonant scale, with a long reverb. Four lanes on bars of 7, 11, 13 and 5 steps
-(pairwise coprime: they realign only every 5005 steps), 64 BPM, D pentatonic, chords I-V-vi-IV every four bars:
-lane 1 holds the chord's tones on a sine pad (CHORD, triad follow); lane 2 is a locked five-note TURING phrase on
-a bar turned by two with one accent; lane 3 a MARKOV bell in the STEPS style; lane 4 a FIBO GRAMMAR on a granular
-pad that plays six times in ten. Rendered by `tools/render_web.mjs`: peak -12.9 dBFS, no clipping, around
--30 dBFS with the dips the sparseness gives; nobody has listened to it.
+The first seven patches (the DEMOS group of the browser, and the DEMO knob on GLO > BANKS, which steps through
+them) each show the sequencers off; CLOCKWORK is the boot patch. Rendered by `tools/render_web.mjs`, none
+clips (peaks -7 to -15 dBFS); nobody has listened to them.
+
+| Demo | What it shows |
+|---|---|
+| CLOCKWORK (112, D dorian) | a locked TURING bass with an accent, rule 30 AUTOMATON hats, RATCHET FM stabs, a MARKOV line on a turned bar |
+| AIRPORTS (64, D pentatonic) | after Eno: bars of 7, 11, 13 and 5 steps (coprime: they realign every 5005 steps), a CHORD pad, a locked TURING flute, a MARKOV bell, a GRAMMAR pad that rests |
+| PHASES (120, G pentatonic) | after Reich: the same locked twelve-note phrase on 12 and on 13 steps, drifting apart and back |
+| SIERPINSKI (96, A lydian) | rule 90 draws its triangle on 32 steps, rule 110 crawls on 16, rule 30 boils underneath, a CHORD pad |
+| MARKET (96, F dorian) | MARKOV in every style over a walking bass; play the keys and the chosen lane learns |
+| FIBONACCI (80, C lydian) | the three GRAMMARS at three depths over a CHORD pad |
+| RATCHETS (128, chromatic drums) | a four-on-the-floor kick, a RATCHET snare and hats, a TURING bass that doubles up |
