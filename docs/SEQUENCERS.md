@@ -46,7 +46,11 @@ loop, register and automaton row, and an unlearnt chain.
   (`notes_markov_moves_at_most_three`, `notes_grammar_moves_at_most_two`, `notes_walk_bounded`); LOOP with no
   mutation repeats exactly (`notes_loop_repeats`), which STEP shares.
 - TURING with FLIP 0 is an exact loop of LENGTH notes (`notes_turing_locked_repeats`).
-- Not proved: rotation keeping the hit count, and anything about which rules of the automaton live or die.
+- ROTATE keeps the number of hits (`rhythm_rotate_keeps_hits`); rule 0 is silence, rule 255 is every step, rule
+  204 freezes the bar (`rhythm_rule_zero_dies`, `rhythm_rule_full_fills`, `rhythm_rule_204_freezes`); a patch's FEEL
+  settings come back exactly when it loads (`lane_from_patch_keeps_feel`).
+- Not proved: anything about which other rules live or die, or the markov chain's learnt weights beyond their
+  range.
 
 ## In patches
 

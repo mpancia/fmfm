@@ -1,4 +1,5 @@
 import Spec.Lane
+import Firmware.Patch
 import Proofs.Random
 import Proofs.Quantizer
 import Proofs.Notes
@@ -220,3 +221,29 @@ theorem lane_learn_valid (l : Lane) (valid : Lane.Valid l) (note : Nat) : Lane.V
   exact ⟨by assumption, by assumption, by assumption, by assumption, by assumption, by assumption, by assumption,
     by assumption, by assumption, by assumption, by assumption, by assumption, by assumption, notesOk,
     by assumption, by assumption, by assumption, by assumption⟩
+
+/-- A patch lane that fits gives a lane with exactly the rhythm source the patch holds: none of the clamps on
+the way (`Lane.make`, `Rhythm.make`) change a fitting value.
+Why it matters: the FEEL settings a patch saves are the ones it plays back; what you hear after loading is
+what you heard before saving. -/
+theorem lane_from_patch_keeps_feel (p : PatchLane) (fits : p.Fits) (div mask : Nat) (seed : UInt32) :
+    let l := (Lane.make p.hits p.steps div mask p.low p.span seed).setRhythm p.feel p.rotate p.accents p.rule
+      p.ratchet p.subHits true
+    l.rhythm.kind = p.feel ∧ l.rhythm.rotate = p.rotate ∧ l.rhythm.accents = p.accents ∧
+      l.rhythm.rule = p.rule ∧ l.rhythm.ratchet = p.ratchet ∧ l.rhythm.subHits = p.subHits ∧
+      l.hits = p.hits ∧ l.steps = p.steps := by
+  obtain ⟨hits, steps1, steps32, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, feel, rotate, accents, rule,
+    ratchet1, ratchet4, sub1, subR⟩ := fits
+  intro l
+  have stepsEq : Lane.clamp 1 32 p.steps = p.steps := by unfold Lane.clamp; omega
+  have mk : (Lane.make p.hits p.steps div mask p.low p.span seed).hits = p.hits ∧
+      (Lane.make p.hits p.steps div mask p.low p.span seed).steps = p.steps := by
+    unfold Lane.make
+    simp only [stepsEq]
+    exact ⟨Nat.min_eq_left hits, trivial⟩
+  simp only [l, Lane.setRhythm, Rhythm.make, mk.1, mk.2]
+  refine ⟨Nat.min_eq_right (by omega), Nat.mod_eq_of_lt rotate, Nat.min_eq_left accents, Nat.mod_eq_of_lt rule, ?_, ?_, ?_, ?_⟩
+  · omega
+  · omega
+  · trivial
+  · trivial

@@ -7,3 +7,4 @@ import Spec.Analog
 import Spec.Smooth
 import Spec.Reverb
 import Spec.Arp
+import Spec.Rhythm
