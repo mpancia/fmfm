@@ -194,8 +194,9 @@ static const char *const PROGRESSION_NAME[] = {"OFF", "1-4-5-1", "1-5-6-4", "6-4
 static const uint8_t RATE_BARS[] = {1, 2, 4};
 static const uint16_t ATTACK_MS[4] = {2, 6, 25, 190};
 static const uint16_t RELEASE_MS[7] = {10, 30, 90, 230, 580, 1200, 2300};
-static const char *const FAMILY_NAME[] = {"ALL", "ANALOG", "FILTER", "VOICE", "FM", "PHYSICAL", "PERCUSSION", "WAVETABLE", "NOISE"};
-static const uint8_t FAMILY_FIRST[] = {0, 0, 17, 21, 25, 28, 32, 37, 41}, FAMILY_LAST[] = {47, 16, 20, 24, 27, 31, 36, 40, 47};
+static const char *const FAMILY_NAME[] = {"ALL", "ANALOG", "FILTER", "VOICE", "FM", "PHYSICAL", "PERCUSSION", "WAVETABLE", "NOISE",
+                                          "4-OP FM"};   /* the last: the FM voice of Firmware/Fm.lean, shapes 48 on */
+static const uint8_t FAMILY_FIRST[] = {0, 0, 17, 21, 25, 28, 32, 37, 41, 48}, FAMILY_LAST[] = {55, 16, 20, 24, 27, 31, 36, 40, 47, 55};
 #define NFAMILY (sizeof FAMILY_NAME / sizeof FAMILY_NAME[0])
 static const char *const TYPE_NAME[] = {"ALL", "TONE", "PLUCK", "PAD", "DRUM"};     /* sound_t.type + 1 */
 #define NTYPE (sizeof TYPE_NAME / sizeof TYPE_NAME[0])
@@ -662,11 +663,14 @@ static char *put_note(char *p, uint32_t note)
     return p;
 }
 
-/* the label of value `k` on page `pg`: the FEEL and NOTES pages name their knobs after the source chosen */
+/* the label of value `k` on page `pg`: the FEEL and NOTES pages name their knobs after the source chosen, and
+ * the SOUND page names TIMBRE and COLOUR after what they do on an FM shape (Firmware/Fm.lean): the modulation
+ * depth and operator 4's feedback */
 static const char *page_label(uint32_t pg, uint32_t k)
 {
     if (pg == P_FEEL && k > 0u) return FEEL_LABEL[cfg[selected].feel % NFEEL][k - 1u];
     if (pg == P_NOTES && (k == 1u || k == 2u)) return ALGO_LABEL[cfg[selected].algo % NALGO][k - 1u];
+    if (pg == P_SOUND && cfg[selected].sound.shape >= 48u && (k == 1u || k == 2u)) return k == 1u ? "DEPTH" : "FEEDBK";
     return PAGE_LABEL[pg][k];
 }
 
@@ -722,8 +726,13 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         break;
     case P_SOUND:
         if (k == 0) { p = put_str(p, braids_shape_name(snd->shape)); *fill = frac(snd->shape, BRAIDS_SHAPES - 1u); }
-        if (k == 1) { p = put_num(p, (uint32_t)snd->timbre >> 7); *fill = frac(snd->timbre, 32767); }
-        if (k == 2) { p = put_num(p, (uint32_t)snd->color >> 7); *fill = frac(snd->color, 32767); }
+        if (snd->shape >= 48u) {                /* FM: depth as a percentage of the shape's own (200 at the top), feedback 0 to 100 */
+            if (k == 1) { p = put_num(p, (uint32_t)snd->timbre * 100u / 16384u); *p++ = '%'; *fill = frac(snd->timbre, 32767); }
+            if (k == 2) { p = put_num(p, (uint32_t)snd->color * 100u / 32767u); *p++ = '%'; *fill = frac(snd->color, 32767); }
+        } else {
+            if (k == 1) { p = put_num(p, (uint32_t)snd->timbre >> 7); *fill = frac(snd->timbre, 32767); }
+            if (k == 2) { p = put_num(p, (uint32_t)snd->color >> 7); *fill = frac(snd->color, 32767); }
+        }
         if (k == 3) { p = put_num(p, snd->gain * 100u / 256u); *p++ = '%'; *fill = frac(snd->gain, 1024); }
         break;
     case P_ENVELOPE:
