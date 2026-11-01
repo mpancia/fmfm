@@ -45,8 +45,8 @@ loop, register and automaton row, and an unlearnt chain.
 - MARKOV never moves more than three positions, GRAMMAR more than two, WALK more than its STEP
   (`notes_markov_moves_at_most_three`, `notes_grammar_moves_at_most_two`, `notes_walk_bounded`); LOOP with no
   mutation repeats exactly (`notes_loop_repeats`), which STEP shares.
-- Not proved: the turing register's loop period (FLIP 0 repeats every LENGTH notes by construction), rotation
-  keeping the hit count, and anything about which rules of the automaton live or die.
+- TURING with FLIP 0 is an exact loop of LENGTH notes (`notes_turing_locked_repeats`).
+- Not proved: rotation keeping the hit count, and anything about which rules of the automaton live or die.
 
 ## Not yet in patches
 

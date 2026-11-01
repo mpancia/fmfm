@@ -68,6 +68,7 @@
     "notes_markov_moves_at_most_three",
     "notes_grammar_moves_at_most_two",
     "notes_learn_keeps_valid",
+    "notes_turing_locked_repeats",
     "patch_decode_encode_round_trip",
     "patch_decode_only_fits",
     "patch_decode_rejects_wrong_marker",

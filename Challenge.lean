@@ -318,6 +318,9 @@ theorem notes_learn_keeps_valid (rule : NoteRule) (span : Nat) (s : NoteState) (
     (positive : 0 < span) (valid : NoteState.Valid span rule.amount s) :
     NoteState.Valid span rule.amount (Notes.learn rule span s offset) := sorry
 
+theorem notes_turing_locked_repeats (len span : Nat) (s : NoteState) (lenPos : 0 < len) (lenMax : len ≤ 16) :
+    (Notes.picks ⟨6, len, 0⟩ span len s).2.shift % 2 ^ len = s.shift % 2 ^ len := sorry
+
 -- Proofs/Patch.lean
 theorem patch_decode_encode_round_trip (p : Patch) (fits : p.Fits) :
     Patch.decode (Patch.encode p) = some p := sorry

@@ -292,6 +292,10 @@ Why it matters: the grammar shapes a line of steps and thirds, never a leap, wha
 
 Why it matters: nothing you play can corrupt the memory the lane plays from.
 
+**`notes_turing_locked_repeats`**: TURING with FLIP at 0 is a locked loop: after `len` picks the register's `len`-bit window is exactly what it was, so the notes repeat every `len` picks (once the bits above the window, which the first picks still read, have been pushed out).
+
+Why it matters: FLIP at zero is a promise of an exact loop of LENGTH notes, the hook a listener can hold on to; turning FLIP up is the only way the loop changes.
+
 ## Patch
 
 **`patch_decode_encode_round_trip`**: Saving a patch and loading the bytes back gives the same patch, for every patch the knobs can produce.

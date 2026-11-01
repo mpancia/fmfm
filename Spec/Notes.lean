@@ -52,3 +52,12 @@ def Notes.picks (rule : NoteRule) (span : Nat) : Nat → NoteState → List Nat 
     let c := Notes.choose rule span 4095 48 s 0 0 0
     let (rest, final) := Notes.picks rule span n c.state
     (c.offset :: rest, final)
+
+/-- One locked turing shift (TURING with FLIP 0): the register moves up one bit, cut to 16 bits, and bit
+`len - 1` comes round to the bottom. -/
+def Turing.shift (len reg : Nat) : Nat := ((reg <<< 1) % 65536) ||| (reg >>> (len - 1)) % 2
+
+/-- `k` locked shifts. -/
+def Turing.shifts (len : Nat) : Nat → Nat → Nat
+  | 0, reg => reg
+  | k + 1, reg => Turing.shifts len k (Turing.shift len reg)

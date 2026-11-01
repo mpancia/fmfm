@@ -204,3 +204,75 @@ theorem notes_learn_keeps_valid (rule : NoteRule) (span : Nat) (s : NoteState) (
     exact ⟨cut, slot, len, mem⟩
   · exact ⟨cut, slot, full, below⟩
   · exact ⟨pos, slot, full, below⟩
+
+/-- Bit `i` of the shifted register, inside the window of `len` bits: the old bit one below, or the top bit at
+the bottom. -/
+private theorem notes_turing_shift_bit (len reg i : Nat) (lenPos : 0 < len) (lenMax : len ≤ 16) (inside : i < len) :
+    (Turing.shift len reg).testBit i = reg.testBit ((i + len - 1) % len) := by
+  unfold Turing.shift
+  rw [show (65536 : Nat) = 2 ^ 16 by rfl, Nat.testBit_or, Nat.testBit_mod_two_pow, Nat.testBit_shiftLeft]
+  have top : ((reg >>> (len - 1)) % 2).testBit i = (i = 0 && reg.testBit (len - 1)) := by
+    rw [show (2 : Nat) = 2 ^ 1 by rfl, Nat.testBit_mod_two_pow, Nat.testBit_shiftRight]
+    cases i with
+    | zero => simp
+    | succ j => simp
+  rw [top]
+  cases i with
+  | zero =>
+    simp only [Nat.zero_add, decide_true, Bool.true_and]
+    rw [Nat.mod_eq_of_lt (by omega)]
+    simp
+  | succ j =>
+    have e : (j + 1 + len - 1) % len = j := by
+      rw [show j + 1 + len - 1 = j + len by omega, Nat.add_mod_right]
+      exact Nat.mod_eq_of_lt (by omega)
+    rw [e]
+    simp only [Nat.add_sub_cancel, Nat.succ_ne_zero, decide_false, Bool.false_and, Bool.or_false]
+    simp [show j + 1 < 16 by omega]
+
+/-- After `k` shifts, bit `i` of the window is the old bit `k * (len - 1)` places round. -/
+private theorem notes_turing_shifts_bit (len reg : Nat) (lenPos : 0 < len) (lenMax : len ≤ 16) :
+    ∀ k i, i < len → (Turing.shifts len k reg).testBit i = reg.testBit ((i + k * (len - 1)) % len) := by
+  intro k
+  induction k generalizing reg with
+  | zero => intro i inside; simp [Turing.shifts, Nat.mod_eq_of_lt inside]
+  | succ k ih =>
+    intro i inside
+    simp only [Turing.shifts]
+    rw [ih (Turing.shift len reg) i inside, notes_turing_shift_bit len reg _ lenPos lenMax (Nat.mod_lt _ lenPos)]
+    congr 1
+    rw [show (i + k * (len - 1)) % len + len - 1 = (i + k * (len - 1)) % len + (len - 1) by omega,
+      Nat.add_mod, Nat.mod_mod, ← Nat.add_mod, show i + (k + 1) * (len - 1) = i + k * (len - 1) + (len - 1) by
+        rw [Nat.succ_mul]; omega]
+
+private theorem notes_turing_window_repeats (len reg : Nat) (lenPos : 0 < len) (lenMax : len ≤ 16) :
+    Turing.shifts len len reg % 2 ^ len = reg % 2 ^ len := by
+  apply Nat.eq_of_testBit_eq
+  intro i
+  rw [Nat.testBit_mod_two_pow, Nat.testBit_mod_two_pow]
+  by_cases inside : i < len
+  · simp only [inside, decide_true, Bool.true_and]
+    rw [notes_turing_shifts_bit len reg lenPos lenMax len i inside]
+    congr 1
+    rw [Nat.add_mod, Nat.mul_mod_right, Nat.add_zero, Nat.mod_mod, Nat.mod_eq_of_lt inside]
+  · simp [inside]
+
+/-- With FLIP at 0 the turing register of `Notes.choose` is the locked shift. -/
+private theorem notes_turing_pick_is_shift (len span : Nat) (s : NoteState) (n : Nat) :
+    (Notes.picks ⟨6, len, 0⟩ span n s).2.shift = Turing.shifts len n s.shift := by
+  induction n generalizing s with
+  | zero => rfl
+  | succ n ih =>
+    simp only [Notes.picks, Turing.shifts]
+    rw [ih]
+    rfl
+
+/-- TURING with FLIP at 0 is a locked loop: after `len` picks the register's `len`-bit window is exactly what it
+was, so the notes repeat every `len` picks (once the bits above the window, which the first picks still read,
+have been pushed out).
+Why it matters: FLIP at zero is a promise of an exact loop of LENGTH notes, the hook a listener can hold on to;
+turning FLIP up is the only way the loop changes. -/
+theorem notes_turing_locked_repeats (len span : Nat) (s : NoteState) (lenPos : 0 < len) (lenMax : len ≤ 16) :
+    (Notes.picks ⟨6, len, 0⟩ span len s).2.shift % 2 ^ len = s.shift % 2 ^ len := by
+  rw [notes_turing_pick_is_shift]
+  exact notes_turing_window_repeats len s.shift lenPos lenMax
