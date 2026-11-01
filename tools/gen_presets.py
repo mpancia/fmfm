@@ -95,7 +95,7 @@ def sounds(measurements):
 
 
 # One row per patch: name, bpm, key (semitones above C), then four lanes of
-# (hits, steps, speed index, scale index, sound, lowest note, note span, seed).
+# (hits, steps, speed index, scale index, sound, lowest note, note span, seed[, extras[, feel]]).
 # speed index into [1/48 1/32 1/24 1/16 1/12 1/8 1/6 1/4]; scale index into
 # [MAJOR MINOR PENT+ PENT- DORIAN H.MIN WHOLE CHROM PHRYG LYDIAN BLUES UKR.D DBL.H H.MAJ].
 PATCHES = [
@@ -276,6 +276,7 @@ def render(measurements):
            "    uint8_t hits, steps, speed, scale, sound, low, span;     /* rhythm, scale, sound, note range */",
            "    uint8_t algo, chance, amount, mutate, chord, level, send; /* note algorithm, chord follow (0 off 1 scale 2 triad), reverb send */",
            "    uint16_t seed;",
+           "    uint8_t feel, rotate, accents, rule, ratchet, subhits;   /* the rhythm source: 0 euclid 1 rotate 2 automaton 3 ratchet */",
            "} patch_lane_t;",
            "typedef struct {",
            "    const char *name; uint8_t bpm, key, progression, rate, scale_lock;",
@@ -298,7 +299,9 @@ def render(measurements):
         for pos, lane in enumerate(lanes):
             h, st, sp, sc, snd_name, low, span, seed = lane[:8]
             extra = lane[8] if len(lane) > 8 else HAND_EXTRAS[pos] if span > 1 else (0, 100, 1, 0, 0, 100, ROLE_SEND['hat'])
-            cells.append(f"{{{h}, {st}, {sp}, {sc}, {resolve(snd_name, index)}, {low}, {span}, {', '.join(map(str, extra))}, {seed}}}")
+            feel = lane[9] if len(lane) > 9 else (0, 0, 0, 90, 1, 1)      # feel, rotate, accents, rule, ratchet, sub-hits
+            cells.append(f"{{{h}, {st}, {sp}, {sc}, {resolve(snd_name, index)}, {low}, {span}, {', '.join(map(str, extra))}, {seed}, "
+                         f"{', '.join(map(str, feel))}}}")
         out.append(f'    {{"{name}", {bpm}, {key}, {progression}, {rate}, 0, {{{", ".join(map(str, reverb))}}}, {{{", ".join(cells)}}}}},')
     out.append("};")
     return "\n".join(out) + "\n"

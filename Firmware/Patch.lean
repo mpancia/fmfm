@@ -22,6 +22,13 @@ structure PatchLane where
   level : Nat
   send : Nat
   seed : Nat
+  /-- The rhythm source (the FEEL page): kind, rotation, accents, automaton rule, ratchet, sub-hits. -/
+  feel : Nat
+  rotate : Nat
+  accents : Nat
+  rule : Nat
+  ratchet : Nat
+  subHits : Nat
 
 /-- A whole patch: the global settings and four lanes. Every field is stored as one byte. -/
 structure Patch where
@@ -42,13 +49,15 @@ structure Patch where
   lane3 : PatchLane
 
 /-- The lane settings the knobs can produce: 1 to 32 steps with no more hits than steps, 8 speeds, 14 scales,
-199 sounds, lowest note 12 to 96, range 1 to 36, 6 algorithms, percentages at most 100, amount 1 to 16, chord
-follow 0 to 2, and a 16-bit seed. -/
+199 sounds, lowest note 12 to 96, range 1 to 36, 11 algorithms, percentages at most 100, amount 1 to 16, chord
+follow 0 to 2, a 16-bit seed, and a rhythm source in range: 4 kinds, a rotation below the steps, no more
+accents than hits, a rule byte, a ratchet of 1 to 4 with 1 to `ratchet` sub-hits. -/
 def PatchLane.Fits (l : PatchLane) : Prop :=
   l.hits ≤ l.steps ∧ 1 ≤ l.steps ∧ l.steps ≤ 32 ∧ l.speed < 8 ∧ l.scale < 14 ∧ l.sound < 199 ∧
-  12 ≤ l.low ∧ l.low ≤ 96 ∧ 1 ≤ l.span ∧ l.span ≤ 36 ∧ l.algo < 6 ∧ l.chance ≤ 100 ∧
+  12 ≤ l.low ∧ l.low ≤ 96 ∧ 1 ≤ l.span ∧ l.span ≤ 36 ∧ l.algo < 11 ∧ l.chance ≤ 100 ∧
   1 ≤ l.amount ∧ l.amount ≤ 16 ∧ l.mutate ≤ 100 ∧ l.chord ≤ 2 ∧ l.level ≤ 100 ∧ l.send ≤ 100 ∧
-  l.seed < 65536
+  l.seed < 65536 ∧ l.feel < 4 ∧ l.rotate < l.steps ∧ l.accents ≤ l.hits ∧ l.rule < 256 ∧
+  1 ≤ l.ratchet ∧ l.ratchet ≤ 4 ∧ 1 ≤ l.subHits ∧ l.subHits ≤ l.ratchet
 
 instance (l : PatchLane) : Decidable l.Fits := by unfold PatchLane.Fits; infer_instance
 
@@ -61,27 +70,31 @@ def Patch.Fits (p : Patch) : Prop :=
 
 instance (p : Patch) : Decidable p.Fits := by unfold Patch.Fits; infer_instance
 
-/-- The 16 bytes of a lane, in field order; the seed is big-endian. -/
+/-- The 22 bytes of a lane, in field order; the seed is big-endian. -/
 def PatchLane.bytes (l : PatchLane) : List UInt8 :=
   [UInt8.ofNat l.hits, UInt8.ofNat l.steps, UInt8.ofNat l.speed, UInt8.ofNat l.scale, UInt8.ofNat l.sound,
    UInt8.ofNat l.low, UInt8.ofNat l.span, UInt8.ofNat l.algo, UInt8.ofNat l.chance, UInt8.ofNat l.amount,
    UInt8.ofNat l.mutate, UInt8.ofNat l.chord, UInt8.ofNat l.level, UInt8.ofNat l.send,
-   UInt8.ofNat (l.seed / 256), UInt8.ofNat (l.seed % 256)]
+   UInt8.ofNat (l.seed / 256), UInt8.ofNat (l.seed % 256), UInt8.ofNat l.feel, UInt8.ofNat l.rotate,
+   UInt8.ofNat l.accents, UInt8.ofNat l.rule, UInt8.ofNat l.ratchet, UInt8.ofNat l.subHits]
 
-/-- A lane read from the front of `bytes`, with the bytes after it; `none` if fewer than 16 are left. -/
+/-- A lane read from the front of `bytes`, with the bytes after it; `none` if fewer than 22 are left. -/
 def PatchLane.ofBytes : List UInt8 → Option (PatchLane × List UInt8)
   | hits :: steps :: speed :: scale :: sound :: low :: span :: algo :: chance :: amount :: mutate :: chord ::
-      level :: send :: seedHigh :: seedLow :: rest =>
+      level :: send :: seedHigh :: seedLow :: feel :: rotate :: accents :: rule :: ratchet :: subHits :: rest =>
     some ({ hits := hits.toNat, steps := steps.toNat, speed := speed.toNat, scale := scale.toNat,
             sound := sound.toNat, low := low.toNat, span := span.toNat, algo := algo.toNat,
             chance := chance.toNat, amount := amount.toNat, mutate := mutate.toNat, chord := chord.toNat,
-            level := level.toNat, send := send.toNat, seed := seedHigh.toNat * 256 + seedLow.toNat }, rest)
+            level := level.toNat, send := send.toNat, seed := seedHigh.toNat * 256 + seedLow.toNat,
+            feel := feel.toNat, rotate := rotate.toNat, accents := accents.toNat, rule := rule.toNat,
+            ratchet := ratchet.toNat, subHits := subHits.toNat }, rest)
   | _ => none
 
-/-- The 74 bytes of a patch as they sit in a flash slot: the marker byte 0xA7, the layout version 1, the
-eight global settings, then the four lanes. -/
+/-- The 98 bytes of a patch as they sit in a flash slot: the marker byte 0xA7, the layout version 2, the
+eight global settings, then the four lanes. (Version 1 slots, 74 bytes without the rhythm source, no longer
+load.) -/
 def Patch.bytes (p : Patch) : List UInt8 :=
-  [0xA7, 1, UInt8.ofNat p.bpm, UInt8.ofNat p.key, UInt8.ofNat p.progression, UInt8.ofNat p.rate,
+  [0xA7, 2, UInt8.ofNat p.bpm, UInt8.ofNat p.key, UInt8.ofNat p.progression, UInt8.ofNat p.rate,
    UInt8.ofNat p.scaleLock, UInt8.ofNat p.reverbTime, UInt8.ofNat p.reverbBright, UInt8.ofNat p.reverbAmount]
   ++ p.lane0.bytes ++ p.lane1.bytes ++ p.lane2.bytes ++ p.lane3.bytes
 
@@ -89,7 +102,7 @@ def Patch.bytes (p : Patch) : List UInt8 :=
 length. -/
 def Patch.ofBytes : List UInt8 → Option Patch
   | marker :: version :: bpm :: key :: prog :: rate :: scaleLock :: time :: bright :: amount :: lanes => do
-    guard (marker = 0xA7 ∧ version = 1)
+    guard (marker = 0xA7 ∧ version = 2)
     let (lane0, lanes) ← PatchLane.ofBytes lanes
     let (lane1, lanes) ← PatchLane.ofBytes lanes
     let (lane2, lanes) ← PatchLane.ofBytes lanes

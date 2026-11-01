@@ -48,7 +48,8 @@ loop, register and automaton row, and an unlearnt chain.
 - TURING with FLIP 0 is an exact loop of LENGTH notes (`notes_turing_locked_repeats`).
 - Not proved: rotation keeping the hit count, and anything about which rules of the automaton live or die.
 
-## Not yet in patches
+## In patches
 
-The FEEL settings (source, rotation, accents, rule, ratchet, sub-hits) live in RAM only; a saved patch loads
-with a plain Euclidean bar. The NOTES settings are saved as before.
+The FEEL settings are saved with the lane (`Firmware/Patch.lean`, layout version 2: 22 bytes a lane, 98 a
+patch; `patch_decode_encode_round_trip` covers them, and a slot with a rotation past its steps or more
+accents than hits does not load). Version 1 slots from before no longer load.

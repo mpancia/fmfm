@@ -280,7 +280,8 @@ static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint
         cfg[i].low = src[i].low; cfg[i].span = src[i].span; cfg[i].seed = src[i].seed; cfg[i].algo = src[i].algo;
         cfg[i].chance = src[i].chance; cfg[i].amount = src[i].amount; cfg[i].mutate = src[i].mutate;
         cfg[i].chord = src[i].chord; cfg[i].level = src[i].level; cfg[i].send = src[i].send; cfg[i].muted = 0;
-        cfg[i].feel = 0; cfg[i].rotate = 0; cfg[i].accents = 0; cfg[i].rule = 90; cfg[i].ratchet = 1; cfg[i].subhits = 1;   /* a plain Euclid bar */
+        cfg[i].feel = src[i].feel; cfg[i].rotate = src[i].rotate; cfg[i].accents = src[i].accents; cfg[i].rule = src[i].rule;
+        cfg[i].ratchet = src[i].ratchet; cfg[i].subhits = src[i].subhits;
         set_sound(i, src[i].sound);
         lean_dec(lane[i]);
         lane[i] = fm1_lane_make(cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i), cfg[i].low, cfg[i].span,
@@ -333,6 +334,9 @@ static void patch_load(uint32_t index)
             d->mutate = (uint8_t)fm1_patch_lane_field_of(l, 10); d->chord = (uint8_t)fm1_patch_lane_field_of(l, 11);
             d->level = (uint8_t)fm1_patch_lane_field_of(l, 12); d->send = (uint8_t)fm1_patch_lane_field_of(l, 13);
             d->seed = (uint16_t)fm1_patch_lane_field_of(l, 14);
+            d->feel = (uint8_t)fm1_patch_lane_field_of(l, 15); d->rotate = (uint8_t)fm1_patch_lane_field_of(l, 16);
+            d->accents = (uint8_t)fm1_patch_lane_field_of(l, 17); d->rule = (uint8_t)fm1_patch_lane_field_of(l, 18);
+            d->ratchet = (uint8_t)fm1_patch_lane_field_of(l, 19); d->subhits = (uint8_t)fm1_patch_lane_field_of(l, 20);
             lean_dec(l);
         }
         for (i = 0; i < 3u; i++) reverb[i] = (uint8_t)fm1_patch_field_of(user, 5u + i);
@@ -353,7 +357,8 @@ static void patch_save(uint32_t slot)
     for (i = 0; i < NL; i++)
         lanes[i] = fm1_patch_lane_make(cfg[i].hits, cfg[i].steps, cfg[i].speed, cfg[i].scale, cfg[i].preset, cfg[i].low,
                                        cfg[i].span, cfg[i].algo, cfg[i].chance, cfg[i].amount, cfg[i].mutate, cfg[i].chord,
-                                       cfg[i].level, cfg[i].send, cfg[i].seed);
+                                       cfg[i].level, cfg[i].send, cfg[i].seed, cfg[i].feel, cfg[i].rotate, cfg[i].accents,
+                                       cfg[i].rule, cfg[i].ratchet, cfg[i].subhits);
     patch = fm1_patch_make(bpm, key, progression, rate_bars, scale_lock, reverb_time, reverb_bright, reverb_amount,
                            lanes[0], lanes[1], lanes[2], lanes[3]);
     bytes = fm1_patch_encode(patch);
