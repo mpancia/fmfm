@@ -25,7 +25,7 @@ GROUPS = [
      "tables are checked rather than assumed, and each engine's sample is the exact arithmetic clipped rather than "
      "wrapped, except where Braids itself can overflow (listed in docs/LEAN-ENGINES.md).",
      ["Pitch", "Tables", "BraidsData", "Fm", "FmLock", "FmSymmetry", "FmEnvelope", "FmAlgorithms", "FmDeviation",
-      "FmRange", "Analog", "Digital", "Blend", "Filters", "Noise", "Percussion", "Physical",
+      "FmRange", "Drum", "Analog", "Digital", "Blend", "Filters", "Filter", "Noise", "Percussion", "Physical",
       "Vowels", "Wavetables"]),
     ("Setting a voice up",
      "The per-note and per-block work: a sound's parameters land in range, the smoothing never overshoots, and "

@@ -127,14 +127,18 @@ def main():
     funcs, skipped = runnable(exports())
     objects = sorted(str(p) for p in (ROOT / "build/lean/host").glob("*.o"))
     objects += sorted(str(p) for p in (ROOT / "build/braids/host").glob("*.o"))   # the tables the Lean reads through C
-    for api in sorted((ROOT / "build/lean_gen").glob("*Api.c")):       # the modules the glue includes inline
+    glued = run("sh", "tools/glue_modules.sh").stdout.split()           # the modules the glue includes inline
+    for api in sorted(p for p in (ROOT / "build/lean_gen").glob("*Api.c") if p.stem in glued):
         obj = OUT / (api.stem + ".o")
         run(*cc, "-c", str(api), "-o", str(obj))
         objects.append(str(obj))
     (OUT / "check.c").write_text(c_program(funcs, samples))
     run(*cc, "-c", str(OUT / "check.c"), "-o", str(OUT / "check.o"))
-    run("c++", "-m32", "-o", str(OUT / "check"), str(OUT / "check.o"), *objects, str(ROOT / "build/init/host/libInit.a"),
-        "-Wl,--gc-sections", "-Wl,--unresolved-symbols=ignore-all")
+    link = subprocess.run(["c++", "-m32", "-o", str(OUT / "check"), str(OUT / "check.o"), *objects,
+                           str(ROOT / "build/init/host/libInit.a"), "-Wl,--gc-sections", "-Wl,--unresolved-symbols=ignore-all"],
+                          cwd=ROOT, env=env, capture_output=True, text=True)
+    if link.returncode:
+        print(link.stderr[-2000:]); sys.exit(1)
     missing = [l.split()[-1] for l in run("nm", "-u", str(OUT / "check")).stdout.splitlines()
                if " U " in l and "GLIBC" not in l and "__" not in l and "initialize_" not in l]   # initialisers never run
     if missing:

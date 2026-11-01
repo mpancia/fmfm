@@ -69,4 +69,8 @@ import Firmware.Fm
 import Firmware.FmApi
 import Firmware.Punch
 import Firmware.PunchApi
+import Firmware.Filter
+import Firmware.FilterApi
+import Firmware.Drum
+import Firmware.DrumApi
 import Firmware.Keys

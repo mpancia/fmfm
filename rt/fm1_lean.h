@@ -46,6 +46,19 @@ uint32_t fm1_lfo_modulate(uint32_t base, uint32_t depth, uint32_t phase);   /* b
 /* Firmware/Swing.lean: scalar, safe in any context */
 uint32_t fm1_swing_tick_length(uint32_t phase, uint32_t swing);          /* ten-thousandths of a straight tick; swing 0..100 */
 
+/* Firmware/Filter.lean: the per-voice state-variable filter. Per block: active (0 means leave the stream alone),
+ * g (Q15, from the cutoff 0..100), k (Q13, from the resonance 0..100), a1 and a2 (Q15). Per sample, in this order:
+ * v1, v2, out (within 32767), then next for each state (within 65536). Int32 values travel as uint32_t. */
+uint32_t fm1_filter_active(uint32_t cutoff, uint32_t resonance);
+uint32_t fm1_filter_g(uint32_t cutoff);
+uint32_t fm1_filter_k(uint32_t resonance);
+uint32_t fm1_filter_a1(uint32_t g, uint32_t k);
+uint32_t fm1_filter_a2(uint32_t g, uint32_t k);
+uint32_t fm1_filter_v1(uint32_t ic1, uint32_t ic2, uint32_t x, uint32_t a1, uint32_t a2);
+uint32_t fm1_filter_v2(uint32_t ic2, uint32_t v1, uint32_t g);
+uint32_t fm1_filter_out(uint32_t mode, uint32_t x, uint32_t v1, uint32_t v2, uint32_t k);
+uint32_t fm1_filter_next(uint32_t ic, uint32_t v);
+
 /* Firmware/Clock.lean: the clock accumulator (ten-thousandths of a tick): advanced by dt ms at bpm and the punch-in
  * tempo in percent; never wraps for a gap under 20 s, and HALF and DOUBLE are half and double to within a tick. */
 uint32_t fm1_clock_advance(uint32_t acc, uint32_t dt, uint32_t bpm, uint32_t tempo);

@@ -38,7 +38,9 @@ static struct {
     volatile uint16_t send;                     /* how much goes to the reverb, 256 = all */
     volatile int32_t pan_left, pan_right;       /* Q15 gains of the lane's pan (Mix.panLeft, Mix.panRight) */
     volatile uint8_t shape, attack, release, env, strike;
+    volatile uint8_t cutoff, resonance, fenv, ftype;   /* the voice's filter (Firmware/Filter.lean); cutoff 100, resonance 0 is none */
     int32_t amp;                                /* the level now: glides to gate, no clicks */
+    int32_t ic1, ic2;                           /* the filter's two states */
     uint32_t age;
     uint8_t note;
 } voice[NV];
@@ -59,11 +61,26 @@ static void render_voice(uint32_t v, int32_t *out, int32_t *bus, uint32_t n)
     int32_t amp = voice[v].amp, g = voice[v].gate;
     const int32_t up = ATTACK[voice[v].attack & 3u], down = RELEASE[voice[v].release % 7u];
     uint32_t i, j;
-    if (voice[v].strike) { voice[v].strike = 0; braids_voice_strike(vmem[v]); }
+    if (voice[v].strike) { voice[v].strike = 0; braids_voice_strike(vmem[v]); voice[v].ic1 = 0; voice[v].ic2 = 0; }
     for (i = 0; i < n; i += BRAIDS_BLOCK) {
         int32_t timbre = voice[v].timbre + ((amp * (int32_t)voice[v].env) >> 6);   /* brighter while loud */
+        uint32_t cutoff = voice[v].cutoff + (uint32_t)((amp * (int32_t)voice[v].fenv) >> 17);   /* the envelope opens it */
         braids_voice_set(vmem[v], voice[v].shape, voice[v].pitch, timbre > 32767 ? 32767 : timbre, voice[v].color);
         braids_voice_render(vmem[v], block, BRAIDS_BLOCK);
+        if (cutoff > 100u) cutoff = 100u;
+        if (fm1_filter_active(cutoff, voice[v].resonance)) {   /* the per-voice filter: Firmware/Filter.lean, per sample */
+            const uint32_t g = fm1_filter_g(cutoff), k = fm1_filter_k(voice[v].resonance);
+            const uint32_t a1 = fm1_filter_a1(g, k), a2 = fm1_filter_a2(g, k), mode = voice[v].ftype;
+            int32_t ic1 = voice[v].ic1, ic2 = voice[v].ic2;
+            for (j = 0; j < BRAIDS_BLOCK; j++) {
+                int32_t v1 = (int32_t)fm1_filter_v1((uint32_t)ic1, (uint32_t)ic2, (uint32_t)(int32_t)block[j], a1, a2);
+                int32_t v2 = (int32_t)fm1_filter_v2((uint32_t)ic2, (uint32_t)v1, g);
+                block[j] = (int16_t)(int32_t)fm1_filter_out(mode, (uint32_t)(int32_t)block[j], (uint32_t)v1, (uint32_t)v2, k);
+                ic1 = (int32_t)fm1_filter_next((uint32_t)ic1, (uint32_t)v1);
+                ic2 = (int32_t)fm1_filter_next((uint32_t)ic2, (uint32_t)v2);
+            }
+            voice[v].ic1 = ic1; voice[v].ic2 = ic2;
+        }
         for (j = 0; j < BRAIDS_BLOCK; j++) {
             int32_t s;                                                    /* the arithmetic is Lean: Firmware/Mix.lean */
             amp = (int32_t)fm1_mix_envelope_step((uint32_t)amp, (uint32_t)g, (uint32_t)up, (uint32_t)down);
@@ -169,6 +186,8 @@ static void play(uint32_t note, uint32_t vel, const sound_t *sound, uint32_t sen
     voice[pick].attack = sound->attack;
     voice[pick].release = sound->release;
     voice[pick].env = sound->env;
+    voice[pick].cutoff = sound->cutoff; voice[pick].resonance = sound->resonance; voice[pick].fenv = sound->fenv;
+    voice[pick].ftype = sound->ftype;
     voice[pick].send = (uint16_t)(send * 256u / 100u);
     voice[pick].pan_left = (int32_t)fm1_mix_pan_left(pan); voice[pick].pan_right = (int32_t)fm1_mix_pan_right(pan);
     voice[pick].strike = 1;
@@ -221,8 +240,8 @@ static const uint8_t RATE_BARS[] = {1, 2, 4};
 static const uint16_t ATTACK_MS[4] = {2, 6, 25, 190};
 static const uint16_t RELEASE_MS[7] = {10, 30, 90, 230, 580, 1200, 2300};
 static const char *const FAMILY_NAME[] = {"ALL", "ANALOG", "FILTER", "VOICE", "FM", "PHYSICAL", "PERCUSSION", "WAVETABLE", "NOISE",
-                                          "4-OP FM"};   /* the last: the FM voice of Firmware/Fm.lean, shapes 48 on */
-static const uint8_t FAMILY_FIRST[] = {0, 0, 17, 21, 25, 28, 32, 37, 41, 48}, FAMILY_LAST[] = {55, 16, 20, 24, 27, 31, 36, 40, 47, 55};
+                                          "4-OP FM", "808"};   /* the last two: Firmware/Fm.lean (shapes 48 on), Firmware/Drum.lean (56 on) */
+static const uint8_t FAMILY_FIRST[] = {0, 0, 17, 21, 25, 28, 32, 37, 41, 48, 56}, FAMILY_LAST[] = {65, 16, 20, 24, 27, 31, 36, 40, 47, 55, 65};
 #define NFAMILY (sizeof FAMILY_NAME / sizeof FAMILY_NAME[0])
 static const char *const TYPE_NAME[] = {"ALL", "TONE", "PLUCK", "PAD", "DRUM"};     /* sound_t.type + 1 */
 #define NTYPE (sizeof TYPE_NAME / sizeof TYPE_NAME[0])
@@ -642,17 +661,18 @@ static void demo_poll(void)
 /* ---- pages: four values on screen, four knobs under them */
 enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO, G_ARP, G_PUNCH };
 enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_PAN, P_REVERB, P_DELAY, P_HARMONY, P_SYSTEM,
-       P_MIDI, P_BANKS, P_LFO, P_ARP, P_PUNCH, P_QUANT, NPAGES };
+       P_MIDI, P_BANKS, P_LFO, P_ARP, P_PUNCH, P_QUANT, P_FILTER, NPAGES };
 #define NGROUPS 8u
 static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO", "ARP", "REC"};
-static const uint8_t GROUP_PAGE[NGROUPS][4] = {{P_HOME, 255, 255, 255}, {P_RHYTHM, P_FEEL, P_NOTES, P_RANGE},
-                                               {P_SOUND, P_ENVELOPE, P_MIX, P_PAN}, {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS},
-                                               {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}, {P_ARP, P_QUANT, 255, 255},
-                                               {P_PUNCH, 255, 255, 255}, {P_QUANT, 255, 255, 255}};
+static const uint8_t GROUP_PAGE[NGROUPS][5] = {{P_HOME, 255, 255, 255, 255}, {P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, 255},
+                                               {P_SOUND, P_FILTER, P_ENVELOPE, P_MIX, P_PAN},
+                                               {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS, 255}, {P_REVERB, P_DELAY, 255, 255, 255},
+                                               {P_LFO, 255, 255, 255, 255}, {P_ARP, P_QUANT, 255, 255, 255},
+                                               {P_PUNCH, 255, 255, 255, 255}};
 static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_EDIT, G_FX, G_FX, G_GLO,
-                                           G_GLO, G_GLO, G_GLO, G_LFO, G_ARP, G_PUNCH, G_ARP};
+                                           G_GLO, G_GLO, G_GLO, G_LFO, G_ARP, G_PUNCH, G_ARP, G_EDIT};
 static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "PAN", "REVERB",
-                                              "DELAY", "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS", "PUNCH", "QUANT"};
+                                              "DELAY", "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS", "PUNCH", "QUANT", "FILTER"};
 static const char *const PAGE_LABEL[NPAGES][4] = {
     {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"FEEL", "", "", ""}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
@@ -660,7 +680,8 @@ static const char *const PAGE_LABEL[NPAGES][4] = {
     {"TIME", "FEEDBK", "TONE", "RETURN"},
     {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", "SWING"},
     {"IN", "OUT", "CLOCK", ""}, {"PATCH", "SLOT", "DEMO", "AUTO"}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"},
-    {"STUTTER", "GATE", "CRUSH", "SHIFT"}, {"QUANT", "", "", ""}};
+    {"STUTTER", "GATE", "CRUSH", "SHIFT"}, {"QUANT", "", "", ""}, {"CUTOFF", "RESO", "ENV", "TYPE"}};
+static const char *const FTYPE_NAME[3] = {"LOW", "BAND", "HIGH"};
 static const char *const QUANT_NAME[3] = {"OFF", "SCALE", "CHORD"};   /* Firmware/Keys.lean: the white keys as degrees */
 static uint32_t quant;
 static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO, P_ARP, P_PUNCH};
@@ -776,6 +797,12 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
             if (k == 2) { p = put_num(p, (uint32_t)snd->color >> 7); *fill = frac(snd->color, 32767); }
         }
         if (k == 3) { p = put_num(p, snd->gain * 100u / 256u); *p++ = '%'; *fill = frac(snd->gain, 1024); }
+        break;
+    case P_FILTER:
+        if (k == 0) { p = put_num(p, snd->cutoff); *fill = frac(snd->cutoff, 100); }
+        if (k == 1) { p = put_num(p, snd->resonance); *fill = frac(snd->resonance, 100); }
+        if (k == 2) { p = put_num(p, snd->fenv); *fill = frac(snd->fenv, 100); }
+        if (k == 3) { p = put_str(p, FTYPE_NAME[snd->ftype % 3u]); CHOICE(snd->ftype, 3); }
         break;
     case P_ENVELOPE:
         if (k == 0) { p = put_num(p, ATTACK_MS[snd->attack]); p = put_str(p, " MS"); *fill = frac(snd->attack, 3); }
@@ -909,6 +936,12 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
         if (k == 2) snd->color = (uint16_t)clamp(snd->color + d * 512, 0, 32767);
         if (k == 3) snd->gain = (uint16_t)clamp(snd->gain + d * 16, 32, 1024);
         break;
+    case P_FILTER:
+        if (k == 0) snd->cutoff = (uint8_t)clamp(snd->cutoff + 2 * d, 0, 100);
+        if (k == 1) snd->resonance = (uint8_t)clamp(snd->resonance + 2 * d, 0, 100);
+        if (k == 2) snd->fenv = (uint8_t)clamp(snd->fenv + 2 * d, 0, 100);
+        if (k == 3) snd->ftype = (uint8_t)clamp(snd->ftype + d, 0, 2);
+        break;
     case P_ENVELOPE:
         if (k == 0) snd->attack = (uint8_t)clamp(snd->attack + d, 0, 3);
         if (k == 1) snd->release = (uint8_t)clamp(snd->release + d, 0, 6);
@@ -994,7 +1027,7 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
 static void goto_group(uint32_t g)              /* tap a group button: enter it, or move to its next page */
 {
     uint32_t pages = 0, i;
-    while (pages < 4u && GROUP_PAGE[g][pages] != 255u) pages++;
+    while (pages < 5u && GROUP_PAGE[g][pages] != 255u) pages++;
     if (PAGE_GROUP[page] == g) {
         for (i = 0; i < pages && GROUP_PAGE[g][i] != page; i++) {}
         page = GROUP_PAGE[g][(i + 1u) % pages];

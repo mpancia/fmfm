@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* A synth voice: one Braids macro oscillator (all 48 shapes of Braids, MIT, Emilie Gillet; see
- * LICENSE-braids.txt) or, for shapes 48 on, the four-operator FM voice (voices/fm_glue.c, Firmware/Fm.lean),
- * behind a small C interface. Pitch is in 1/128 semitone (MIDI note n is n * 128), the two
+ * LICENSE-braids.txt), for shapes 48 to 55 the four-operator FM voice (voices/fm_glue.c, Firmware/Fm.lean), and for
+ * shapes 56 to 65 the 808 drum voice (voices/drum_glue.c, Firmware/Drum.lean), behind a small C interface. Pitch is in 1/128 semitone (MIDI note n is n * 128), the two
  * timbre values run 0..32767. Render in blocks of at most BRAIDS_BLOCK samples. */
 #pragma once
 #include <stdint.h>
@@ -11,8 +11,8 @@ extern "C" {
 #endif
 
 #define BRAIDS_BLOCK 16u
-#define BRAIDS_SHAPES 56u                         /* 48 Braids shapes, then the 8 FM shapes (voices/fm_glue.h) */
-#define BRAIDS_VOICE_BYTES 17536u                 /* room for one voice; the C++ side checks it is enough */
+#define BRAIDS_SHAPES 66u                         /* 48 Braids shapes, 8 FM shapes (voices/fm_glue.h), 10 drums (voices/drum_glue.h) */
+#define BRAIDS_VOICE_BYTES 17664u                 /* room for one voice; the C++ side checks it is enough */
 
 void braids_voice_init(void *voice);
 void braids_voice_set(void *voice, uint32_t shape, int32_t pitch, int32_t timbre, int32_t color);

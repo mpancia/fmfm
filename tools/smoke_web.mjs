@@ -8,6 +8,7 @@ const BTN = { PLAY: 12, EDIT: 6, SEQ: 11, GLO: 7, HOME: 8, SAVE: 9, FX: 2, LFO: 
 const ENC = { SELECT: 0, ALGORITHM: 1, K1: 2, K2: 3, K3: 4, K4: 5, PRESETS: 6 };
 let mem, inp, ms = 0, reports = [], frame = new Uint16Array(240 * 240);
 const peaks = new Map();                               // half-second -> loudest sample in it
+const crossings = new Map();                           // half-second -> zero crossings (a brightness proxy)
 const events = [];                                     // [ms, fn(dataview)]
 const shots = {};
 const at = (t, fn) => events.push([t, fn]);
@@ -24,8 +25,9 @@ const imports = { env: {
   },
   js_audio(ptr, n) {
     const a = new Int16Array(mem.buffer, ptr, n * 2);
-    let p = 0; for (const v of a) p = Math.max(p, Math.abs(v));
+    let p = 0, z = 0; for (let i = 0; i < a.length; i += 2) { p = Math.max(p, Math.abs(a[i])); if (i >= 2 && (a[i] < 0) !== (a[i - 2] < 0)) z++; }
     const half = Math.floor(ms / 500); peaks.set(half, Math.max(peaks.get(half) ?? 0, p));
+    crossings.set(half, (crossings.get(half) ?? 0) + z);
   },
   js_frame(ptr) { frame = new Uint16Array(mem.buffer.slice(ptr, ptr + 240 * 240 * 2)); },
   js_report(ptr, fatal) {
@@ -69,7 +71,7 @@ at(19200, press(BTN.LFO)); at(19300, shot('lfo')); at(19350, turn(ENC.K1, 1)); a
 at(19500, press(BTN.ENV)); at(19600, shot('env'));
 // every Braids shape in turn (EDIT: SOUND; knob 1 is the shape)
 at(20000, press(BTN.EDIT));
-for (let i = 0; i < 55; i++) at(20100 + i * 170, turn(ENC.K1, 1));
+for (let i = 0; i < 65; i++) at(20100 + i * 145, turn(ENC.K1, 1));
 // the reverb: send and return full up, play, stop, and the tail must ring on, then die away
 at(30000, press(BTN.FX));
 at(30100, turn(ENC.K1, 20)); at(30110, turn(ENC.K4, 20)); at(30200, press(BTN.HOME));
@@ -89,7 +91,10 @@ at(56000, keys(1 << 7)); at(58500, keys(0)); at(58600, press(BTN.HOME));
 // QUANT (ARP twice with nothing held): SCALE, then a chromatic run on the keys sounds and the page shows the setting
 at(59000, press(BTN.ARP)); at(59100, press(BTN.ARP)); at(59200, turn(ENC.K1, 1)); at(59300, shot('quant'));
 at(59400, keys(1 << 8)); at(60200, keys(1 << 9)); at(61000, keys(0)); at(61100, press(BTN.HOME));
-const END = 62000;
+// the per-voice filter (EDIT, EDIT: the FILTER page): lane 1's cutoff down to 10 for two seconds, then back up
+at(61200, press(BTN.EDIT)); at(61300, press(BTN.EDIT)); at(61350, shot('filter')); at(61400, turn(ENC.K1, -45));
+at(64400, turn(ENC.K1, 45)); at(64500, press(BTN.HOME));
+const END = 67000;
 events.sort((a, b) => a[0] - b[0]);
 const inst = await WebAssembly.instantiate(mod, imports);
 mem = inst.exports.memory; inp = inst.exports.web_in_ptr();
@@ -138,6 +143,10 @@ const before = peak(48000, 49500), muted = peak(52000, 53400), after = peak(5450
 ok(`BREAK held mutes every lane and letting go brings them back (${before}, ${muted}, ${after})`, before > 1000 && muted < before / 4 && after > 1000);
 ok(`GATE chops the mix and HOME ends the punch-ins (${gated}, ${left})`, gated > 500 && left > 1000);
 ok('ARP twice with nothing held is the QUANT page', changed(shots.quant, shots.punch) > 500 && changed(shots.quant, shots['home 2']) > 500);
+const zc = (from, to) => { let n = 0; for (let t = from; t < to; t += 500) n += crossings.get(t / 500) ?? 0; return n; };
+const bright = zc(59500, 61000), dark = zc(62000, 64000), back = zc(65000, 67000);
+ok(`the FILTER page's cutoff darkens lane 1 and lets it back (zero crossings ${bright}, ${dark}, ${back})`,
+   changed(shots.filter, shots['sound page']) > 300 && dark < bright * 0.75 && back > dark);
 const scaleMask = inst.exports.web_harmony_mask;
 const bits = (m) => m.toString(2).split('1').length - 1;
 ok('the scales are real: minor in C is 0x5AD, major in D is major turned up two semitones, a triad has three notes',

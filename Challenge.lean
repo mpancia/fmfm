@@ -207,6 +207,95 @@ theorem divider_pulse_count (div ticks : Nat) (positive : 0 < div) :
 theorem divider_count_bounded (div ticks count : Nat) (below : count < div) :
     (Divider.run div count ticks).1 < div := sorry
 
+-- Proofs/Drum.lean
+theorem drum_noise_period :
+    Drum.lfsrAfter 1 65535 = 1 ∧ ∀ k, 0 < k → k < 65535 → Drum.lfsrAfter 1 k ≠ 1 := sorry
+
+theorem drum_noise_never_dies (s : UInt32) (small : s.toNat < 65536) (live : s ≠ 0) :
+    Drum.lfsr s ≠ 0 ∧ (Drum.lfsr s).toNat < 65536 := sorry
+
+theorem drum_noise_in_range (s : UInt32) : (Drum.noise s).toInt.natAbs ≤ 32767 := sorry
+
+theorem drum_one_pole_stays_between (y x a : Int32) (unit : 0 ≤ a.toInt ∧ a.toInt ≤ 16384)
+    (xs : x.toInt.natAbs ≤ 65535) (ys : y.toInt.natAbs ≤ 65535) :
+    (Drum.onePole y x a).toInt = y.toInt + (x.toInt - y.toInt) * a.toInt / 16384 ∧
+      (y.toInt ≤ x.toInt → y.toInt ≤ (Drum.onePole y x a).toInt ∧ (Drum.onePole y x a).toInt ≤ x.toInt) ∧
+      (x.toInt ≤ y.toInt → x.toInt ≤ (Drum.onePole y x a).toInt ∧ (Drum.onePole y x a).toInt ≤ y.toInt) ∧
+      (Drum.highPass (Drum.onePole y x a) x).toInt = x.toInt - (Drum.onePole y x a).toInt ∧
+      (Drum.highPass (Drum.onePole y x a) x).toInt.natAbs ≤ x.toInt.natAbs + y.toInt.natAbs := sorry
+
+theorem drum_envelope_only_falls (env rate : UInt32) (unit : env.toNat ≤ 2 ^ 24)
+    (small : rate.toNat < 65536) :
+    (Drum.envelope env rate).toNat ≤ env.toNat ∧
+      env.toNat - env.toNat / 16 - 1 ≤ (Drum.envelope env rate).toNat ∧
+      (rate = 0 → Drum.envelope env rate = env) := sorry
+
+theorem drum_sweep_lands (inc target rate : UInt32) (nyquist : inc.toNat < 2 ^ 31)
+    (small : rate.toNat < 8192) :
+    (target ≤ inc → target ≤ Drum.sweep inc target rate ∧ Drum.sweep inc target rate ≤ inc) ∧
+      (inc ≤ target → Drum.sweep inc target rate = target) := sorry
+
+theorem drum_sweep_start_below_nyquist (target colour : UInt32) :
+    (Drum.sweepStart target colour).toNat < 2 ^ 31 := sorry
+
+theorem drum_metal_sum_fits (p1 p2 p3 p4 p5 p6 : UInt32) :
+    (Drum.metal p1 p2 p3 p4 p5 p6).toInt.natAbs ≤ 32766 := sorry
+
+theorem drum_square_in_range (phase : UInt32) : (Drum.square phase).toInt.natAbs ≤ 5461 := sorry
+
+theorem drum_gain_never_amplifies (env level : UInt32) (unit : env.toNat ≤ 2 ^ 24)
+    (lv : level.toNat ≤ 32767) : (Drum.gain env level).toNat ≤ level.toNat := sorry
+
+theorem drum_metal_chain_bounded (p1 p2 p3 p4 p5 p6 : UInt32) (lp1 lp2 aH aL : Int32) (gain : UInt32)
+    (l1 : lp1.toInt.natAbs ≤ 32767) (l2 : lp2.toInt.natAbs ≤ 65535)
+    (h : 0 ≤ aH.toInt ∧ aH.toInt ≤ 16384) (l : 0 ≤ aL.toInt ∧ aL.toInt ≤ 16384) (g : gain.toNat ≤ 32767) :
+    (Drum.metal p1 p2 p3 p4 p5 p6).toInt.natAbs ≤ 32766 ∧
+      (Drum.onePole lp1 (Drum.metal p1 p2 p3 p4 p5 p6) aH).toInt.natAbs ≤ 32767 ∧
+      (Drum.onePole lp2 (Drum.highPass (Drum.onePole lp1 (Drum.metal p1 p2 p3 p4 p5 p6) aH)
+        (Drum.metal p1 p2 p3 p4 p5 p6)) aL).toInt.natAbs ≤ 65535 ∧
+      (Drum.bandOut (Drum.metal p1 p2 p3 p4 p5 p6) lp1 lp2 aH aL gain).toInt.natAbs ≤ 262140 := sorry
+
+theorem drum_output_never_wraps (phase p2 p3 p4 p5 p6 noise : UInt32) (lp1 lp2 lp3 lp4 aH aL uH uL : Int32)
+    (gA gB : UInt32) (l1 : lp1.toInt.natAbs ≤ 32767) (l2 : lp2.toInt.natAbs ≤ 65535)
+    (l3 : lp3.toInt.natAbs ≤ 32767) (l4 : lp4.toInt.natAbs ≤ 65535)
+    (h : 0 ≤ aH.toInt ∧ aH.toInt ≤ 16384) (l : 0 ≤ aL.toInt ∧ aL.toInt ≤ 16384)
+    (uh : 0 ≤ uH.toInt ∧ uH.toInt ≤ 16384) (ul : 0 ≤ uL.toInt ∧ uL.toInt ≤ 16384)
+    (ga : gA.toNat ≤ 32767) (gb : gB.toNat ≤ 32767) :
+    (Drum.tunedOut phase noise lp1 aL gA gB).toInt.natAbs ≤ 524280 ∧
+      (Drum.snareOut phase p2 noise lp1 aH gA gB).toInt.natAbs ≤ 524280 ∧
+      (Drum.clapOut noise lp1 lp2 aH aL gA gB).toInt.natAbs ≤ 524280 ∧
+      (Drum.bandOut (Drum.metal phase p2 p3 p4 p5 p6) lp1 lp2 aH aL gA).toInt.natAbs ≤ 262140 ∧
+      (Drum.bandOut (Drum.square phase + Drum.square p2) lp1 lp2 aH aL gA).toInt.natAbs ≤ 262140 ∧
+      (Drum.cymbalOut phase p2 p3 p4 p5 p6 lp1 lp2 lp3 lp4 aH aL uH uL gA gB).toInt.natAbs ≤ 524280 ∧
+      (∀ mix : Int32, (Drum.saturate mix).toInt.natAbs ≤ 32767 ∧
+        (mix.toInt.natAbs ≤ 32767 → (Drum.saturate mix).toInt = mix.toInt)) := sorry
+
+theorem drum_shapes_in_range (shape timbre colour : UInt32) :
+    (Drum.decay (Drum.rate shape) timbre).toNat < 65536 ∧
+      (Drum.decay (Drum.secondRate shape) timbre).toNat < 65536 ∧
+      (Drum.sweepRate shape).toNat < 8192 ∧
+      (Drum.level shape colour).toNat ≤ 32767 ∧ (Drum.secondLevel shape colour).toNat ≤ 32767 ∧
+      (Drum.highCoefficient shape colour).toNat ≤ 16384 ∧ (Drum.lowCoefficient shape).toNat ≤ 16384 ∧
+      (Drum.upperCoefficient 0).toNat ≤ 16384 ∧ (Drum.upperCoefficient 1).toNat ≤ 16384 := sorry
+
+theorem drum_tails :
+    (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 0) 21983).toNat ∧
+      (Drum.envelopeAfter (2 ^ 24) (Drum.rate 0) 21984).toNat < 2 ^ 24 / 100) ∧
+    (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 1) 6616).toNat ∧
+      (Drum.envelopeAfter (2 ^ 24) (Drum.rate 1) 6617).toNat < 2 ^ 24 / 100) ∧
+    (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 3) 2192).toNat ∧
+      (Drum.envelopeAfter (2 ^ 24) (Drum.rate 3) 2193).toNat < 2 ^ 24 / 100) ∧
+    (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 4) 17841).toNat ∧
+      (Drum.envelopeAfter (2 ^ 24) (Drum.rate 4) 17842).toNat < 2 ^ 24 / 100) ∧
+    (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 5) 13205).toNat ∧
+      (Drum.envelopeAfter (2 ^ 24) (Drum.rate 5) 13206).toNat < 2 ^ 24 / 100) ∧
+    (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 6) 11032).toNat ∧
+      (Drum.envelopeAfter (2 ^ 24) (Drum.rate 6) 11033).toNat < 2 ^ 24 / 100) ∧
+    (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 7) 8816).toNat ∧
+      (Drum.envelopeAfter (2 ^ 24) (Drum.rate 7) 8817).toNat < 2 ^ 24 / 100) ∧
+    (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 9) 65567).toNat ∧
+      (Drum.envelopeAfter (2 ^ 24) (Drum.rate 9) 65568).toNat < 2 ^ 24 / 100) := sorry
+
 -- Proofs/Euclid.lean
 theorem euclid_hit_count (hits steps : Nat) (positive : 0 < steps) (fits : hits ≤ steps) :
     Euclid.countHits hits steps steps = hits := sorry
@@ -230,6 +319,45 @@ theorem euclid_bjorklund_is_rotation (steps : Nat) (positive : 0 < steps) (small
 
 theorem euclid_major_scale_is_seven_of_twelve :
     Euclid.mask 7 6 = Harmony.scale 0 ∧ Euclid.mask 5 7 = Harmony.scale 2 := sorry
+
+-- Proofs/Filter.lean
+theorem filter_open_is_identity (mode : UInt32) (ic1 ic2 x : Int32) :
+    Filter.active 100 0 = false ∧ Filter.step 100 0 mode ic1 ic2 x = ⟨x, ic1, ic2⟩ := sorry
+
+theorem filter_states_stay_bounded (ic1 ic2 x : Int32) (g a1 a2 k mode : UInt32)
+    (s1 : ic1.toInt.natAbs ≤ 65536) (s2 : ic2.toInt.natAbs ≤ 65536) (sample : x.toInt.natAbs ≤ 65536)
+    (hg : g.toNat ≤ 32767) (h1 : a1.toNat ≤ 32767) (h2 : a2.toNat ≤ 32767) (hk : k.toNat ≤ 16384) :
+    (∀ ic v : Int32, (Filter.next ic v).toInt.natAbs ≤ 65536) ∧
+    (Filter.band ic1 ic2 x a1 a2).toInt =
+        a1.toNat * ic1.toInt / 32768 + a2.toNat * ((x.toInt - ic2.toInt) / 2) / 16384 ∧
+    (Filter.v1 ic1 ic2 x a1 a2).toInt.natAbs ≤ 65536 ∧
+    (Filter.v2 ic2 (Filter.v1 ic1 ic2 x a1 a2) g).toInt =
+        ic2.toInt + g.toNat * (Filter.v1 ic1 ic2 x a1 a2).toInt / 32768 ∧
+    (Filter.v2 ic2 (Filter.v1 ic1 ic2 x a1 a2) g).toInt.natAbs ≤ 131072 ∧
+    (Filter.raw 2 x (Filter.v1 ic1 ic2 x a1 a2) (Filter.v2 ic2 (Filter.v1 ic1 ic2 x a1 a2) g) k).toInt =
+        x.toInt - k.toNat * (Filter.v1 ic1 ic2 x a1 a2).toInt / 8192 -
+          (Filter.v2 ic2 (Filter.v1 ic1 ic2 x a1 a2) g).toInt ∧
+    (Filter.raw mode x (Filter.v1 ic1 ic2 x a1 a2) (Filter.v2 ic2 (Filter.v1 ic1 ic2 x a1 a2) g)
+        k).toInt.natAbs ≤ 327680 ∧
+    (2 * Filter.v1 ic1 ic2 x a1 a2 - ic1).toInt = 2 * (Filter.v1 ic1 ic2 x a1 a2).toInt - ic1.toInt ∧
+    (2 * Filter.v2 ic2 (Filter.v1 ic1 ic2 x a1 a2) g - ic2).toInt =
+        2 * (Filter.v2 ic2 (Filter.v1 ic1 ic2 x a1 a2) g).toInt - ic2.toInt := sorry
+
+theorem filter_coefficients_in_range (c r g k : UInt32) (hg : g.toNat ≤ 32767) :
+    (Filter.g c).toNat ≤ 32767 ∧ (c < 100 → Filter.g c < Filter.g (c + 1)) ∧
+      884 ≤ (Filter.k r).toNat ∧ (Filter.k r).toNat ≤ 16384 ∧
+      (Filter.a1 g k).toNat ≤ 32767 ∧ (Filter.a2 g k).toNat ≤ g.toNat := sorry
+
+theorem filter_settled_dc_holds (cutoff resonance mode : UInt32) (x : Int32)
+    (sample : x.toInt.natAbs ≤ 32767) (on : Filter.active cutoff resonance = true) :
+    Filter.step cutoff resonance 0 0 x x = ⟨x, 0, x⟩ ∧ Filter.step cutoff resonance 1 0 x x = ⟨0, 0, x⟩ ∧
+      (2 ≤ mode → Filter.step cutoff resonance mode 0 x x = ⟨0, 0, x⟩) := sorry
+
+theorem filter_lowpass_steps_toward_input (ic2 x : Int32) (g a1 a2 : UInt32)
+    (s2 : ic2.toInt.natAbs ≤ 65536) (sample : x.toInt.natAbs ≤ 65536) (hg : g.toNat ≤ 32767)
+    (h2 : a2.toNat ≤ 32767) :
+    min x.toInt ic2.toInt - 1 ≤ (Filter.v2 ic2 (Filter.v1 0 ic2 x a1 a2) g).toInt ∧
+      (Filter.v2 ic2 (Filter.v1 0 ic2 x a1 a2) g).toInt ≤ max x.toInt ic2.toInt := sorry
 
 -- Proofs/Filters.lean
 theorem filters_swarm_sum_range (p0 p1 p2 p3 p4 p5 p6 : UInt32) :

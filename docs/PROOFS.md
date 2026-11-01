@@ -297,6 +297,101 @@ Why it matters: a divide-by-4 clock never drops or doubles a beat, however long 
 Why it matters: the counter is a small number for good, so it can never grow into a big number the chip's Lean runtime
 cannot handle.
 
+## Drum
+
+**`drum_noise_period`**: The noise register from state 1 returns to 1 after exactly 65535 steps and at no step before:
+its period is 65535, every nonzero 16-bit state in one cycle (the taps are a primitive polynomial, checked by walking
+the whole orbit in the kernel).
+
+Why it matters: the noise behind the kick's click, the snare, the clap and the toms repeats only every 1.5 seconds, far
+longer than any hit, so no drum has a pitch or a pattern in its noise.
+
+**`drum_noise_never_dies`**: A nonzero 16-bit noise state steps to a nonzero 16-bit state: the register never dies and
+never leaves its 16 bits, checked for every state.
+
+Why it matters: once seeded (the glue seeds it with 1 and never resets it) the noise runs for ever; a register stuck at
+zero would be a drum voice gone silent in its noise with no way back.
+
+**`drum_noise_in_range`**: The noise sample is within 32767 for any state.
+
+Why it matters: the noise feeds the filters and the gains at the same scale as a sine, so the bounds below cover it.
+
+**`drum_one_pole_stays_between`**: A one-pole step is exact, `y + (x - y) * a / 16384` rounded down, and lies between
+the state `y` and the input `x` (inclusive), for a coefficient from 0 to 16384 and signals within 65535; so the
+high-pass, what it leaves of the input, is within `|x| + |y|`, and nothing wraps on the way.
+
+Why it matters: a low-pass can never overshoot or ring, whatever its coefficient, so the filters in every shape keep
+their signals inside the bounds the gains and the mix need; and the high-pass built from it is bounded too, which is
+what lets six squares and a noise pass through two filters without a 32-bit wrap.
+
+**`drum_envelope_only_falls`**: The envelope one sample on is no higher, and no lower than 15/16 of itself less one
+count, for any rate below 65536 and any envelope up to one; rate 0 holds exactly; nothing wraps.
+
+Why it matters: a drum's envelope only ever falls, a sample cannot take more than a sixteenth of it, and a rate of 0 is
+a true hold: the tails are smooth exponentials and a part that has gone stays gone.
+
+**`drum_sweep_lands`**: The swept increment never goes below its target and never rises: from above it falls toward the
+target (a share `rate / 2^20` of the distance a sample), and at or below it sits on the target; for any increment below
+half a cycle a sample and any rate below 8192, nothing wraps.
+
+Why it matters: the kick's and toms' pitch sweeps land on the note and stay there, from a start up to five times above
+it, with no undershoot and no step: the drop is the clean exponential a drum's skin makes.
+
+**`drum_sweep_start_below_nyquist`**: A sweep's start is below half a cycle a sample, whatever the tuning and the
+colour.
+
+Why it matters: `drum_sweep_lands` needs the swept increment under Nyquist, and the start is the highest it ever is; a
+note above the 1.4 kHz hold simply starts on its tuning.
+
+**`drum_metal_sum_fits`**: Six squares of 5461 either way sum within 32766, for any six phases.
+
+Why it matters: the metal (the hi-hats and the cymbal) enters its filters as a signal in range, like a sine or the
+noise, so the same filter and gain bounds cover all three sources.
+
+**`drum_square_in_range`**: A square is 5461 either way.
+
+Why it matters: the cowbell's two squares sum within 10922, well inside the bound the band needs.
+
+**`drum_gain_never_amplifies`**: A gain is at most its level, for any envelope up to one and level up to 32767.
+
+Why it matters: an envelope can only take from a level, never add to it, so a shape's loudest moment is its level table,
+and the shapes' levels are what `drum_output_never_wraps` relies on.
+
+**`drum_metal_chain_bounded`**: Six squares through the band and the gain: the sum is within 32766
+(`drum_metal_sum_fits`), the first low-pass state stays within 32767, the high-pass within 65534, the second low-pass
+within 65535, and the gained output within 262140, for filter coefficients from 0 to 16384 (Q14) and a gain up to 32767
+(Q13): no stage wraps, and the states handed to the next sample satisfy the same bounds.
+
+Why it matters: the hi-hats and the cymbal are six squares and two filters a sample, the most arithmetic of any shape,
+and every intermediate is accounted for: the metal cannot blow up its own filters however the colour sets the band.
+
+**`drum_output_never_wraps`**: Every shape's mix, as `voices/drum_glue.c` composes it, is exact and within 524280 (under
+2^19), for filter states within their bounds (a first stage within 32767, a second within 65535), coefficients from 0 to
+16384 and gains up to 32767: the kick and the toms (`Drum.tunedOut`), the snare (`Drum.snareOut`), the clap
+(`Drum.clapOut`), the hi-hats and the cowbell (`Drum.bandOut`, with `drum_metal_chain_bounded` and
+`drum_square_in_range`) and the cymbal (`Drum.cymbalOut`); and the sample out is the mix held to 16 bits, unchanged when
+the mix is already within 32767.
+
+Why it matters: whatever the knobs, the note and the phases, no drum's arithmetic ever wraps: the loudest a shape can be
+is a flat top at full scale, never a sign flip.
+
+**`drum_shapes_in_range`**: Every shape's tables are in the ranges the theorems above need: rates below 65536 at every
+timbre (so `drum_envelope_only_falls` applies), sweep rates below 8192 (`drum_sweep_lands`), levels up to 32767
+(`drum_gain_never_amplifies`), filter coefficients up to 16384 (`drum_one_pole_stays_between`) at every colour.
+
+Why it matters: the numbers in the tables are checked against the bounds, not trusted; a knob at either end still gives
+every theorem its hypotheses.
+
+**`drum_tails`**: Each shape's tail from a full envelope at its own rate (the nominal timbre), sample by sample in the
+kernel: the first sample at which the envelope is under a hundredth, with the sample before still above. BD (rate 219)
+in 21984 samples (0.50 s), SD and the clap's tail (729) in 6617 (0.15 s), CH (2200) in 2193 (50 ms), OH (270) in 17842
+(0.40 s), LT (365) in 13206 (0.30 s), MT (437) in 11033 (0.25 s), HT and CB (547) in 8817 (0.20 s), CY (73) in 65568
+(1.49 s).
+
+Why it matters: these are the decay times a player hears, computed from the arithmetic the chip runs: the closed hat is
+a tick, the open hat a splash, the kick half a second, the cymbal a second and a half, and no shape's tail is a
+surprise.
+
 ## Euclid
 
 **`euclid_hit_count`**: A bar of `steps` steps with `hits` hits (`hits ≤ steps`) plays exactly `hits` notes.
@@ -344,6 +439,50 @@ on its sixth step; the major pentatonic is the five-hit one started on its seven
 Why it matters: the scales and the rhythms are one construction: the diatonic scale is the maximally even seven of
 twelve (Clough and Douthett), so the SCALE knob and the HITS knob are reading the same word; a lane set to seven hits in
 twelve steps taps out the major scale.
+
+## Filter
+
+**`filter_open_is_identity`**: With the cutoff fully open (100) and no resonance the filter is not active and a step
+hands back the sample and the states exactly as they were, whatever the state, the mode and the sample.
+
+Why it matters: the filter is on every voice, Braids shapes and FM alike, and these are its default settings: every
+sound a player already has is bit for bit what it was, with nothing to undo and nothing to pay.
+
+**`filter_states_stay_bounded`**: The states and nodes stay within ±65536 and nothing in a sample wraps: a state after a
+sample is within ±65536 for any inputs (the hold); and with both states within ±65536, the sample within ±65536 and the
+coefficients in range (`g`, `a1`, `a2` at most 32767, `k` at most 16384) the band node before its hold is exactly `a1
+ic1 / 2^15 + a2 ((x - ic2) / 2) / 2^14`, the held band node `v1` is within ±65536, the low-pass node `v2` is exactly
+`ic2 + g v1 / 2^15` and within ±131072, the high-pass output before its clip is exactly `x - k v1 / 2^13 - v2`, the raw
+output of every mode is within ±327680 (5 · 2^16), and both state updates `2 v - ic` are exact.
+
+Why it matters: the filter's arithmetic is 32-bit throughout and a saturation, never a wrap: a resonant peak goes flat
+at twice full scale rather than inside out, whatever the engine feeds it, and the clip to ±32767 at the output is the
+only other thing that can touch a sample.
+
+**`filter_coefficients_in_range`**: The coefficients are in the ranges `filter_states_stay_bounded` needs and the sweep
+is a sweep: every entry of the cutoff table is at most 32767 and the table rises from each setting to the next below
+100; the damping is between 884 (0.108 in Q13) and 16384 (2.0) for any resonance setting; `a1` is at most 32767 for any
+`g` and `k`, and `a2` is at most `g` for any `g` at most 32767.
+
+Why it matters: the numbers in the table are checked, not trusted: turning the cutoff up always opens the filter
+further, and no setting of cutoff or resonance can hand the sample path a coefficient that would make a product
+overflow.
+
+**`filter_settled_dc_holds`**: A settled constant is a fixed point of the active filter: with the band state at rest
+(`ic1 = 0`) and the low-pass state at the sample (`ic2 = x`), for any cutoff and resonance, a step gives the low-pass
+output `x` itself, band and high outputs 0, and the same states again, for any sample within ±32767.
+
+Why it matters: a note's steady level passes through the low-pass unchanged however far the cutoff is turned down, with
+no drift from rounding: the filter shapes the colour of a sound and leaves its level alone, and the band and high
+outputs truly reject the constant.
+
+**`filter_lowpass_steps_toward_input`**: A low-pass step with the band node at rest (`ic1 = 0`) lands between the
+low-pass state and the sample (within one count of rounding below): `min x ic2 - 1 ≤ v2 ≤ max x ic2`, for any `g` and
+`a2` at most 32767, any `a1`, and states and sample within ±65536.
+
+Why it matters: without the band node's momentum the low-pass only ever moves toward the input and never past it, so it
+cannot add energy of its own: a resonant peak comes from the band state, which is held, and not from the low-pass
+integrator running away.
 
 ## Filters
 

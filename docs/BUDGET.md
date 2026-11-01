@@ -55,6 +55,11 @@ polynomial (six multiplies), a push and an envelope; the envelopes move once a b
 the voice from 306 to 238. Six FM voices with reverb are the "six 3 SQR" row above: fine at 320 MHz, over
 budget at 240.
 
+The 808 drums (shapes 56 to 65, `Firmware/Drum.lean`), counted the same way: 73 (CB) to 127 (SD) instructions a
+sample, BD 100, the hats 86, the cymbal 104: cheaper than any Braids shape but CSAW. The per-voice filter
+(`Firmware/Filter.lean`) adds about 25 to 29 a sample to a voice whose sound has it on, and one compare a block to
+one that does not.
+
 ## Does it fit
 
 Assume one chip instruction a cycle plus a third for memory and the divides (1.3 cycles an instruction), and the

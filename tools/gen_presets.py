@@ -24,10 +24,11 @@ NAMES = ["CSAW", "MORPH", "SAW SQR", "SIN TRI", "BUZZ", "SQR SUB", "SAW SUB", "S
          "VOSIM", "VOWEL", "VOWEL F", "HARMONIC", "FM", "FBK FM", "CHAOS FM", "PLUCK", "BOW", "BLOW", "FLUTE",
          "BELL", "DRUM", "KICK", "CYMBAL", "SNARE", "WAVETBL", "WAVE MAP", "WAVE LN", "WAVE PARA", "NOISE FLT",
          "TWIN PK", "CLK NOISE", "GRANULAR", "PARTICLE", "DIGI MOD", "?",
-         "FM PIANO", "FM BELL", "FM BASS", "FM BRASS", "FM GLASS", "FM MALLET", "FM ORGAN", "FM CLANG"]   # 48 on: Firmware/Fm.lean
+         "FM PIANO", "FM BELL", "FM BASS", "FM BRASS", "FM GLASS", "FM MALLET", "FM ORGAN", "FM CLANG",   # 48 on: Firmware/Fm.lean
+         "808 BD", "808 SD", "808 CP", "808 CH", "808 OH", "808 LT", "808 MT", "808 HT", "808 CB", "808 CY"]   # 56 on: Drum.lean
 SHAPE = {n: i for i, n in enumerate(NAMES)}
 PERCUSSIVE = {"BELL", "DRUM", "KICK", "CYMBAL", "SNARE", "PARTICLE", "?", "PLUCK", "FM PIANO", "FM BELL", "FM MALLET",
-              "FM CLANG"}
+              "FM CLANG", "808 BD", "808 SD", "808 CP", "808 CH", "808 OH", "808 LT", "808 MT", "808 HT", "808 CB", "808 CY"}
 RINGING = {"PLUCK", "BELL", "DRUM", "FM PIANO", "FM BELL", "FM MALLET", "FM CLANG"}   # the long release class
 TARGET_RMS, PEAK_LIMIT = 9000.0, 30000.0
 
@@ -36,6 +37,7 @@ PAD_SHAPES = ["3 SAW", "SWARM", "VOWEL", "3 SIN", "WAVE MAP", "GRANULAR", "SAW C
               "BLOW", "BOW", "TWIN PK", "FM GLASS", "FM ORGAN", "FM BRASS"]
 PLUCK_SHAPES = ["CSAW", "MORPH", "SQR SUB", "SAW SUB", "3 SQR", "FM", "FBK FM", "CHAOS FM", "FLT LP", "WAVETBL",
                 "VOSIM", "DIGI MOD", "BUZZ", "FM BASS"]
+FILTER_SHAPES = ["CSAW", "SAW SUB", "3 SAW", "SQR SUB", "FM BASS", "WAVETBL"]
 WORDS = {5: ["DARK", "WARM", "MID", "BRIGHT", "SHARP"], 4: ["DARK", "MID", "BRIGHT", "SHARP"],
          3: ["DARK", "MID", "BRIGHT"], 2: ["DARK", "BRIGHT"], 1: ["MID"]}
 
@@ -69,15 +71,16 @@ def sounds(measurements):
         by_shape.setdefault(r["shape"], []).append(r)
     out = []
 
-    def add(shape, word, r, attack, release, env):
-        kind = (1 if word == "PLUCK" or NAMES[shape] in ("PLUCK", "FM PIANO", "FM MALLET") else 2 if word == "PAD"
+    def add(shape, word, r, attack, release, env, filt=None):
+        kind = (1 if word in ("PLUCK", "FILT") or NAMES[shape] in ("PLUCK", "FM PIANO", "FM MALLET") else 2 if word == "PAD"
                 else 3 if NAMES[shape] in PERCUSSIVE else 0)                    # the sound's type: tone, pluck, pad, drum
         out.append({"name": f"{NAMES[shape]} {word}", "shape": shape, "type": kind, "timbre": r["timbre"],
-                    "color": r["color"], "attack": attack, "release": release, "env": env, "gain": gain_q8(r)})
+                    "color": r["color"], "attack": attack, "release": release, "env": env, "gain": gain_q8(r),
+                    **({"cutoff": filt[0], "resonance": filt[1], "fenv": filt[2], "ftype": filt[3]} if filt else {})})
 
-    def add_checked(shape, word, r, attack, release, env):
+    def add_checked(shape, word, r, attack, release, env, filt=None):
         before = len(out)
-        add(shape, word, r, attack, release, env)
+        add(shape, word, r, attack, release, env, filt)
         s = out[-1]
         if audit_voices.sound_problems(s["name"], s["shape"], s["timbre"], s["color"], s["gain"]):
             del out[before:]                    # a sound that fails the audit is not shipped
@@ -87,6 +90,8 @@ def sounds(measurements):
         chosen = pick(by_shape[shape])
         if not chosen:
             continue
+        if name.startswith("808 ") and len(chosen) > 2:   # the drums: two settings each (the sound byte holds 255 sounds)
+            chosen = [chosen[0], chosen[-1]]
         for r, word in zip(chosen, WORDS[len(chosen)]):
             if name in PERCUSSIVE:
                 add_checked(shape, word, r, 0, 5 if name in RINGING else 4, 0)
@@ -97,6 +102,8 @@ def sounds(measurements):
             add_checked(shape, "PAD", mid, 3, 5, 0)
         if mid and name in PLUCK_SHAPES:
             add_checked(shape, "PLUCK", mid, 0, 2, 10)
+        if mid and name in FILTER_SHAPES:               # the per-voice filter (Firmware/Filter.lean): a low-pass the envelope opens
+            add_checked(shape, "FILT", mid, 0, 2, 0, (22, 55, 75, 0))
     return out
 
 
@@ -356,11 +363,25 @@ DEMOS = [
                         (1, 16, 5, 1, "FM BELL MID", 72, 12, 924, (0, 100, 1, 0, 2, 60, 70))],
      5, 4, (95, 40, 80), (7, 50, 45, 35)),
     # factory: a kick, an FM bass loop, clang stabs and a ratcheted mallet, in E phrygian
-    ("FACTORY", 126, 4, [(4, 16, 3, 7, "KICK MID", 36, 1, 931, (0, 100, 1, 0, 0, 100, 5)),
-                         (6, 16, 3, 8, "FM BASS BRIGHT", 36, 12, 932, (5, 100, 8, 10, 0, 100, 10)),
+    ("FACTORY", 126, 4, [(4, 16, 3, 7, "808 BD DARK", 36, 1, 931, (0, 100, 1, 0, 0, 100, 5)),
+                         (6, 16, 3, 8, "FM BASS FILT", 36, 12, 932, (5, 100, 8, 10, 0, 100, 10)),
                          (3, 16, 3, 8, "FM CLANG MID", 60, 12, 933, (0, 90, 1, 0, 0, 70, 40)),
-                         (5, 8, 4, 8, "FM MALLET BRIGHT", 72, 12, 934, (4, 100, 1, 0, 0, 65, 35), (3, 0, 0, 90, 3, 2))],
+                         (5, 8, 4, 8, "808 CH BRIGHT", 72, 1, 934, (0, 100, 1, 0, 0, 60, 15), (3, 0, 0, 90, 3, 2))],
      0, 1, (40, 70, 45), (2, 30, 75, 30)),
+    # the 808 as a drum machine: kick on the floor, snare on two and four, hats in sixteenths with an open one turned in,
+    # a clap and cowbell line; the whole kit is synthesis in Lean (Firmware/Drum.lean)
+    ("808 ROOM", 118, 0, [(4, 16, 3, 7, "808 BD DARK", 36, 1, 941, (0, 100, 1, 0, 0, 100, 20)),
+                          (2, 16, 3, 7, "808 SD BRIGHT", 36, 1, 942, (0, 100, 1, 0, 0, 100, 60), (1, 4, 0, 90, 1, 1)),
+                          (11, 16, 3, 7, "808 CH DARK", 36, 1, 943, (0, 95, 1, 0, 0, 90, 35), (1, 0, 3, 90, 1, 1)),
+                          (3, 16, 3, 7, "808 CB DARK", 36, 1, 944, (0, 70, 1, 0, 0, 80, 60), (1, 6, 0, 90, 1, 1))],
+     0, 1, (60, 60, 70), (3, 35, 65, 45)),
+    # night drive: an 808 kick on the floor and a snare on two and four, a filtered FM bass on a loop that mutates
+    # under the triad, a filtered saw lead on a markov chain over the seventh, i-VI-III-VII in A minor two bars a chord
+    ("NIGHT DRIVE", 124, 9, [(4, 16, 3, 7, "808 BD DARK", 36, 1, 951, (0, 100, 1, 0, 0, 100, 5)),
+                             (2, 16, 3, 7, "808 SD BRIGHT", 36, 1, 952, (0, 100, 1, 0, 0, 90, 25), (1, 4, 0, 90, 1, 1)),
+                             (7, 16, 3, 1, "FM BASS FILT", 36, 12, 953, (5, 100, 8, 10, 2, 100, 10)),
+                             (5, 16, 3, 1, "3 SAW FILT", 60, 12, 954, (8, 90, 1, 10, 1, 75, 45))],
+     5, 2, (50, 60, 40), (3, 40, 60, 35)),
 ]
 
 
@@ -385,7 +406,10 @@ def render(measurements):
            "/* Generated by tools/gen_presets.py from measurements of the Braids voice. Do not edit by hand. */",
            "#pragma once", "#include <stdint.h>", "",
            "/* type: 0 tone, 1 pluck, 2 pad, 3 drum (the browser's BY TYPE groups) */",
-           "typedef struct { const char *name; uint8_t shape, type, attack, release, env; uint16_t timbre, color, gain; } sound_t;",
+           "/* cutoff 0..100 (100 open), resonance 0..100, fenv 0..100 (the amp envelope into the cutoff), ftype 0 LP 1 BP 2 HP:",
+           " * the per-voice filter (Firmware/Filter.lean); the defaults are an open filter, so a sound without one is unchanged */",
+           "typedef struct { const char *name; uint8_t shape, type, attack, release, env; uint16_t timbre, color, gain;",
+           "                 uint8_t cutoff, resonance, fenv, ftype; } sound_t;",
            "typedef struct {",
            "    uint8_t hits, steps, speed, scale, sound, low, span;     /* rhythm, scale, sound, note range */",
            "    uint8_t algo, chance, amount, mutate, chord, level, send; /* note algorithm, chord follow (0 off 1 scale 2 triad), reverb send */",
@@ -403,7 +427,7 @@ def render(measurements):
            f"#define NSOUNDS {len(snd)}u", "static const sound_t SOUNDS[NSOUNDS] = {"]
     for s in snd:
         out.append(f'    {{"{s["name"]}", {s["shape"]}, {s["type"]}, {s["attack"]}, {s["release"]}, {s["env"]}, {s["timbre"]}, '
-                   f'{s["color"]}, {s["gain"]}}},')
+                   f'{s["color"]}, {s["gain"]}, {s.get("cutoff", 100)}, {s.get("resonance", 0)}, {s.get("fenv", 0)}, {s.get("ftype", 0)}}},')
     out.append("};\n")
     allp = DEMOS + PATCHES + generated_patches(96)
     assert len(snd) < 256, "patch lanes store the sound number in one byte"

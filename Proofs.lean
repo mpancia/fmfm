@@ -52,3 +52,5 @@ import Proofs.Punch
 import Proofs.Keys
 import Proofs.KeysChord
 import Proofs.PunchMix
+import Proofs.Filter
+import Proofs.Drum
