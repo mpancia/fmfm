@@ -53,3 +53,13 @@ loop, register and automaton row, and an unlearnt chain.
 The FEEL settings are saved with the lane (`Firmware/Patch.lean`, layout version 2: 22 bytes a lane, 98 a
 patch; `patch_decode_encode_round_trip` covers them, and a slot with a rotation past its steps or more
 accents than hits does not load). Version 1 slots from before no longer load.
+
+## The boot patch: AIRPORTS
+
+Patch 0, loaded at power-on, follows Brian Eno's *Music for Airports*: independent loops of incommensurable
+lengths, sparse, in one consonant scale, with a long reverb. Four lanes on bars of 7, 11, 13 and 5 steps
+(pairwise coprime: they realign only every 5005 steps), 64 BPM, D pentatonic, chords I-V-vi-IV every four bars:
+lane 1 holds the chord's tones on a sine pad (CHORD, triad follow); lane 2 is a locked five-note TURING phrase on
+a bar turned by two with one accent; lane 3 a MARKOV bell in the STEPS style; lane 4 a FIBO GRAMMAR on a granular
+pad that plays six times in ten. Rendered by `tools/render_web.mjs`: peak -12.9 dBFS, no clipping, around
+-30 dBFS with the dips the sparseness gives; nobody has listened to it.

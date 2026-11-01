@@ -246,8 +246,15 @@ def generated_patches(count):
     return out
 
 
-INIT = ("INIT", 100, 0, [(4, 16, 3, 0, "CSAW MID", 36, 12, 1), (5, 8, 5, 0, "SQR SUB MID", 48, 12, 2),
-                         (7, 16, 3, 0, "FM MID", 60, 24, 3), (3, 8, 4, 0, "FBK FM MID", 72, 12, 4)])
+# The boot patch, after Eno's Music for Airports: four lanes on bars of 7, 11, 13 and 5 steps (pairwise coprime,
+# so they realign only every 5005 steps), sparse, in D pentatonic over a slow I-V-vi-IV, with a long reverb.
+# Lane 1 holds the chord's notes; lane 2 is a locked five-note turing phrase on a turned bar; lane 3 a markov
+# bell; lane 4 a grammar on a pad that sometimes rests.
+INIT = ("AIRPORTS", 64, 2, [(1, 7, 7, 2, "3 SIN PAD", 36, 12, 101, (10, 100, 2, 0, 2, 100, 40)),
+                            (3, 11, 5, 2, "FLUTE MID", 60, 12, 102, (6, 100, 5, 0, 1, 100, 50), (1, 2, 1, 90, 1, 1)),
+                            (2, 13, 5, 2, "BELL DARK", 72, 12, 103, (8, 100, 1, 10, 1, 95, 60)),
+                            (1, 5, 7, 2, "GRANULAR PAD", 48, 7, 104, (9, 60, 1, 50, 1, 90, 55))],
+        2, 4, (90, 45, 80))
 
 
 def resolve(name, index):
