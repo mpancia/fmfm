@@ -572,11 +572,13 @@ static const char *page_label(uint32_t pg, uint32_t k)
 }
 
 /* the text and the bar fill (0..255) of value `k` on page `pg` for the chosen lane */
+static uint32_t choice;                         /* set by param_text for a knob that picks one of a few: count << 8 | index */
+#define CHOICE(i, n) (choice = (uint32_t)(n) << 8 | (uint32_t)(i))
 static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
 {
     char *p = out;
     const sound_t *snd = &cfg[selected].sound;
-    *fill = 0;
+    *fill = 0; choice = 0;
     if (pg == P_HOME) pg = P_RHYTHM;
     switch (pg) {
     case P_RHYTHM:
@@ -587,7 +589,7 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         break;
     case P_FEEL: {
         uint32_t feel = cfg[selected].feel % NFEEL;
-        if (k == 0) { p = put_str(p, FEEL_NAME[feel]); *fill = frac(feel, NFEEL - 1u); }
+        if (k == 0) { p = put_str(p, FEEL_NAME[feel]); CHOICE(feel, NFEEL); }
         if (feel == 1u) {
             if (k == 1) { p = put_num(p, cfg[selected].rotate); *fill = frac(cfg[selected].rotate, cfg[selected].steps - 1); }
             if (k == 2) { p = put_num(p, cfg[selected].accents); *fill = frac(cfg[selected].accents, cfg[selected].hits); }
@@ -601,7 +603,7 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
     }
     case P_NOTES: {
         uint32_t algo = cfg[selected].algo % NALGO;
-        if (k == 0) { p = put_str(p, ALGO_NAME[algo]); *fill = frac(algo, NALGO - 1u); }
+        if (k == 0) { p = put_str(p, ALGO_NAME[algo]); CHOICE(algo, NALGO); }
         if (k == 1) {
             if (algo == 8u) { p = put_str(p, STYLE_NAME[(cfg[selected].amount - 1u) % 4u]); *fill = frac((cfg[selected].amount - 1u) % 4u, 3); }
             else if (algo == 9u) { p = put_str(p, GRAMMAR_NAME[(cfg[selected].amount - 1u) % 4u]); *fill = frac((cfg[selected].amount - 1u) % 4u, 3); }
@@ -615,9 +617,9 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         break;
     }
     case P_RANGE:
-        if (k == 0) { p = put_str(p, scale_lock ? "LOCKED" : SCALE_NAME[cfg[selected].scale]); *fill = frac(cfg[selected].scale, NSCALE - 1u); }
+        if (k == 0) { p = put_str(p, scale_lock ? "LOCKED" : SCALE_NAME[cfg[selected].scale]); CHOICE(cfg[selected].scale, NSCALE); }
         if (k == 1) { p = put_note(p, cfg[selected].low); *fill = frac(cfg[selected].low - 12, 84); }
-        if (k == 2) { p = put_str(p, CHORD_NAME[cfg[selected].chord]); *fill = frac(cfg[selected].chord, 2); }
+        if (k == 2) { p = put_str(p, CHORD_NAME[cfg[selected].chord]); CHOICE(cfg[selected].chord, 3); }
         break;
     case P_SOUND:
         if (k == 0) { p = put_str(p, braids_shape_name(snd->shape)); *fill = frac(snd->shape, BRAIDS_SHAPES - 1u); }
@@ -642,20 +644,20 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         if (k == 3) { p = put_num(p, reverb_amount); *p++ = '%'; *fill = frac(reverb_amount, 100); }
         break;
     case P_DELAY:
-        if (k == 0) { p = put_str(p, DELAY_TIME_NAME[delay_time % FM1_DELAY_TIMES]); *fill = frac((int32_t)delay_time, FM1_DELAY_TIMES - 1); }
+        if (k == 0) { p = put_str(p, DELAY_TIME_NAME[delay_time % FM1_DELAY_TIMES]); CHOICE(delay_time, FM1_DELAY_TIMES); }
         if (k == 1) { p = put_num(p, delay_feedback); *p++ = '%'; *fill = frac(delay_feedback, 100); }
         if (k == 2) { p = put_num(p, delay_tone); *p++ = '%'; *fill = frac(delay_tone, 100); }
         if (k == 3) { p = put_num(p, delay_amount); *p++ = '%'; *fill = frac(delay_amount, 100); }
         break;
     case P_HARMONY:
-        if (k == 0) { p = put_str(p, KEY_NAME[key]); *fill = frac(key, 11); }
-        if (k == 1) { p = put_str(p, scale_lock ? SCALE_NAME[scale_lock - 1u] : "LANES"); *fill = frac(scale_lock, NSCALE); }
-        if (k == 2) { p = put_str(p, PROGRESSION_NAME[progression]); *fill = frac(progression, NPROGRESSION - 1u); }
-        if (k == 3) { p = put_num(p, rate_bars); p = put_str(p, " BAR"); *fill = frac(rate_bars, 4); }
+        if (k == 0) { p = put_str(p, KEY_NAME[key]); CHOICE(key, 12); }
+        if (k == 1) { p = put_str(p, scale_lock ? SCALE_NAME[scale_lock - 1u] : "LANES"); CHOICE(scale_lock, NSCALE + 1u); }
+        if (k == 2) { p = put_str(p, PROGRESSION_NAME[progression]); CHOICE(progression, NPROGRESSION); }
+        if (k == 3) { p = put_num(p, rate_bars); p = put_str(p, " BAR"); CHOICE(rate_bars == 4u ? 2u : rate_bars - 1u, 3); }
         break;
     case P_SYSTEM:
         if (k == 0) { p = put_num(p, bpm); p = put_str(p, " BPM"); *fill = frac((int32_t)bpm - 40, 200); }
-        if (k == 2) { p = put_str(p, TH.name); *fill = frac(set.look, NTHEMES - 1u); }
+        if (k == 2) { p = put_str(p, TH.name); CHOICE(set.look, NTHEMES); }
         if (k == 1) { *p++ = set.oct & 0x80u ? '-' : '+'; p = put_num(p, (int8_t)set.oct < 0 ? (uint32_t)-(int8_t)set.oct : set.oct); *fill = frac((int8_t)set.oct + 2, 4); }
         break;
     case P_MIDI:
@@ -663,12 +665,12 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         if (k == 1) { p = put_str(p, "CH "); p = put_num(p, midi_out_base + 1u); p = put_str(p, "-"); p = put_num(p, midi_out_base + 4u); *fill = frac(midi_out_base, 12); }
         break;
     case P_LFO:
-        if (k == 0) { p = put_str(p, LFO_TARGET[lfo[selected].target]); *fill = frac(lfo[selected].target, NLFO_TARGET - 1u); }
+        if (k == 0) { p = put_str(p, LFO_TARGET[lfo[selected].target]); CHOICE(lfo[selected].target, NLFO_TARGET); }
         if (k == 1) { p = put_num(p, LFO_BARS[lfo[selected].rate]); p = put_str(p, " BAR"); *fill = frac(lfo[selected].rate, 4); }
         if (k == 2) { p = put_num(p, lfo[selected].depth); *p++ = '%'; *fill = frac(lfo[selected].depth, 100); }
         break;
     case P_ARP:
-        if (k == 0) { p = put_str(p, ARP_MODE[arp_cfg.mode]); *fill = frac(arp_cfg.mode, NARP_MODE - 1u); }
+        if (k == 0) { p = put_str(p, ARP_MODE[arp_cfg.mode]); CHOICE(arp_cfg.mode, NARP_MODE); }
         if (k == 1) { p = put_str(p, SPEED_NAME[arp_cfg.rate]); *fill = frac(arp_cfg.rate, NSPEED - 1u); }
         if (k == 2) { p = put_num(p, arp_cfg.octaves); *fill = frac(arp_cfg.octaves, 3); }
         if (k == 3) { p = put_num(p, arp_cfg.gate); *p++ = '%'; *fill = frac(arp_cfg.gate, 100); }
@@ -1035,15 +1037,23 @@ static void draw_columns(void)                  /* the page's four values: a met
     char value[24];
     uint32_t k, fill;
     uint16_t well = blend(TH.bg, TH.dim);
-    cv_begin(240, 82, TH.bg);
+    cv_begin(240, 64, TH.bg);                   /* the canvas holds 64 rows (CV_MAX): the meters are 62 tall */
     for (k = 0; k < 4u; k++) {
         int32_t x = 10 + (int32_t)k * 58;
         uint16_t col = page == P_MIX ? LANE_COLOUR(k) : LANE_COLOUR(selected);
         if (!page_label(page, k)[0]) continue;
         if ((page == P_RHYTHM || page == P_FEEL) && k < 2u) continue;           /* the circle stands in for these two meters */
         param_text(page, k, value, &fill);
-        cv_rect(x, 0, 46, 80, well);
-        cv_rect(x, 80 - (int32_t)(fill * 80u / 255u), 46, (int32_t)(fill * 80u / 255u), col);
+        if (choice) {                           /* one of a few: a stack of marks, the chosen one lit, instead of a level */
+            uint32_t n = choice >> 8, i = choice & 255u, m;
+            int32_t step = (int32_t)(62u / n), h = step > 7 ? step - 3 : step > 2 ? step - 1 : 1;
+            int32_t top = 62 - step * (int32_t)n;
+            for (m = 0; m < n; m++)
+                cv_rect(x, top + (int32_t)(n - 1u - m) * step + (step - h) / 2, 46, h, m == i ? col : well);
+            continue;
+        }
+        cv_rect(x, 0, 46, 62, well);
+        cv_rect(x, 62 - (int32_t)(fill * 62u / 255u), 46, (int32_t)(fill * 62u / 255u), col);
     }
     cv_blit(0, 90);
     if (page == P_RHYTHM || page == P_FEEL) draw_circle();
