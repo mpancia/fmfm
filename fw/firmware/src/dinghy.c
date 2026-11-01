@@ -163,6 +163,8 @@ static const uint16_t RELEASE_MS[7] = {10, 30, 90, 230, 580, 1200, 2300};
 static const char *const FAMILY_NAME[] = {"ALL", "ANALOG", "FILTER", "VOICE", "FM", "PHYSICAL", "PERCUSSION", "WAVETABLE", "NOISE"};
 static const uint8_t FAMILY_FIRST[] = {0, 0, 17, 21, 25, 28, 32, 37, 41}, FAMILY_LAST[] = {47, 16, 20, 24, 27, 31, 36, 40, 47};
 #define NFAMILY (sizeof FAMILY_NAME / sizeof FAMILY_NAME[0])
+static const char *const TYPE_NAME[] = {"ALL", "TONE", "PLUCK", "PAD", "DRUM"};     /* sound_t.type + 1 */
+#define NTYPE (sizeof TYPE_NAME / sizeof TYPE_NAME[0])
 
 static lean_object *lane[NL];
 static struct {
@@ -429,6 +431,7 @@ static const char *const PAGE_LABEL[NPAGES][4] = {
     {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "", ""}, {"TARGET", "RATE", "DEPTH", ""}};
 static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
+static uint32_t browse_by, browse_type;                                  /* sounds grouped by engine (0) or by type (1) */
 static uint8_t browse_list[NSOUNDS];
 static uint32_t browse_count;
 
@@ -679,13 +682,23 @@ static void goto_group(uint32_t g)              /* tap a group button: enter it,
 }
 
 /* ---- the browser: sounds by family, or patches */
-static void browse_build(void)                  /* the sounds of the chosen family, in preset order */
+static int browse_fits(uint32_t i)              /* is sound `i` in the chosen group? */
+{
+    if (browse_by) return !browse_type || SOUNDS[i].type + 1u == browse_type;
+    return SOUNDS[i].shape >= FAMILY_FIRST[browse_family] && SOUNDS[i].shape <= FAMILY_LAST[browse_family];
+}
+
+static void browse_build(void)                  /* the sounds of the chosen group, in preset order */
 {
     uint32_t i;
     browse_count = 0;
     for (i = 0; i < NSOUNDS; i++)
-        if (SOUNDS[i].shape >= FAMILY_FIRST[browse_family] && SOUNDS[i].shape <= FAMILY_LAST[browse_family])
-            browse_list[browse_count++] = (uint8_t)i;
+        if (browse_fits(i)) browse_list[browse_count++] = (uint8_t)i;
+}
+
+static const char *browse_group(void)           /* the name of the chosen group */
+{
+    return browse_by ? TYPE_NAME[browse_type] : FAMILY_NAME[browse_family];
 }
 
 static void browse_open(uint32_t mode)
@@ -694,7 +707,7 @@ static void browse_open(uint32_t mode)
         browse_mode = mode;
         if (mode == 1u) {
             uint32_t i;
-            browse_family = 0;
+            browse_family = 0; browse_type = 0;
             browse_build();
             for (i = 0; i < browse_count && browse_list[i] != cfg[selected].preset; i++) {}
             browse_pos = i < browse_count ? i : 0u;
@@ -718,12 +731,24 @@ static void browse_turn(int32_t d)              /* PRESETS: scroll, and the lane
     }
 }
 
-static void browse_family_turn(int32_t d)       /* SELECT while sounds are open: another family */
+static void browse_family_turn(int32_t d)       /* SELECT while sounds are open: another group (engine or type) */
 {
-    uint32_t family = (uint32_t)clamp((int32_t)browse_family + d, 0, (int32_t)NFAMILY - 1);
+    uint32_t *group = browse_by ? &browse_type : &browse_family;
+    uint32_t next = (uint32_t)clamp((int32_t)*group + d, 0, browse_by ? (int32_t)NTYPE - 1 : (int32_t)NFAMILY - 1);
     browse_open(1u);
-    if (family != browse_family) { browse_family = family; browse_build(); browse_pos = 0; }
+    if (next != *group) { *group = next; browse_build(); browse_pos = 0; }
     if (browse_count) set_sound(selected, browse_list[browse_pos]);
+}
+
+static void browse_by_turn(void)                /* ALGO while sounds are open: group by engine or by type, keeping the sound */
+{
+    uint32_t i, sound = cfg[selected].preset;
+    browse_open(1u);
+    browse_by = !browse_by;
+    browse_family = 0; browse_type = 0;
+    browse_build();
+    for (i = 0; i < browse_count && browse_list[i] != sound; i++) {}
+    browse_pos = i < browse_count ? i : 0u;
 }
 
 /* ---- the screen */
@@ -914,7 +939,7 @@ static void draw_browser(void)
     char s[44], *p = s;
     cv_begin(240, BAR_H, TH.dim);
     p = put_str(s, browse_mode == 1u ? "SOUNDS  " : "PATCHES");
-    if (browse_mode == 1u) p = put_str(p, FAMILY_NAME[browse_family]);
+    if (browse_mode == 1u) { p = put_str(p, browse_by ? "BY TYPE  " : "BY ENGINE  "); p = put_str(p, browse_group()); }
     *p = 0;
     cv_text(6, 2, &FONT_S, s, TH.hi);
     cv_blit(0, 0);
@@ -939,7 +964,8 @@ static void draw_browser(void)
         cv_blit(0, 26 + row * 20);
     }
     cv_begin(240, 22, TH.dim);
-    cv_text(6, 3, &FONT_S, browse_mode == 1u ? "PRESETS SCROLL  SELECT FAMILY" : "PRESETS SCROLL  SAVE KEEPS", TH.mid);
+    cv_text(6, 3, &FONT_S, browse_mode == 1u ? (browse_by ? "SELECT TYPE   ALGO BY ENGINE" : "SELECT ENGINE   ALGO BY TYPE")
+                                           : "PRESETS SCROLL  SAVE KEEPS", TH.mid);
     cv_blit(0, 218);
 }
 
@@ -968,7 +994,7 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
     const uint8_t *b = (const uint8_t *)cfg;
     uint32_t h = 2166136261u, i;
     uint32_t g[] = {page, selected, patch_index, bpm, key, progression, rate_bars, scale_lock, running, browse_mode, browse_pos,
-                    browse_family, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
+                    browse_family, browse_by, browse_type, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
                     reverb_amount};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
     for (i = 0; i < NL; i++) h = (h ^ (lfo[i].target | lfo[i].rate << 8 | lfo[i].depth << 16)) * 16777619u;
@@ -1110,7 +1136,10 @@ static void app_main(void)
             else if (browse_mode == 2u) { browse_pos = (uint32_t)clamp((int32_t)browse_pos + 10 * e, 0, (int32_t)NBROWSE - 1); browse_until = fm1_ms + 2500u; patch_load(browse_pos); }
             else selected = (selected + NL + (uint32_t)(e % (int32_t)NL)) % NL;
         }
-        if ((e = fm1_enc_take(ENC_ALGORITHM)) != 0) bpm = (uint32_t)clamp((int32_t)bpm + 2 * e, 40, 240);
+        if ((e = fm1_enc_take(ENC_ALGORITHM)) != 0) {
+            if (browse_mode == 1u) browse_by_turn();
+            else bpm = (uint32_t)clamp((int32_t)bpm + 2 * e, 40, 240);
+        }
         for (k = 0; k < 4u; k++) {
             static const uint32_t KNOB[4] = {ENC_KNOB1, ENC_KNOB2, ENC_KNOB3, ENC_KNOB4};
             if ((e = fm1_enc_take(KNOB[k])) != 0) { browse_mode = 0; param_turn(page, k, e); dirty |= page == P_SYSTEM || page == P_MIDI; t_change = fm1_ms; }
