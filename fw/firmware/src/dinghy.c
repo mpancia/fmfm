@@ -1106,14 +1106,15 @@ static void draw_browser(void)
     *p = 0;
     cv_text(6, 2, &FONT_S, s, TH.hi);
     cv_blit(0, 0);
-    lcd_fill(0, BAR_H, 240, 218u - BAR_H, TH.bg);
     first = browse_pos < rows / 2u ? 0u : browse_pos - rows / 2u;
     if (first + rows > count) first = count > rows ? count - rows : 0u;
-    for (row = 0; row < rows && first + row < count; row++) {
-        uint32_t index = first + row, item = browse_list[index];
+    for (row = 0; row < rows; row++) {
+        uint32_t index = first + row, item;
         const char *name;
         char line[44], *q = line;
         uint16_t col = index == browse_pos ? LANE_COLOUR(selected) : TH.mid;
+        if (index >= count) { cv_begin(240, 20, TH.bg); cv_blit(0, 26 + row * 20); continue; }   /* an empty row */
+        item = browse_list[index];
         if (browse_mode == 1u) name = SOUNDS[item].name;
         else if (item < NPATCHES) name = PATCHES[item].name;
         else name = "USER SLOT";
@@ -1245,7 +1246,7 @@ static void boot_screen(void)
 
 static void app_main(void)
 {
-    uint32_t prev = 0, k, t_change = 0, dirty = 0, shown = 0, alfred_shown = ~0u, stopped_ms = 0;
+    uint32_t prev = 0, k, t_change = 0, dirty = 0, shown = 0, shown_layout = ~0u, alfred_shown = ~0u, stopped_ms = 0;
     uint32_t row_sig[NL];
     uint8_t held[27] = {0};                     /* the note each key plays */
     if (settings_load(&set, sizeof set) || (int8_t)set.oct < -2 || (int8_t)set.oct > 2 || set.ch > 16u || set.look >= NTHEMES)
@@ -1364,12 +1365,19 @@ static void app_main(void)
         idle_ok = 1;                            /* the drawing below may read MIDI meanwhile (LCD_IDLE) */
         h = ui_hash();
         if (h != shown) {                       /* something outside the lane rows changed: draw the page again */
+            uint32_t layout = page | browse_mode << 8 | set.look << 12;
             shown = h;
+            if (layout != shown_layout) {       /* another page or look: clear the gaps between the bands once. A value
+                                                 * change on the same page only repaints its bands, so nothing flashes */
+                shown_layout = layout;
+                lcd_fill(0, 0, 240, 240, TH.bg);
+            }
             if (browse_mode) draw_browser();
             else {
-                lcd_fill(0, 0, 240, 240, TH.bg);
                 draw_title();
                 draw_status();
+                if (page == P_HOME && running && alfred_shown != ~0u)   /* the clock started: Alfred leaves his corner */
+                    lcd_fill(ALFRED_X, ALFRED_Y, 240u - ALFRED_X, 218u - ALFRED_Y, TH.bg);
                 if (page == P_HOME) draw_home_foot(); else draw_columns();
             }
             for (k = 0; k < NL; k++) row_sig[k] = ~0u;
