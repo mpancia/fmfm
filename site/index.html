@@ -3,51 +3,119 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FORMALFRED</title>
-<style>
-  :root { --bg: #1a0f1c; --ink: #f7e8ee; --mid: #a88aa0; --acc: #ff8fb1; --line: #43284a; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 system-ui, sans-serif; }
-  main { max-width: 680px; margin: 0 auto; padding: 48px 20px 64px; }
-  h1 { font-size: 2.4rem; margin: 0 0 4px; letter-spacing: -0.02em; }
-  .sub { color: var(--mid); margin: 0 0 32px; }
-  .rule { height: 2px; width: 96px; background: var(--acc); margin: 0 0 28px; }
-  a { color: var(--acc); }
-  .cards { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; margin: 0 0 36px; }
-  .card { border: 1px solid var(--line); border-radius: 10px; padding: 18px; text-decoration: none; color: var(--ink); }
-  .card:hover { border-color: var(--acc); }
-  .card b { display: block; font-size: 1.15rem; margin-bottom: 4px; }
-  .card span { color: var(--mid); font-size: 0.95rem; }
-  img.alfred { image-rendering: pixelated; width: 96px; float: right; margin: -8px 0 0 16px; }
-  h2 { font-size: 1.15rem; margin: 28px 0 8px; }
-  ul { padding-left: 20px; } li { margin: 4px 0; }
-  footer { border-top: 1px solid var(--line); margin-top: 40px; padding-top: 16px; color: var(--mid); font-size: 0.9rem; }
-  @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
-</style>
+<meta name="description" content="FORMALFRED: a generative sequencer firmware for the M-VAVE FM-1, written and proved in Lean 4.">
+<title>formalfred</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main>
-  <img class="alfred" src="alfred.png" alt="Alfred, the butler">
-  <h1>FORMALFRED</h1>
-  <p class="sub">A generative sequencer for the M-VAVE FM-1, with its sequencing logic proved in Lean 4.</p>
-  <div class="rule"></div>
-  <div class="cards">
-    <a class="card" href="installer.html"><b>Install</b><span>Flash the latest release over USB from Chrome or Edge. Back up first.</span></a>
-    <a class="card" href="sim/"><b>Try it in your browser</b><span>The real firmware, compiled to WebAssembly, with the screen, keys and knobs.</span></a>
+
+<div class="bar"><div class="wrap">
+  <a class="wordmark" href="./">formalfred</a>
+  <nav>
+    <a href="sim/">simulator</a>
+    <a href="installer.html">install</a>
+    <a href="#proved">proofs</a>
+    <a href="https://github.com/mpancia/fmfm">source</a>
+  </nav>
+</div></div>
+
+<div class="vitrine"><div class="wrap">
+  <img src="screen-home.png" width="360" height="360" alt="The FM-1's screen running FORMALFRED: four lanes, their bars, the key and the chord">
+  <span class="corner mono">FORMALFRED &nbsp;·&nbsp; M-VAVE FM-1 &nbsp;·&nbsp; firmware {{version}}</span>
+</div></div>
+
+<section class="ruled"><div class="wrap">
+  <div>
+    <h1>A generative sequencer for the FM-1, proved in Lean.</h1>
   </div>
-  <h2>What it is</h2>
-  <ul>
-    <li>Four lanes, each a clock divider driving a Euclidean rhythm. A note algorithm (random, walk, up, down, bounce, loop) picks pitches inside a range, and a scale or chord adjusts them.</li>
-    <li>All 48 oscillator shapes of Mutable Instruments' Braids, 199 sounds, 122 patches, a preset browser, chord progressions and six looks.</li>
-    <li>Alfred, the butler. He bows at startup and waits in the corner when the clock stops.</li>
-  </ul>
-  <h2>What is proved</h2>
-  <p>The lane logic is Lean, checked by Lean's kernel with only the standard axioms. Among the theorems: a bar with <i>k</i> hits plays exactly <i>k</i> notes, every note is in the chosen scale, a rest never plays, and no note is left sounding when its gate ends or the clock stops. The full list, with why each matters, is in <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a>. The voices, the screen and the C that calls the Lean code are not proved; the README lists what is trusted.</p>
-  <h2>Before you flash</h2>
-  <ul>
-    <li>Put the unit on official V15 first, and take a full-flash backup. Steps in <a href="https://github.com/mpancia/fmfm/blob/main/docs/FM1.md">docs/FM1.md</a>.</li>
-    <li>Nothing here has been tested on a physical FM-1 yet. Use at your own risk.</li>
-  </ul>
-  <footer>GPL-3.0-only. Built on <a href="https://github.com/zvenson/dinghy">Dinghy</a>, Felucca and <a href="https://github.com/pichenettes/eurorack">Braids</a>. Installer after <a href="https://github.com/dspaudio/orbit">ORBIT</a>. <a href="https://github.com/mpancia/fmfm">Source</a>.</footer>
-</main>
+  <div>
+    <p>Four lanes, each a clock divider driving a rhythm, each rhythm choosing notes in a scale. Mutable Instruments'
+    Braids as the voice, all 48 shapes. A reverb and a ping-pong delay on a send. 128 patches. Alfred, the butler,
+    bows at startup and waits in the corner when the clock stops.</p>
+    <p>The sequencing, the voices' arithmetic, the effects, the mix and the patch format are written in Lean 4 and
+    compiled to the chip. {{theorems}} theorems about that code are checked by Lean's kernel; the rest of the firmware
+    is C and is listed as trusted.</p>
+    <p>
+      <a class="button solid" href="sim/">Try it in the browser</a>
+      <a class="button" href="installer.html">Install on an FM-1</a>
+    </p>
+    <p class="label">The simulator is the real firmware compiled to WebAssembly. Chrome or Edge for MIDI in.</p>
+  </div>
+</div></section>
+
+<section class="ruled"><div class="wrap">
+  <div><h2>What it does</h2></div>
+  <div class="cols">
+    <div>
+      <p class="label">Rhythm</p>
+      <p>Euclidean bars of 1 to 32 steps at eight clock divisions, or a rotated bar with accents, a cellular automaton,
+      or ratchets. Each lane runs at its own speed; a proof says the four never drift apart.</p>
+    </div>
+    <div>
+      <p class="label">Notes</p>
+      <p>Random, walk, up, down, bounce, loop, Turing, step, Markov, grammar or chord tones, inside a range and a scale.
+      Chord progressions move the scale or keep the triad. Every note a lane plays is in its scale.</p>
+    </div>
+    <div>
+      <p class="label">Sound</p>
+      <p>199 sounds across Braids' analog, digital, physical, percussion, vowel, wavetable and noise engines, with
+      envelope and timbre control, an LFO a lane, an arpeggiator on the keys, and the two sends.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="ruled"><div class="wrap">
+  <div><h2>The panel</h2><p class="label">Four buttons pick a group of pages; the same button again moves to the next page. The four knobs set the four values on screen.</p></div>
+  <table class="ledger">
+    <tr><th>Group</th><th>Pages</th></tr>
+    <tr><td>HOME</td><td>the four lanes: hits, steps, speed, chance; Alfred when stopped</td></tr>
+    <tr><td>SEQ</td><td>RHYTHM, FEEL, NOTES, RANGE</td></tr>
+    <tr><td>EDIT</td><td>SOUND, ENVELOPE, MIX</td></tr>
+    <tr><td>FX</td><td>REVERB (send, decay, bright, return), DELAY (time, feedback, tone, return)</td></tr>
+    <tr><td>LFO</td><td>target, rate, depth, for the chosen lane</td></tr>
+    <tr><td>ARP</td><td>mode, rate, octaves, gate; ARP again latches</td></tr>
+    <tr><td>GLO</td><td>HARMONY, SYSTEM, MIDI, BANKS</td></tr>
+    <tr><td>SELECT</td><td>the lane; in a browser, the group</td></tr>
+    <tr><td>PRESETS</td><td>the sound or patch browser</td></tr>
+    <tr><td>ALGORITHM</td><td>tempo</td></tr>
+    <tr><td>PLAY · SEL · REC · SAVE</td><td>start or stop; mute the lane; roll a variation; keep the patch</td></tr>
+  </table>
+</div></section>
+
+<section class="ruled" id="proved"><div class="wrap">
+  <div>
+    <h2>What is proved</h2>
+    <p class="label">{{theorems}} theorems, standard axioms only, checked by Lean's kernel and by <code>lake comparator</code>.</p>
+  </div>
+  <div>
+    <table class="ledger">
+      <tr><th>Area</th><th class="num">Theorems</th><th>What is promised</th></tr>
+      {{groups}}
+    </table>
+    <p style="margin-top: 22px">Each theorem's statement and the reason it is worth having are in
+    <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a>; the README groups them and
+    lists what is trusted and not proved: the screen, the drivers, Braids' tables, and the C that calls the Lean code.
+    Nothing has been heard on a physical FM-1 yet.</p>
+  </div>
+</div></section>
+
+<section class="ruled"><div class="wrap">
+  <div><h2>Before you flash</h2></div>
+  <div class="warning">
+    <ul class="lines">
+      <li>Put the unit on the official V15 firmware first, and take a full-flash backup.
+        Steps in <a href="https://github.com/mpancia/fmfm/blob/main/docs/FM1.md">docs/FM1.md</a>.</li>
+      <li>The installer works over USB from Chrome or Edge and keeps the update path and the OCT- rescue.</li>
+      <li>Nothing here has been run on a physical FM-1. Use at your own risk.</li>
+    </ul>
+  </div>
+</div></section>
+
+<footer class="foot"><div class="wrap">
+  GPL-3.0-only. Built on <a href="https://github.com/zvenson/dinghy">Dinghy</a> and Felucca; the voice is
+  <a href="https://github.com/pichenettes/eurorack">Braids</a>, the reverb is Clouds' (Mutable Instruments, MIT);
+  the installer follows <a href="https://github.com/dspaudio/orbit">ORBIT</a>. <a href="https://github.com/mpancia/fmfm">Source</a>.
+</div></footer>
+
 </body>
 </html>

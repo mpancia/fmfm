@@ -1,0 +1,87 @@
+/* FORMALFRED site. A catalogue page: near-white canvas, hairline rules, square corners, one typeface at two
+ * weights and a monospace for the ledger. The device's own screen is the only colour on the page. */
+:root {
+  --canvas: #f6f8f7; --ink: #000; --carbon: #0f0e12; --hairline: #e5e5e5; --rule: #000; --muted: #6f6f6f;
+  --note: #ff8fb1;                                 /* the device's rose: one chromatic note, used for one thing a page */
+  --sans: "Helvetica Neue", Helvetica, Inter, Arial, system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --gap: 15px; --band: 66px;
+}
+* { box-sizing: border-box; }
+html { background: var(--canvas); }
+body { margin: 0; background: var(--canvas); color: var(--ink); font: 300 15px/1.5 var(--sans); }
+a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--note); }
+:focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+::selection { background: var(--note); color: var(--carbon); }
+h1, h2, h3 { font-weight: 300; margin: 0; letter-spacing: 0; }
+h1 { font-size: 40px; line-height: 1.11; }
+h2 { font-size: 24px; line-height: 1.15; }
+h3 { font-size: 19px; line-height: 1.15; }
+p { margin: 0 0 var(--gap); max-width: 62ch; }
+code, kbd, .mono { font: 13px/1.5 var(--mono); }
+kbd { border: 1px solid var(--hairline); padding: 0 4px; }
+.label { font: 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 22px; }
+
+/* the top bar: a ruled band with the wordmark and the sections */
+.bar { border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+.bar .wrap { display: flex; justify-content: space-between; align-items: center; height: 66px; gap: var(--gap); }
+.wordmark { font-size: 24px; font-weight: 300; text-decoration: none; letter-spacing: -.01em; }
+.bar nav { display: flex; gap: 22px; }
+.bar nav a { text-decoration: none; }
+.bar nav a:hover, .bar nav a[aria-current] { text-decoration: underline; text-decoration-color: var(--note); }
+
+/* the dark band: the device, with a small label in the corner */
+.vitrine { background: var(--carbon); color: var(--canvas); }
+.vitrine .wrap { position: relative; min-height: 420px; display: grid; place-items: center; padding: 48px 22px; }
+.vitrine img { image-rendering: pixelated; display: block; width: 360px; max-width: 100%; }
+.vitrine .corner { position: absolute; left: 22px; bottom: 22px; color: #b2b2b2; }
+
+/* ruled sections: a heading column and a body column */
+section.ruled { border-top: 1px solid var(--rule); padding: 33px 0 var(--band); }
+section.ruled .wrap { display: grid; grid-template-columns: 1fr 2fr; gap: 33px; }
+section.ruled .wrap > :first-child { align-self: start; }
+
+/* columns divided by hairlines, no card, no fill */
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); }
+.cols > div { padding: 0 22px 0 0; border-right: 1px solid var(--hairline); }
+.cols > div + div { padding-left: 22px; }
+.cols > div:last-child { border-right: 0; padding-right: 0; }
+
+/* the ledger: a hairline table in monospace */
+table.ledger { border-collapse: collapse; width: 100%; font: 13px/1.5 var(--mono); }
+table.ledger th { text-align: left; font-weight: 400; color: var(--muted); border-bottom: 1px solid var(--rule); padding: 0 var(--gap) 6px 0; text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+table.ledger td { border-bottom: 1px solid var(--hairline); padding: 6px var(--gap) 6px 0; vertical-align: top; }
+table.ledger td:first-child { white-space: nowrap; }
+table.ledger tr:last-child td { border-bottom: 0; }
+table.ledger td.num { text-align: right; }
+
+/* a plain list without bullets: hairlines between items */
+ul.lines { list-style: none; margin: 0; padding: 0; }
+ul.lines li { padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+ul.lines li:last-child { border-bottom: 0; }
+
+/* the one warning: ruled, the rule in the note colour */
+.warning { border-left: 2px solid var(--note); padding-left: var(--gap); }
+
+/* buttons: flat, square, two kinds */
+.button, button { font: inherit; font-weight: 300; color: var(--ink); background: transparent; border: 1px solid var(--ink); padding: 9px 18px; text-decoration: none; display: inline-block; cursor: pointer; border-radius: 0; }
+.button.solid, button.solid { background: var(--ink); color: var(--canvas); }
+.button:hover, button:hover { border-color: var(--note); }
+button:disabled { opacity: .4; cursor: default; }
+
+footer.foot { background: var(--carbon); color: var(--canvas); margin-top: var(--band); }
+footer.foot .wrap { padding: 33px 22px; font: 13px/1.6 var(--mono); color: #b2b2b2; }
+footer.foot a { color: var(--canvas); }
+
+@media (max-width: 760px) {
+  section.ruled .wrap { grid-template-columns: 1fr; gap: 22px; }
+  .cols { grid-template-columns: 1fr; }
+  .cols > div { border-right: 0; border-bottom: 1px solid var(--hairline); padding: 0 0 15px; }
+  .cols > div + div { padding: 15px 0; }
+  .cols > div:last-child { border-bottom: 0; }
+  .bar .wrap { height: auto; padding: 15px 22px; flex-wrap: wrap; }
+  h1 { font-size: 32px; }
+}

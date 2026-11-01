@@ -7,30 +7,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark light">
+<meta name="color-scheme" content="light">
 <meta name="description" content="Install FORMALFRED, a generative sequencer with proofs, on an FM-1 from the browser.">
 <title>FORMALFRED installer for the FM-1</title>
 <style>
-  :root {
-    --background: #1a0f1c; --surface: #241427; --text: #f7e8ee; --muted: #a88aa0; --line: #43284a;
-    --accent: #ff8fb1; --success: #9be3b8; --warning: #ffc66d;
+  :root {                                        /* the site's tokens (style.css), in this page's names */
+    --background: #f6f8f7; --surface: #f6f8f7; --text: #000; --muted: #6f6f6f; --line: #e5e5e5;
+    --accent: #000; --success: #000; --warning: #000; --note: #ff8fb1;
     --unit: 4px;
-    --font: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    color-scheme: dark;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --background: #f7f7f7; --surface: #ffffff; --text: #111111; --muted: #555555; --line: #cccccc;
-      --accent: #185ad8; --success: #127c43; --warning: #b83900;
-      color-scheme: light;
-    }
+    --font: "Helvetica Neue", Helvetica, Inter, Arial, system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
   html { background: var(--background); }
-  body { margin: 0; background: var(--background); color: var(--text); font: 16px/24px var(--font); }
-  a { color: var(--accent); text-underline-offset: 2px; }
-  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  body { margin: 0; background: var(--background); color: var(--text); font: 300 15px/1.5 var(--font); }
+  a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--note); }
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px solid var(--text); outline-offset: 3px; }
   code, .mono { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; }
   [hidden] { display: none !important; }
 
@@ -38,33 +32,30 @@
   @media (max-width: 480px) { .page { padding: calc(4 * var(--unit)); } }
 
   .masthead { padding-bottom: calc(6 * var(--unit)); }
-  .wordmark { margin: 0; font-size: 32px; line-height: 1; font-weight: 100; letter-spacing: .1em; }
-  h1 { margin: calc(2 * var(--unit)) 0 0; font-size: 24px; line-height: 32px; font-weight: 400; }
-  .identity { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--unit); height: 2px; margin: calc(4 * var(--unit)) 0; }
-  .identity span:nth-child(1) { background: var(--accent); }
-  .identity span:nth-child(2) { background: var(--success); }
-  .identity span:nth-child(3) { background: var(--text); }
-  .identity span:nth-child(4) { background: var(--warning); }
+  .wordmark { margin: 0; font-size: 24px; line-height: 1; font-weight: 300; }
+  .wordmark a { text-decoration: none; }
+  h1 { margin: calc(4 * var(--unit)) 0 0; font-size: 40px; line-height: 1.11; font-weight: 300; }
+  .identity { height: 1px; background: var(--line); margin: calc(6 * var(--unit)) 0; }
+  .identity span { display: none; }
   .lead { margin: 0; }
   .support { margin: calc(2 * var(--unit)) 0 0; font-size: 14px; line-height: 20px; color: var(--muted); }
 
   .step { border-top: 1px solid var(--line); padding: calc(6 * var(--unit)) 0; }
-  h2 { display: flex; align-items: center; gap: calc(3 * var(--unit)); margin: 0 0 calc(3 * var(--unit)); font-size: 24px; line-height: 32px; font-weight: 400; }
-  .num { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line); font-size: 16px; }
-  .num-1 { color: var(--accent); } .num-2 { color: var(--success); } .num-3 { color: var(--text); }
+  h2 { margin: 0 0 calc(3 * var(--unit)); font-size: 24px; line-height: 1.15; font-weight: 300; }
+  .num { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--text); font: 13px var(--mono); }
   .step p { margin: 0 0 calc(4 * var(--unit)); }
-  h3 { margin: 0 0 calc(2 * var(--unit)); font-size: 16px; line-height: 24px; font-weight: 600; }
+  h3 { margin: 0 0 calc(2 * var(--unit)); font-size: 19px; line-height: 1.15; font-weight: 300; }
 
   .controls { display: flex; flex-wrap: wrap; gap: calc(3 * var(--unit)); align-items: center; margin-bottom: calc(4 * var(--unit)); }
   button, .button, select {
     display: inline-flex; align-items: center; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line);
     border-radius: 0; min-height: 44px; padding: 0 calc(4 * var(--unit)); cursor: pointer; transition: background-color 120ms, border-color 120ms, color 120ms;
   }
-  button:hover:not(:disabled), .button:hover:not(:has(input:disabled)) { border-color: var(--text); }
+  button:hover:not(:disabled), .button:hover:not(:has(input:disabled)) { border-color: var(--note); }
   button:active:not(:disabled), .button:active:not(:has(input:disabled)) { background: var(--text); color: var(--background); border-color: var(--text); }
   button:disabled, .button:has(input:disabled), select:disabled { color: var(--muted); background: transparent; cursor: not-allowed; }
   button[aria-busy=true] { color: var(--muted); border-color: var(--muted); }
-  .button:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .button:focus-within { outline: 1px solid var(--text); outline-offset: 3px; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   .facts { display: grid; grid-template-columns: max-content 1fr; gap: var(--unit) calc(4 * var(--unit)); margin: 0; }
@@ -74,19 +65,19 @@
 
   progress { display: block; width: 100%; height: 8px; margin: 0 0 calc(2 * var(--unit)); appearance: none; border: 1px solid var(--line); background: var(--surface); }
   progress::-webkit-progress-bar { background: var(--surface); }
-  progress::-webkit-progress-value { background: var(--accent); }
-  progress::-moz-progress-bar { background: var(--accent); }
+  progress::-webkit-progress-value { background: var(--text); }
+  progress::-moz-progress-bar { background: var(--text); }
   .status { margin: 0 0 calc(4 * var(--unit)); min-height: 24px; }
 
   .features { list-style: none; padding: 0; margin: calc(6 * var(--unit)) 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(4 * var(--unit)); }
-  .features strong { display: block; margin-bottom: var(--unit); font-weight: 600; }
+  .features strong { display: block; margin-bottom: var(--unit); font: 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   .features p { margin: 0; color: var(--muted); font-size: 14px; line-height: 20px; }
   .gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(4 * var(--unit)); margin-bottom: calc(8 * var(--unit)); }
   .gallery figure { margin: 0; }
   .gallery img { display: block; width: 100%; max-width: 240px; height: auto; image-rendering: pixelated; }
   .gallery figcaption { margin-top: calc(2 * var(--unit)); font-size: 14px; line-height: 20px; color: var(--muted); }
   .install-intro { border-top: 1px solid var(--line); padding-top: calc(6 * var(--unit)); }
-  .step h3 { display: flex; align-items: center; gap: calc(3 * var(--unit)); font-size: 24px; line-height: 28px; font-weight: 500; }
+  .step h3 { display: flex; align-items: center; gap: calc(3 * var(--unit)); font-size: 24px; line-height: 1.15; font-weight: 300; }
   @media (max-width: 640px) {
     .features, .gallery { grid-template-columns: minmax(0, 1fr); }
     .gallery figure { width: 240px; max-width: 100%; justify-self: center; }
@@ -95,10 +86,11 @@
   .alert { border: 1px solid var(--line); background: var(--surface); padding: calc(3 * var(--unit)) calc(4 * var(--unit)); margin: 0 0 calc(4 * var(--unit)); }
   .alert p { margin: 0; }
   .alert p + p { margin-top: var(--unit); }
-  .alert-title { color: var(--warning); font-weight: 600; }
+  .alert { border-left: 2px solid var(--note); }
+  .alert-title { font-weight: 400; }
   .alert .mono { color: var(--muted); }
 
-  .notice { border: 1px solid var(--line); padding: calc(3 * var(--unit)) calc(4 * var(--unit)); }
+  .notice { border-left: 2px solid var(--note); padding: 0 0 0 calc(4 * var(--unit)); }
   .notice ul { margin: 0; padding-left: calc(5 * var(--unit)); }
   .notice li + li { margin-top: var(--unit); }
 
@@ -111,14 +103,14 @@
 <body data-manifest="manifest.json">
 <main class="page">
   <header class="masthead">
-    <p class="wordmark">Formalfred</p>
+    <p class="wordmark"><a href="./">formalfred</a></p>
     <h1>A generative sequencer, with proofs.</h1>
     <div class="identity" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     <p class="lead">Four lanes of Euclidean rhythm and note algorithms, 48 Braids oscillator shapes, chord progressions, and a butler. The lane logic is written and proved in Lean 4.</p>
     <p><a href="#installation">Install the latest release</a> &middot; <a href="sim/">Try it in your browser</a> &middot; <a href="https://github.com/mpancia/fmfm">Source and proofs</a></p>
     <ul class="features">
       <li><strong>Four lanes that compose</strong><p>Euclidean rhythms with a note algorithm each: random, walk, up, down, bounce or a mutating loop.</p></li>
-      <li><strong>Braids, all of it</strong><p>The 48 oscillator shapes of Mutable Instruments' Braids, 199 sounds and 122 patches, with a browser by family.</p></li>
+      <li><strong>Braids, all of it</strong><p>The 48 oscillator shapes of Mutable Instruments' Braids, 199 sounds and 128 patches, with a browser by engine or type.</p></li>
       <li><strong>Proved, not just tested</strong><p>The lane logic is Lean 4: in-scale notes, exact hit counts, and no stuck notes are theorems, checked by Lean's kernel.</p></li>
     </ul>
   </header>
