@@ -28,7 +28,6 @@ void fm1_percussion_render_cymbal(uint32_t *phase, uint32_t *hat_phase, uint32_t
                                   fm1_svf_regs *svf, int32_t xfade, int16_t *buffer, uint32_t size);
 void fm1_percussion_render_bell(uint32_t *phase, const uint32_t *inc, const int32_t *amplitude, int16_t *previous,
                                 int16_t *buffer, uint32_t size);
-int32_t fm1_percussion_decay(int32_t amplitude, int32_t decay_long, int32_t decay_short, int32_t parameter);
 void fm1_percussion_render_drum(uint32_t *phase, const uint32_t *inc, const int32_t *amplitude, const int32_t *target,
                                 int32_t *lp, int32_t f, int32_t noise_gain, int32_t harmonics_gain, int16_t *previous,
                                 int16_t *buffer, uint32_t size);

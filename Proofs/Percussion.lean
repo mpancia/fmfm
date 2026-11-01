@@ -374,7 +374,7 @@ theorem percussion_drum_noise_stays_bounded (noise lp0 lp1 lp2 f : Int32)
 
 /-- Four values well within 32 bits add without wrapping. -/
 private theorem percussion_sum_four (p a b c : Int32) (pFits : p.toInt.natAbs ≤ 32768)
-    (aFits : a.toInt.natAbs ≤ 98304) (bFits : b.toInt.natAbs ≤ 103104) (cFits : c.toInt.natAbs ≤ 32768) :
+    (aFits : a.toInt.natAbs ≤ 98304) (bFits : b.toInt.natAbs ≤ 103104) (cFits : c.toInt.natAbs ≤ 33966) :
     (p + a + b + c).toInt = p.toInt + a.toInt + b.toInt + c.toInt := by
   have s1 : (p + a).toInt = p.toInt + a.toInt := percussion_add_exact _ _ (by omega)
   have s2 : (p + a + b).toInt = p.toInt + a.toInt + b.toInt := by
@@ -385,7 +385,7 @@ private theorem percussion_sum_four (p a b c : Int32) (pFits : p.toInt.natAbs �
 at the noise gain, and all the partials at the harmonics gain, held between -32767 and 32767. Holds for a
 second partial within 2048 and a fourth within 4096 (Braids starts them at 2654 and 5308 and the sine halves
 that), the others within 16 bits, filtered noise within 16384, a noise gain from 0 to 12888 and a harmonics
-gain from 0 to 16384, which are the ranges Braids' drum sets.
+gain from 0 to 16983, which are the ranges Braids' drum sets (`percussion_setup_gains_in_range`).
 Why it matters: the ring modulation multiplies two signals and then a gain; with any louder partial it would
 pass 32 bits, so the bound on those two partials is what keeps the drum free of wraps. -/
 theorem percussion_drum_mix_never_wraps
@@ -393,7 +393,7 @@ theorem percussion_drum_mix_never_wraps
     (partial0Fits : partial0.toInt.natAbs ≤ 32768) (partial1Fits : partial1.toInt.natAbs ≤ 2048)
     (partial3Fits : partial3.toInt.natAbs ≤ 4096) (harmonicsFits : harmonics.toInt.natAbs ≤ 32768)
     (lp2Fits : lp2.toInt.natAbs ≤ 16384) (noiseGainFits : 0 ≤ noiseGain.toInt ∧ noiseGain.toInt ≤ 12888)
-    (harmonicsGainFits : 0 ≤ harmonicsGain.toInt ∧ harmonicsGain.toInt ≤ 16384) :
+    (harmonicsGainFits : 0 ≤ harmonicsGain.toInt ∧ harmonicsGain.toInt ≤ 16983) :
     (Percussion.drumMix partial0 partial1 partial3 harmonics lp2 noiseGain harmonicsGain).toInt =
       max (-32767) (min 32767
         (partial0.toInt + (partial1.toInt * lp2.toInt / 256) * (12288 - noiseGain.toInt) / 16384
@@ -430,17 +430,17 @@ theorem percussion_drum_mix_never_wraps
     have := percussion_abs_mul_le M2.toInt noiseGain.toInt 131072 12888 m2Fits (by omega)
     rw [percussion_shift_fourteen, percussion_mul_exact _ _ (by omega)]
   have t3 : ((harmonics * harmonicsGain) >>> 14).toInt = harmonics.toInt * harmonicsGain.toInt / 16384 := by
-    have := percussion_abs_mul_le harmonics.toInt harmonicsGain.toInt 32768 16384 harmonicsFits (by omega)
+    have := percussion_abs_mul_le harmonics.toInt harmonicsGain.toInt 32768 16983 harmonicsFits (by omega)
     rw [percussion_shift_fourteen, percussion_mul_exact _ _ (by omega)]
   have b1 := percussion_abs_mul_le M1.toInt (12288 - noiseGain.toInt) 131072 12288 m1Fits (by omega)
   have b2 := percussion_abs_mul_le M2.toInt noiseGain.toInt 131072 12888 m2Fits (by omega)
-  have b3 := percussion_abs_mul_le harmonics.toInt harmonicsGain.toInt 32768 16384 harmonicsFits (by omega)
+  have b3 := percussion_abs_mul_le harmonics.toInt harmonicsGain.toInt 32768 16983 harmonicsFits (by omega)
   generalize (M1 * ((12288 : Int32) - noiseGain)) >>> 14 = T1 at t1
   generalize (M2 * noiseGain) >>> 14 = T2 at t2
   generalize (harmonics * harmonicsGain) >>> 14 = T3 at t3
   have T1Fits : T1.toInt.natAbs ≤ 98304 := by rw [t1]; omega
   have T2Fits : T2.toInt.natAbs ≤ 103104 := by rw [t2]; omega
-  have T3Fits : T3.toInt.natAbs ≤ 32768 := by rw [t3]; omega
+  have T3Fits : T3.toInt.natAbs ≤ 33966 := by rw [t3]; omega
   clear b1 b2 b3 m1Fits m2Fits c12288 ng
   have sum := percussion_sum_four partial0 T1 T2 T3 partial0Fits T1Fits T2Fits T3Fits
   rw [percussion_keep16 _ (by rw [percussion_clip_value]; omega) (by rw [percussion_clip_value]; omega),

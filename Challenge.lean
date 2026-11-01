@@ -30,6 +30,35 @@ theorem analog_sine_between_entries (phase : UInt32) :
 theorem analog_phase_exact (phase inc : UInt32) (n : Nat) :
     (Analog.freeRun phase inc n).toNat = (phase.toNat + n * inc.toNat) % 2 ^ 32 := sorry
 
+-- Proofs/AnalogSetup.lean
+theorem analog_setup_pulse_width_in_range (parameter : Int16) (nonneg : 0 ≤ parameter) :
+    (768 * 65536 ≤ (AnalogSetup.squarePulseWidth parameter).toNat ∧
+      (AnalogSetup.squarePulseWidth parameter).toNat ≤ 32768 * 65536) ∧
+      (1024 * 65536 ≤ (AnalogSetup.variableSawPulseWidth parameter).toNat ∧
+        (AnalogSetup.variableSawPulseWidth parameter).toNat ≤ 32767 * 65536) := sorry
+
+theorem analog_setup_buzz_zone_in_table (pitch parameter : Int16) :
+    (AnalogSetup.buzzZone pitch parameter).toNat ≤ 14 ∧
+      (AnalogSetup.buzzZone2 pitch parameter).toNat ≤ 14 := sorry
+
+-- Proofs/Arp.lean
+theorem arp_note_is_held (a : Arp) (valid : Arp.Valid a) (note : Nat) (starts : a.tick.on = some note) :
+    ∃ h ∈ a.held, ∃ o, o < max 1 a.octaves ∧ note = h + 12 * o := sorry
+
+theorem arp_make_valid (div : Nat) (seed : UInt32) : Arp.Valid (Arp.make div seed) := sorry
+
+theorem arp_set_valid (a : Arp) (valid : Arp.Valid a) (mode octaves div gate : Nat) :
+    Arp.Valid (a.set mode octaves div gate) := sorry
+
+theorem arp_keys_valid (a : Arp) (valid : Arp.Valid a) (note : Nat) :
+    Arp.Valid (a.press note) ∧ Arp.Valid (a.release note) ∧ Arp.Valid a.clear := sorry
+
+theorem arp_tick_valid (a : Arp) (valid : Arp.Valid a) : Arp.Valid a.tick := sorry
+
+theorem arp_every_note_on_has_a_note_off (a : Arp) (fresh : a.playing = none) (ops : List Arp.Op) :
+    Arp.noteOns (a.trace ops) = Arp.noteOffs (a.trace ops) + (a.run ops).soundingCount ∧
+      (a.run ops).silence.playing = none := sorry
+
 -- Proofs/Blend.lean
 theorem blend_eight_between (a b : Int32) (index : UInt32)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
@@ -51,10 +80,13 @@ theorem delay_echo_shrinks (echo feedback : Int32) (nonmin : -2 ^ 31 < echo.toIn
     (Delay.input 0 echo feedback).toInt.natAbs ≤ echo.toInt.natAbs * 19 / 20 + 1 := sorry
 
 theorem delay_samples_in_line (time bpm rate : UInt32) :
-    1 ≤ (Delay.samples time bpm rate).toNat ∧ (Delay.samples time bpm rate).toNat ≤ 32767 := sorry
+    1 ≤ (Delay.samples time bpm rate).toNat ∧ (Delay.samples time bpm rate).toNat ≤ 20479 := sorry
 
-theorem delay_short_notes_exact (time bpm : UInt32) (short : time.toNat ≤ 3) (slow : 40 ≤ bpm.toNat)
-    (fast : bpm.toNat ≤ 240) :
+theorem delay_position_in_line (write offset : UInt32) (w : write.toNat < 20480) (o : offset.toNat < 20480) :
+    (Delay.pos write offset).toNat < 20480 ∧ (Delay.nextWrite write).toNat < 20480 := sorry
+
+theorem delay_notes_exact (time bpm : UInt32) (slow : 40 ≤ bpm.toNat) (fast : bpm.toNat ≤ 240)
+    (fits : time.toNat ≤ 1 ∨ (97 ≤ bpm.toNat ∧ time.toNat ≤ 6) ∨ (130 ≤ bpm.toNat ∧ time.toNat ≤ 7)) :
     (Delay.samples time bpm 44100).toNat =
       60 * 44100 * (Delay.numerator time).toNat / (bpm.toNat * (Delay.denominator time).toNat) := sorry
 
@@ -101,6 +133,23 @@ theorem digital_ring_mod_never_wraps (phase mod1 mod2 inc inc1 inc2 : UInt32) (s
 theorem digital_toy_never_wraps (h1 h2 h3 h4 : UInt8) :
     (Digital.toyFilter h1 h2 h3 h4).toInt =
       ((10530 * h1.toNat + 14751 * h2.toNat + 16384 * h3.toNat + 14751 * h4.toNat) / 256 : Nat) - 28208 := sorry
+
+-- Proofs/DigitalSetup.lean
+theorem digital_setup_fm_quantizer_in_table (param : Int16) (nonneg : 0 ≤ param) :
+    (DigitalSetup.fmQuantizerIndex param).toNat < 129 ∧
+      (DigitalSetup.fmQuantizerIndex param + 1).toNat < 129 := sorry
+
+theorem digital_setup_increments_half_cycle (pitch param : Int16) (increment : UInt32)
+    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
+    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
+    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
+    (DigitalSetup.fmModulatorIncrement pitch param).toNat < 2 ^ 31 ∧
+      (DigitalSetup.ringIncrement pitch param).toNat < 2 ^ 31 ∧
+      (DigitalSetup.modulationSymbolIncrement pitch param).toNat < 2 ^ 31 ∧
+      (DigitalSetup.toyIncrement increment).toNat < 2 ^ 31 := sorry
+
+theorem digital_setup_delay_in_table (pitch : Int16) :
+    (DigitalSetup.delayIndex pitch).toNat < 97 ∧ (DigitalSetup.delayIndex pitch + 1).toNat < 97 := sorry
 
 -- Proofs/Divider.lean
 theorem divider_pulse_count (div ticks : Nat) (positive : 0 < div) :
@@ -152,6 +201,21 @@ theorem filters_harmonics_never_wraps (sum previous : Int32)
     (Filters.harmonicsOut sum).toInt16.toInt = (Digital.clip sum).toInt ∧
       (Filters.harmonicsMid sum previous).toInt16.toInt =
         ((Digital.clip sum).toInt + previous.toInt) / 2 := sorry
+
+-- Proofs/FiltersSetup.lean
+theorem filters_setup_cutoff_in_table (pitch parameter : Int32) :
+    (Analog.tableIndex ((FiltersSetup.swarmHpCutoff pitch parameter).toUInt32 <<< 17)).toNat ≤ 255 ∧
+      (Analog.tableIndex ((FiltersSetup.swarmHpCutoff pitch parameter).toUInt32 <<< 17) + 1).toNat ≤ 256 := sorry
+
+theorem filters_setup_table_blend_le_top (table : UInt32 → UInt16) (phase : UInt32) (top : Nat)
+    (rising : ∀ i, table i ≤ table (i + 1)) (bounded : ∀ i, (table i).toNat ≤ top) (small : top ≤ 32767) :
+    (Digital.lutAt table phase).toNat ≤ top := sorry
+
+theorem filters_setup_cutoff_in_range (pitch parameter : Int32)
+    (rising : ∀ i, Percussion.cutoffTable i ≤ Percussion.cutoffTable (i + 1))
+    (top : ∀ i, (Percussion.cutoffTable i).toNat ≤ 25078) :
+    0 ≤ (FiltersSetup.swarmCutoff pitch parameter).toInt ∧
+      (FiltersSetup.swarmCutoff pitch parameter).toInt ≤ 25078 := sorry
 
 -- Proofs/Harmony.lean
 theorem harmony_mask_never_empty (scale key root follow : UInt32) :
@@ -211,6 +275,22 @@ theorem lfo_triangle_symmetric (phase : UInt32) : Lfo.triangle (~~~phase) = Lfo.
 theorem lfo_modulate_centred (base depth phase : UInt32) (small : base.toNat ≤ 100)
     (deep : depth.toNat ≤ 100) :
     lfoModulate base depth 1073741824 = base ∧ lfoModulate base 0 phase = base := sorry
+
+-- Proofs/MacroSetup.lean
+theorem macro_setup_parameters_in_range (pitch p0 : Int16) (nonneg : 0 ≤ p0) :
+    (0 ≤ (MacroSetup.morphParameter p0).toInt ∧ (MacroSetup.morphParameter p0).toInt ≤ 32767) ∧
+      (0 ≤ (MacroSetup.sineTriangleSineParameter pitch p0).toInt ∧
+        (MacroSetup.sineTriangleSineParameter pitch p0).toInt ≤ 32767) ∧
+      (0 ≤ (MacroSetup.sineTriangleTriParameter pitch p0).toInt ∧
+        (MacroSetup.sineTriangleTriParameter pitch p0).toInt ≤ 32767) := sorry
+
+theorem macro_setup_cutoff_in_table (pitch p1 : Int16) :
+    (0 ≤ (MacroSetup.morphLpCutoff pitch p1).toInt ∧ (MacroSetup.morphLpCutoff pitch p1).toInt ≤ 32767) ∧
+      (Analog.tableIndex ((MacroSetup.morphLpCutoff pitch p1).toUInt32 <<< 17)).toNat ≤ 256 ∧
+      (Analog.tableIndex ((MacroSetup.morphLpCutoff pitch p1).toUInt32 <<< 17) + 1).toNat ≤ 256 := sorry
+
+theorem macro_setup_triple_intervals_in_table (p : Int16) (nonneg : 0 ≤ p) :
+    (MacroSetup.tripleIndex p).toNat < 65 ∧ (MacroSetup.tripleIndex2 p).toNat < 65 := sorry
 
 -- Proofs/Mix.lean
 theorem mix_envelope_toward_gate (amp gate up down : Int32)
@@ -289,8 +369,34 @@ theorem noise_grain_never_wraps (phase inc envelope envInc : UInt32) :
       (Noise.grain phase inc envelope envInc).contribution.toInt.natAbs ≤ 16384 := sorry
 
 theorem noise_grain_envelope_index_in_table (phase inc envelope envInc : UInt32)
-    (started : envelope.toNat ≤ 2 ^ 24 + 15 * 2 ^ 18) (rate : envInc.toNat ≤ 2 ^ 18) :
+    (started : envelope.toNat ≤ 2 ^ 24 + 2 ^ 22) (rate : envInc.toNat ≤ 2 ^ 18) :
     ((Noise.grain phase inc envelope envInc).envelope >>> 16).toNat ≤ 512 := sorry
+
+-- Proofs/NoiseSetup.lean
+theorem noise_setup_cutoff_in_table (pitch param0 : Int16) :
+    (Analog.tableIndex (pitch.toInt32.toUInt32 <<< 17) + 1).toNat ≤ 256 ∧
+      (Analog.tableIndex (param0.toInt32.toUInt32 <<< 17) + 1).toNat ≤ 256 := sorry
+
+theorem noise_setup_gain_correction_in_range (pitch param0 : Int16) :
+    0 ≤ (NoiseSetup.gainCorrection pitch param0).toInt ∧
+      (NoiseSetup.gainCorrection pitch param0).toInt ≤ 32767 := sorry
+
+theorem noise_setup_grain_rate_in_table (param0 : Int16) (nonneg : 0 ≤ param0.toInt) :
+    (param0.toInt32 >>> 7).toUInt32.toNat ≤ 256 := sorry
+
+theorem noise_setup_grain_rate_bounded (param0 : Int16)
+    (top : ∀ i, (NoiseSetup.rateTable i).toNat ≤ 32768) :
+    (NoiseSetup.grainRate param0).toNat ≤ 2 ^ 18 := sorry
+
+theorem noise_setup_grain_reset (envelope envInc word : UInt32) (param0 : Int16)
+    (top : ∀ i, (NoiseSetup.rateTable i).toNat ≤ 32768)
+    (settled : envelope.toNat ≤ 2 ^ 24 + 2 ^ 22) (slow : envInc.toNat ≤ 2 ^ 18) :
+    (NoiseSetup.grainRateStart envelope envInc word param0).toNat ≤ 2 ^ 18 ∧
+      (NoiseSetup.grainEnvelopeStart envelope envInc word).toNat
+        + 16 * (NoiseSetup.grainRateStart envelope envInc word param0).toNat ≤ 2 ^ 24 + 2 ^ 22 := sorry
+
+theorem noise_setup_clock_period_positive (prev1 : Int16) (nonneg : 0 ≤ prev1.toInt) :
+    2048 ≤ (NoiseSetup.quantizerDivider prev1).toNat ∧ (NoiseSetup.quantizerDivider prev1).toNat ≤ 32768 := sorry
 
 -- Proofs/Notes.lean
 theorem notes_start_valid (span amount : Nat) (seed : UInt32) (positive : 0 < span) (small : span ≤ 65535)
@@ -414,12 +520,39 @@ theorem percussion_drum_mix_never_wraps
     (partial0Fits : partial0.toInt.natAbs ≤ 32768) (partial1Fits : partial1.toInt.natAbs ≤ 2048)
     (partial3Fits : partial3.toInt.natAbs ≤ 4096) (harmonicsFits : harmonics.toInt.natAbs ≤ 32768)
     (lp2Fits : lp2.toInt.natAbs ≤ 16384) (noiseGainFits : 0 ≤ noiseGain.toInt ∧ noiseGain.toInt ≤ 12888)
-    (harmonicsGainFits : 0 ≤ harmonicsGain.toInt ∧ harmonicsGain.toInt ≤ 16384) :
+    (harmonicsGainFits : 0 ≤ harmonicsGain.toInt ∧ harmonicsGain.toInt ≤ 16983) :
     (Percussion.drumMix partial0 partial1 partial3 harmonics lp2 noiseGain harmonicsGain).toInt =
       max (-32767) (min 32767
         (partial0.toInt + (partial1.toInt * lp2.toInt / 256) * (12288 - noiseGain.toInt) / 16384
           + (partial3.toInt * lp2.toInt / 512) * noiseGain.toInt / 16384
           + harmonics.toInt * harmonicsGain.toInt / 16384)) := sorry
+
+-- Proofs/PercussionSetup.lean
+theorem percussion_setup_partial_decay_in_table (i : UInt32) :
+    (0 ≤ (PercussionSetup.bellDecayShort i).toInt ∧
+      (PercussionSetup.bellDecayShort i).toInt ≤ (PercussionSetup.bellDecayLong i).toInt ∧
+      (PercussionSetup.bellDecayLong i).toInt ≤ 65535) ∧
+    (0 ≤ (PercussionSetup.drumDecayShort i).toInt ∧
+      (PercussionSetup.drumDecayShort i).toInt ≤ (PercussionSetup.drumDecayLong i).toInt ∧
+      (PercussionSetup.drumDecayLong i).toInt ≤ 65535) := sorry
+
+theorem percussion_setup_amplitudes_in_range (i : UInt32) :
+    (0 ≤ (PercussionSetup.bellAmplitude i).toInt ∧ (PercussionSetup.bellAmplitude i).toInt ≤ 32767) ∧
+    (0 ≤ (PercussionSetup.drumAmplitude i).toInt ∧ (PercussionSetup.drumAmplitude i).toInt ≤ 32767) ∧
+    (PercussionSetup.drumAmplitude 1).toInt ≤ 4096 ∧ (PercussionSetup.drumAmplitude 3).toInt ≤ 8192 := sorry
+
+theorem percussion_setup_drum_cutoff_in_table (pitch param1 : Int32) :
+    (Analog.tableIndex ((PercussionSetup.drumCutoff pitch param1).toUInt32 <<< 16) + 1).toNat ≤ 128 := sorry
+
+theorem percussion_setup_gains_in_range (param0 param1 : Int32)
+    (param0Fits : 0 ≤ param0.toInt ∧ param0.toInt ≤ 32767)
+    (param1Fits : 0 ≤ param1.toInt ∧ param1.toInt ≤ 32767) :
+    (0 ≤ (PercussionSetup.drumNoiseGain param1).toInt ∧
+      (PercussionSetup.drumNoiseGain param1).toInt ≤ 12888) ∧
+    (0 ≤ (PercussionSetup.drumHarmonicsGain param1).toInt ∧
+      (PercussionSetup.drumHarmonicsGain param1).toInt ≤ 16983) ∧
+    (0 ≤ (PercussionSetup.snareGain1 param0).toInt ∧ (PercussionSetup.snareGain1 param0).toInt ≤ 22000) ∧
+    (0 ≤ (PercussionSetup.snareGain2 param0).toInt ∧ (PercussionSetup.snareGain2 param0).toInt ≤ 38383) := sorry
 
 -- Proofs/Physical.lean
 theorem physical_mix_never_wraps (a b : Int32) (fraction : UInt32)
@@ -512,6 +645,57 @@ theorem physical_bowed_body_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
     (bridgeFraction neckFraction : UInt32) (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32) :
     let step := Physical.bowed bridgeA bridgeB nutA nutB bridgeFraction neckFraction lp excitation bow y0 y1
     step.biquad.toInt.natAbs ≤ 2 ^ 18 := sorry
+
+theorem physical_comb_read_in_line (ptr integral : UInt32) :
+    (Physical.combRead ptr integral).toNat < 8192 := physical_masked_in_line _ _ _ (by decide)
+
+/-- The comb filter's write position after a sample is inside its 8192 line. The first position of a block
+comes from C++ as `phase_ % 8192`; this keeps every later one in the line.
+Why it matters: the write is unmasked in the glue, so the advance is what keeps it inside. -/
+theorem physical_comb_write_in_line (ptr : UInt32) : (Physical.combAdvance ptr).toNat < 8192 := sorry
+
+theorem physical_comb_write_in_line (ptr : UInt32) : (Physical.combAdvance ptr).toNat < 8192 := sorry
+
+theorem physical_pluck_read_in_line (phase shift size : UInt32) (sized : size = 1024 >>> shift)
+    (oversampled : shift ≤ 9) :
+    (Physical.pluckEntry (Physical.pluckPhase phase shift)).toNat + 1 ≤ size.toNat := sorry
+
+theorem physical_pluck_next_in_line (phase shift mask size writePtr : UInt32) (sized : size = 1024 >>> shift)
+    (masked : mask = size - 1) (oversampled : shift ≤ 9) :
+    (Physical.pluckReadPtr phase shift mask).toNat < size.toNat ∧
+    (Physical.pluckNext writePtr mask).toNat < size.toNat := sorry
+
+theorem physical_pluck_fill_in_line (initialization size : UInt32) (started : 1 ≤ initialization)
+    (fits : initialization ≤ size) : (Physical.pluckFillAt initialization).toNat < size.toNat := sorry
+
+theorem physical_bowed_lines_in_line (ptr bridgeIntegral neckIntegral : UInt32) :
+    (Physical.bridgeRead ptr bridgeIntegral).toNat < 1024 ∧ (Physical.bridgeWrite ptr).toNat < 1024 ∧
+    (Physical.neckRead ptr neckIntegral).toNat < 4096 ∧ (Physical.neckWrite ptr).toNat < 4096 := sorry
+
+theorem physical_blown_bore_in_line (ptr integral : UInt32) :
+    (Physical.boreRead ptr integral).toNat < 2048 ∧ (Physical.boreWrite ptr).toNat < 2048 := sorry
+
+theorem physical_fluted_lines_in_line (ptr boreIntegral jetIntegral : UInt32) :
+    (Physical.fluteBoreRead ptr boreIntegral).toNat < 4096 ∧ (Physical.fluteBoreWrite ptr).toNat < 4096 ∧
+    (Physical.jetRead ptr jetIntegral).toNat < 1024 ∧ (Physical.jetWrite ptr).toNat < 1024 := sorry
+
+-- Proofs/PhysicalSetup.lean
+theorem physical_setup_pluck_size_valid (increment : UInt32) (param1 : Int32)
+    (param1Fits : 0 ≤ param1.toInt ∧ param1.toInt ≤ 32767) :
+    PhysicalSetup.pluckShift increment ≤ 9 ∧
+      PhysicalSetup.pluckInitialization (PhysicalSetup.pluckShift increment) param1 ≤
+        PhysicalSetup.pluckSize (PhysicalSetup.pluckShift increment) := sorry
+
+theorem physical_setup_comb_delay_in_line (delay : UInt32) :
+    (PhysicalSetup.combDelayIntegral delay).toNat ≤ 8192 := sorry
+
+theorem physical_setup_envelope_pointer_in_table (ptr advance : UInt32) (block : advance ≤ 16) :
+    ((PhysicalSetup.bowedExcitationClamp ptr + advance + 1) >>> 1).toNat < 752 ∧
+      (PhysicalSetup.flutedExcitationClamp ptr + advance).toNat < 392 := sorry
+
+theorem physical_setup_flute_body_in_table (pitch param1 : Int32) :
+    (PhysicalSetup.blownNormalizedPitch pitch param1).toUInt32.toNat ≤ 127 ∧
+      (PhysicalSetup.flutedNote pitch).toUInt32.toNat ≤ 127 := sorry
 
 -- Proofs/Pitch.lean
 theorem pitch_table_reads_inside (pitch : Int16) :
@@ -679,6 +863,15 @@ theorem tables_wave_line_reads_inside_129 (phase mask : UInt32) :
 theorem tables_formant_reads_inside_256 (phase amp : UInt32) (nibble : amp.toNat ≤ 15) :
     (((phase >>> 24) &&& 0xF0) ||| amp).toNat ≤ 255 := sorry
 
+-- Proofs/VoiceSetup.lean
+theorem voice_setup_pitch_in_range (note : UInt32) (midi : note.toNat ≤ 127) (timbre : Int32)
+    (lo : 0 ≤ timbre.toInt) (hi : timbre.toInt ≤ 32767) :
+    (VoiceSetup.pitch (note.toInt32 * 128)).toInt = note.toNat * 128 ∧
+      (VoiceSetup.pitch (note.toInt32 * 128)).toInt32 < Pitch.tableStart ∧
+      (VoiceSetup.parameter timbre).toInt = timbre.toInt := sorry
+
+theorem voice_setup_shape_in_table (shape : UInt32) : (VoiceSetup.shape shape).toNat < 48 := sorry
+
 -- Proofs/Vowels.lean
 theorem vowels_fof_contribution_never_wraps (lp bp f amp input : Int32)
     (amp16 : -32768 ≤ amp.toInt ∧ amp.toInt ≤ 32767) :
@@ -699,6 +892,26 @@ theorem vowels_question_drive_never_wraps (sample parameter : Int32)
         sample.toInt * sample.toInt / 16384 * parameter.toInt / 32768 ∧
       0 ≤ (Vowels.questionDrive sample parameter).toInt ∧
         (Vowels.questionDrive sample parameter).toInt ≤ 65535 := sorry
+
+-- Proofs/VowelsSetup.lean
+theorem vowels_setup_vowel_index_in_table (parameter : Int32)
+    (shaped : 0 ≤ parameter.toInt ∧ parameter.toInt ≤ 32767) :
+    (VowelsSetup.vowelIndex parameter).toNat ≤ 7 ∧ (VowelsSetup.vowelIndex parameter + 1).toNat ≤ 8 := sorry
+
+theorem vowels_setup_consonant_index_in_table (random : Int32) :
+    (VowelsSetup.consonantIndex random).toNat ≤ 7 := sorry
+
+theorem vowels_setup_fof_reads_in_table (parameter : Int32)
+    (shaped : 0 ≤ parameter.toInt ∧ parameter.toInt ≤ 32767) :
+    (VowelsSetup.fofRow parameter).toNat ≤ 3 ∧ (VowelsSetup.fofRow parameter + 1).toNat ≤ 4 := sorry
+
+theorem vowels_setup_formant_amplitude_in_range (parameter : Int32) (formant : UInt32)
+    (nibble : ∀ vowel formant, (VowelsSetup.vowelAmplitudeAt vowel formant).toNat ≤ 15) :
+    (VowelsSetup.vowelAmplitude parameter formant).toNat ≤ 15 := sorry
+
+theorem vowels_setup_fof_amplitude_16bit (parameter0 parameter1 : Int32) (formant : UInt32) :
+    -32768 ≤ (VowelsSetup.fofAmplitude parameter0 parameter1 formant).toInt ∧
+      (VowelsSetup.fofAmplitude parameter0 parameter1 formant).toInt ≤ 32767 := sorry
 
 -- Proofs/Wavetables.lean
 theorem wavetables_wavetable_never_wraps (phase inc waveA waveB balance : UInt32) (sync : UInt8) :
@@ -744,3 +957,38 @@ theorem wavetables_paraphonic_never_wraps (p0 p1 p2 p3 inc0 inc1 inc2 inc3 waveA
         (Wavetables.crossfade waveA waveB ((p1 + inc1) >>> 1) balance).toInt +
         (Wavetables.crossfade waveA waveB ((p2 + inc2) >>> 1) balance).toInt +
         (Wavetables.crossfade waveA waveB ((p3 + inc3) >>> 1) balance).toInt) / 4 := sorry
+
+-- Proofs/WavetablesSetup.lean
+theorem wavetables_setup_table_in_table (param0 prev1 : Int16) (nonneg0 : 0 ≤ param0.toInt)
+    (nonneg1 : 0 ≤ prev1.toInt)
+    (steps : (WavetablesSetup.tableSteps (WavetablesSetup.tableIndex prev1)).toNat ≤ 16) :
+    (WavetablesSetup.tableIndex prev1).toNat ≤ 19 ∧
+      (WavetablesSetup.tableStep param0 prev1 + 1).toNat ≤ 16 := sorry
+
+theorem wavetables_setup_map_in_table (param0 param1 : Int16) (i j : UInt32) (nonneg0 : 0 ≤ param0.toInt)
+    (nonneg1 : 0 ≤ param1.toInt) (cornerI : i.toNat ≤ 1) (cornerJ : j.toNat ≤ 1) :
+    (WavetablesSetup.mapIndex param0 param1 i j).toNat ≤ 255 := sorry
+
+theorem wavetables_setup_line_in_table (previous : Int32) (prev0 param0 : Int16)
+    (settled : 0 ≤ previous.toInt ∧ previous.toInt ≤ 65534) (held : 0 ≤ prev0.toInt)
+    (nonneg : 0 ≤ param0.toInt) :
+    (prev0.toInt32 >>> 9).toUInt32.toNat ≤ 63 ∧
+      ((WavetablesSetup.lineScan previous param0).toUInt32 >>> 10).toNat ≤ 63 ∧
+      ((WavetablesSetup.lineScan previous param0).toUInt32 >>> 10 + 1).toNat ≤ 64 ∧
+      (0 ≤ (WavetablesSetup.smoothed previous param0).toInt ∧
+        (WavetablesSetup.smoothed previous param0).toInt ≤ 65534) ∧
+      0 ≤ (WavetablesSetup.lineHeld previous param0).toInt := sorry
+
+theorem wavetables_setup_paraphonic_in_table (param0 param1 : Int16) (nonneg0 : 0 ≤ param0.toInt)
+    (nonneg1 : 0 ≤ param1.toInt) :
+    (WavetablesSetup.chordIndex param1 + 1).toNat ≤ 16 ∧
+      ((param0.toInt32 >>> 10).toUInt32 + 1).toNat ≤ 32 := sorry
+
+theorem wavetables_setup_wave_in_bank (wave phase : UInt32) (selected : wave.toNat ≤ 255) :
+    wave.toNat * 129 + (Analog.tableIndex (phase >>> 1) + 1).toNat ≤ 33023 := sorry
+
+theorem wavetables_setup_increments_half_cycle (pitch param1 : Int16) (voice : UInt32)
+    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
+    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
+    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
+    (WavetablesSetup.voiceIncrement pitch param1 voice).toNat < 2 ^ 31 := sorry

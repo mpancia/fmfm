@@ -50,15 +50,18 @@ void fm1_analog_render_sine_fold(uint32_t*, uint32_t*, uint32_t, int32_t*, int32
 void fm1_analog_render_buzz(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t*, int16_t*, uint32_t);
 // The pitch to phase step is in voices/pitch_glue.c, the arithmetic in Firmware/Pitch.lean.
 uint32_t fm1_pitch_increment_of(int16_t pitch);
+// The per-block setup is in voices/analog_setup_glue.c, the arithmetic in Firmware/AnalogSetup.lean.
+int16_t fm1_analog_clamped_pitch(int16_t pitch);
+uint32_t fm1_analog_square_pulse_width(int16_t parameter);
+uint32_t fm1_analog_variable_saw_pulse_width(int16_t parameter);
+uint32_t fm1_analog_buzz_zone(int16_t pitch, int16_t parameter);
+uint32_t fm1_analog_buzz_zone2(int16_t pitch, int16_t parameter);
+uint32_t fm1_analog_buzz_crossfade(int16_t pitch, int16_t parameter);
 }
 
 namespace braids {
 
 using namespace stmlib;
-
-static const size_t kNumZones = 15;
-
-static const uint16_t kHighestNote = 128 * 128;
 
 uint32_t AnalogOscillator::ComputePhaseIncrement(int16_t midi_pitch) {
   return fm1_pitch_increment_of(midi_pitch);
@@ -77,12 +80,7 @@ void AnalogOscillator::Render(
   }
   
   phase_increment_ = ComputePhaseIncrement(pitch_);
-  
-  if (pitch_ > kHighestNote) {
-    pitch_ = kHighestNote;
-  } else if (pitch_ < 0) {
-    pitch_ = 0;
-  }
+  pitch_ = fm1_analog_clamped_pitch(pitch_);
   
   (this->*fn)(sync_in, buffer, sync_out, size);
 }
@@ -105,12 +103,9 @@ void AnalogOscillator::RenderSquare(
     int16_t* buffer,
     uint8_t* sync_out,
     size_t size) {
-  if (parameter_ > 32000) {
-    parameter_ = 32000;
-  }
   uint8_t high = high_;
   fm1_analog_render_square(&phase_, &previous_phase_increment_, phase_increment_, &next_sample_, &high,
-                           static_cast<uint32_t>(32768 - parameter_) << 16, sync_in, buffer, sync_out, size);
+                           fm1_analog_square_pulse_width(parameter_), sync_in, buffer, sync_out, size);
   high_ = high;
 }
 
@@ -128,12 +123,9 @@ void AnalogOscillator::RenderVariableSaw(
     int16_t* buffer,
     uint8_t* sync_out,
     size_t size) {
-  if (parameter_ < 1024) {
-    parameter_ = 1024;
-  }
   uint8_t high = high_;
   fm1_analog_render_variable_saw(&phase_, &previous_phase_increment_, phase_increment_, &next_sample_, &high,
-                                 static_cast<uint32_t>(parameter_) << 16, sync_in, buffer, sync_out, size);
+                                 fm1_analog_variable_saw_pulse_width(parameter_), sync_in, buffer, sync_out, size);
   high_ = high;
 }
 
@@ -180,14 +172,9 @@ void AnalogOscillator::RenderBuzz(
     int16_t* buffer,
     uint8_t* sync_out,
     size_t size) {
-  int32_t shifted_pitch = pitch_ + ((32767 - parameter_) >> 1);
-  uint16_t crossfade = shifted_pitch << 6;
-  size_t index = (shifted_pitch >> 10);
-  if (index >= kNumZones) {
-    index = kNumZones - 1;
-  }
-  size_t index_2 = index + 1 >= kNumZones ? kNumZones - 1 : index + 1;
-  fm1_analog_render_buzz(&phase_, phase_increment_, index, index_2, crossfade, sync_in, buffer, size);
+  fm1_analog_render_buzz(&phase_, phase_increment_, fm1_analog_buzz_zone(pitch_, parameter_),
+                         fm1_analog_buzz_zone2(pitch_, parameter_), fm1_analog_buzz_crossfade(pitch_, parameter_),
+                         sync_in, buffer, size);
 }
 
 /* static */

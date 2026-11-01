@@ -332,11 +332,6 @@ class DigitalOscillator {
   
   uint32_t ComputePhaseIncrement(int16_t midi_pitch);
   uint32_t ComputeDelay(int16_t midi_pitch);
-  int16_t InterpolateFormantParameter(
-      const int16_t table[][kNumFormants][kNumFormants],
-      int16_t x,
-      int16_t y,
-      uint8_t formant);
    
   uint32_t phase_;
   uint32_t phase_increment_;

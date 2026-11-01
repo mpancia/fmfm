@@ -177,3 +177,65 @@ delayed value passes through a saturating curve back into the bore. The line sam
   let out := Digital.clip (boreValue >>> 1)
   { lp := lp', dcX := lp', dcY := dcY', jet := ((breath - (dcY' >>> 1)) >>> 9).toUInt32.toUInt8,
     bore := (jet >>> 9).toUInt32.toUInt8, out := out.toInt16 }
+
+/-!
+## Where each engine reads and writes its lines
+
+The glue loads and stores; the positions are computed here. Every line is a power of two long, so a position
+is a sum masked by the length less one. A read of `integral` samples back adds two lengths before subtracting
+so the sum never passes below zero; the neighbour one sample further back is the same read at `integral + 1`.
+-/
+
+/-- Comb filter: where the sample `integral` samples before the write position `ptr` sits in the 8192 line. -/
+@[inline] def Physical.combRead (ptr integral : UInt32) : UInt32 := (ptr + 2 * 8192 - integral) &&& 8191
+
+/-- Comb filter: the write position after a sample, wrapped to the 8192 line. -/
+@[inline] def Physical.combAdvance (ptr : UInt32) : UInt32 := (ptr + 1) &&& 8191
+
+/-- Plucked string: where the next noise sample of a new string goes, counting `initialization` down. -/
+@[inline] def Physical.pluckFillAt (initialization : UInt32) : UInt32 := initialization - 1
+
+/-- Plucked string: how far the low-pass loop runs this sample, two entries past the phase's entry, in a line
+of `mask + 1`. `shift` is the string's oversampling (the line is `1024 >>> shift` long). -/
+@[inline] def Physical.pluckReadPtr (phase shift mask : UInt32) : UInt32 :=
+  ((phase >>> (22 + shift)) + 2) &&& mask
+
+/-- Plucked string: the entry after `writePtr` in a line of `mask + 1`. -/
+@[inline] def Physical.pluckNext (writePtr mask : UInt32) : UInt32 := (writePtr + 1) &&& mask
+
+/-- Plucked string: the phase as the string sees it, the oversampling `shift` taken out. -/
+@[inline] def Physical.pluckPhase (phase shift : UInt32) : UInt32 := phase >>> shift
+
+/-- Plucked string: the entry the top ten bits of a string's phase pick; the read blends it with the next. -/
+@[inline] def Physical.pluckEntry (phase : UInt32) : UInt32 := phase >>> 22
+
+/-- Bowed string: a read `integral` samples back in the 1024 bridge line. -/
+@[inline] def Physical.bridgeRead (ptr integral : UInt32) : UInt32 := (ptr + 2 * 1024 - integral) &&& 1023
+
+/-- Bowed string: the write position in the 1024 bridge line. -/
+@[inline] def Physical.bridgeWrite (ptr : UInt32) : UInt32 := ptr &&& 1023
+
+/-- Bowed string: a read `integral` samples back in the 4096 neck line. -/
+@[inline] def Physical.neckRead (ptr integral : UInt32) : UInt32 := (ptr + 2 * 4096 - integral) &&& 4095
+
+/-- Bowed string: the write position in the 4096 neck line. -/
+@[inline] def Physical.neckWrite (ptr : UInt32) : UInt32 := ptr &&& 4095
+
+/-- Blown pipe: a read `integral` samples back in the 2048 bore line. -/
+@[inline] def Physical.boreRead (ptr integral : UInt32) : UInt32 := (ptr + 2 * 2048 - integral) &&& 2047
+
+/-- Blown pipe: the write position in the 2048 bore line. -/
+@[inline] def Physical.boreWrite (ptr : UInt32) : UInt32 := ptr &&& 2047
+
+/-- Flute: a read `integral` samples back in the 4096 bore line. -/
+@[inline] def Physical.fluteBoreRead (ptr integral : UInt32) : UInt32 :=
+  (ptr + 2 * 4096 - integral) &&& 4095
+
+/-- Flute: the write position in the 4096 bore line. -/
+@[inline] def Physical.fluteBoreWrite (ptr : UInt32) : UInt32 := ptr &&& 4095
+
+/-- Flute: a read `integral` samples back in the 1024 jet line. -/
+@[inline] def Physical.jetRead (ptr integral : UInt32) : UInt32 := (ptr + 2 * 1024 - integral) &&& 1023
+
+/-- Flute: the write position in the 1024 jet line. -/
+@[inline] def Physical.jetWrite (ptr : UInt32) : UInt32 := ptr &&& 1023

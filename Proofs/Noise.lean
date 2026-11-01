@@ -298,12 +298,13 @@ theorem noise_grain_never_wraps (phase inc envelope envInc : UInt32) :
       (Noise.grainEnvelope ((envelope + envInc) >>> 16)).toNat 32768 65535 (by omega) (by omega)
     omega
 
-/-- A grain reads inside its 513-entry envelope as long as its envelope phase started the block at or below
-2^24 and its rate is at most 2^18 per sample, for a block of up to 16 samples. Both are C++'s doing: it
-resets any grain whose phase has passed 2^24 before each block, and the rate table tops out at 32768 times 8.
+/-- A grain reads inside its 513-entry envelope as long as its envelope phase is at or below 2^24 + 2^22 and
+its rate is at most 2^18 per sample. Both come from the block's setup (`noise_setup_grain_reset`): a grain
+starts at 0 and a block of up to 16 samples at that rate cannot carry an envelope that was still playing
+past that point.
 Why it matters: the envelope is a plain C array read without a bounds check. -/
 theorem noise_grain_envelope_index_in_table (phase inc envelope envInc : UInt32)
-    (started : envelope.toNat ≤ 2 ^ 24 + 15 * 2 ^ 18) (rate : envInc.toNat ≤ 2 ^ 18) :
+    (started : envelope.toNat ≤ 2 ^ 24 + 2 ^ 22) (rate : envInc.toNat ≤ 2 ^ 18) :
     ((Noise.grain phase inc envelope envInc).envelope >>> 16).toNat ≤ 512 := by
   unfold Noise.grain
   dsimp only

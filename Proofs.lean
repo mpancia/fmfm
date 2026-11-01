@@ -24,4 +24,14 @@ import Proofs.Smooth
 import Proofs.Patch
 import Proofs.Vowels
 import Proofs.Pitch
+import Proofs.DigitalSetup
+import Proofs.AnalogSetup
+import Proofs.MacroSetup
+import Proofs.VoiceSetup
+import Proofs.FiltersSetup
+import Proofs.VowelsSetup
 import Proofs.Arp
+import Proofs.NoiseSetup
+import Proofs.WavetablesSetup
+import Proofs.PercussionSetup
+import Proofs.PhysicalSetup

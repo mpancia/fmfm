@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The sample loops of the Braids comb filter, plucked string, bowed string, blown pipe and flute, with the
- * arithmetic of each sample in Lean (Firmware/Physical.lean). This file owns the delay lines: every load, store
- * and pointer wrap is here, the values go to Lean as numbers. The lines are powers of two long, so the wraps are
- * masks. The loops follow `DigitalOscillator::Render*` in Braids (Emilie Gillet, MIT). */
+ * arithmetic of each sample and every line position in Lean (Firmware/Physical.lean). This file owns the delay
+ * lines: every load and store is here, the values go to Lean as numbers. The loops follow
+ * `DigitalOscillator::Render*` in Braids (Emilie Gillet, MIT). */
 #include <lean/lean.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -15,13 +15,6 @@
 int16_t fm1_braids_random_sample(void);
 uint32_t fm1_braids_random_word(void);
 
-#define COMB_LENGTH 8192u
-#define BRIDGE_LENGTH 1024u
-#define NECK_LENGTH 4096u
-#define BORE_LENGTH 2048u
-#define JET_LENGTH 1024u
-#define FLUTE_BORE_LENGTH 4096u
-
 int32_t fm1_physical_comb_resonance(int32_t parameter) { return fm1_comb_resonance(parameter); }
 
 void fm1_physical_render_comb(int16_t *dl, uint32_t *delay_ptr, uint32_t delay_integral, uint32_t delay_fractional,
@@ -30,11 +23,11 @@ void fm1_physical_render_comb(int16_t *dl, uint32_t *delay_ptr, uint32_t delay_i
     uint32_t ptr = *delay_ptr;
     while (size--) {
         int32_t in = *buffer;
-        uint32_t offset = ptr + 2 * COMB_LENGTH - delay_integral;
-        int32_t a = dl[offset & (COMB_LENGTH - 1)], b = dl[(offset - 1) & (COMB_LENGTH - 1)];
+        int32_t a = dl[fm1_physical_comb_read_pos(ptr, delay_integral)];
+        int32_t b = dl[fm1_physical_comb_read_pos(ptr, delay_integral + 1)];
         dl[ptr] = fm1_comb_feedback(in, a, b, delay_fractional, resonance);
         *buffer++ = fm1_comb_out(in, a, b, delay_fractional, resonance);
-        ptr = (ptr + 1) & (COMB_LENGTH - 1);
+        ptr = fm1_physical_comb_advance_pos(ptr);
     }
     *delay_ptr = ptr;
 }
@@ -51,17 +44,18 @@ void fm1_physical_render_plucked(fm1_pluck_voice *voices, uint32_t num_voices, u
             int16_t *dl = p->dl;
             if (p->initialization_ptr) {
                 int16_t fill;
-                --p->initialization_ptr;
-                fill = fm1_pluck_fill(dl[p->initialization_ptr], fm1_braids_random_sample());
-                dl[p->initialization_ptr] = fill;
+                uint32_t at = fm1_physical_pluck_fill_pos(p->initialization_ptr);
+                p->initialization_ptr = at;
+                fill = fm1_pluck_fill(dl[at], fm1_braids_random_sample());
+                dl[at] = fill;
                 sum += fill;
             } else {
                 uint32_t read_ptr, write_ptr, phase;
                 p->phase += p->phase_increment;
-                read_ptr = ((p->phase >> (22 + p->shift)) + 2) & p->mask;
+                read_ptr = fm1_physical_pluck_read_pos(p->phase, p->shift, p->mask);
                 write_ptr = p->write_ptr;
                 while (write_ptr != read_ptr) {
-                    uint32_t next = (write_ptr + 1) & p->mask;
+                    uint32_t next = fm1_physical_pluck_next_pos(write_ptr, p->mask);
                     int32_t a = dl[write_ptr], b = dl[next];
                     if (fm1_pluck_updates(fm1_braids_random_word(), update_probability))
                         dl[write_ptr] = fm1_pluck_average(a, b, loss);
@@ -69,8 +63,11 @@ void fm1_physical_render_plucked(fm1_pluck_voice *voices, uint32_t num_voices, u
                     write_ptr = next;
                 }
                 p->write_ptr = write_ptr;
-                phase = p->phase >> p->shift;
-                sum += fm1_pluck_read(dl[phase >> 22], dl[(phase >> 22) + 1], phase);
+                phase = fm1_physical_pluck_phase(p->phase, p->shift);
+                {
+                    uint32_t entry = fm1_physical_pluck_entry_pos(phase);
+                    sum += fm1_pluck_read(dl[entry], dl[entry + 1], phase);
+                }
             }
         }
         *buffer++ = fm1_physical_mid(sum, last);
@@ -89,14 +86,15 @@ void fm1_physical_render_bowed(int8_t *bridge, int8_t *neck, fm1_pipe_state *sta
     int32_t lp = state->lp, y0 = state->filter0, y1 = state->filter1;
     int16_t last = state->previous;
     while (size) {
-        uint32_t bp = ptr + 2 * BRIDGE_LENGTH - bridge_integral, np = ptr + 2 * NECK_LENGTH - neck_integral;
-        int32_t ba = bridge[bp & (BRIDGE_LENGTH - 1)], bb = bridge[(bp - 1) & (BRIDGE_LENGTH - 1)];
-        int32_t na = neck[np & (NECK_LENGTH - 1)], nb = neck[(np - 1) & (NECK_LENGTH - 1)];
+        int32_t ba = bridge[fm1_physical_bridge_read_pos(ptr, bridge_integral)];
+        int32_t bb = bridge[fm1_physical_bridge_read_pos(ptr, bridge_integral + 1)];
+        int32_t na = neck[fm1_physical_neck_read_pos(ptr, neck_integral)];
+        int32_t nb = neck[fm1_physical_neck_read_pos(ptr, neck_integral + 1)];
 #define ARGS ba, bb, na, nb, bridge_fraction, neck_fraction, lp, excitation, bow, y0, y1
         int16_t out = fm1_bowed_out(ARGS);
         int32_t nlp = fm1_bowed_lp(ARGS), temp = fm1_bowed_biquad(ARGS);
-        neck[ptr & (NECK_LENGTH - 1)] = (int8_t)fm1_bowed_neck(ARGS);
-        bridge[ptr & (BRIDGE_LENGTH - 1)] = (int8_t)fm1_bowed_bridge(ARGS);
+        neck[fm1_physical_neck_write_pos(ptr)] = (int8_t)fm1_bowed_neck(ARGS);
+        bridge[fm1_physical_bridge_write_pos(ptr)] = (int8_t)fm1_bowed_bridge(ARGS);
 #undef ARGS
         lp = nlp; y1 = y0; y0 = temp;
         ++ptr;
@@ -116,10 +114,10 @@ void fm1_physical_render_blown(int16_t *bore, fm1_pipe_state *state, uint32_t bo
     int32_t lp = state->lp, filter = (int16_t)state->filter0;
     while (size--) {
         int32_t noise = fm1_braids_random_sample();
-        uint32_t rp = ptr + 2 * BORE_LENGTH - integral;
-        int32_t a = bore[rp & (BORE_LENGTH - 1)], b = bore[(rp - 1) & (BORE_LENGTH - 1)];
+        int32_t a = bore[fm1_physical_bore_read_pos(ptr, integral)];
+        int32_t b = bore[fm1_physical_bore_read_pos(ptr, integral + 1)];
 #define ARGS noise, a, b, fraction, lp, parameter, filter, coefficient
-        bore[ptr & (BORE_LENGTH - 1)] = fm1_blown_bore(ARGS);
+        bore[fm1_physical_bore_write_pos(ptr)] = fm1_blown_bore(ARGS);
         *buffer++ = (int16_t)fm1_blown_filter(ARGS);
         {
             int32_t nlp = fm1_blown_lp(ARGS);
@@ -142,13 +140,14 @@ void fm1_physical_render_fluted(int8_t *bore, int8_t *jet, fm1_pipe_state *state
     int32_t lp = state->lp, dcx = state->filter0, dcy = state->filter1;
     while (size--) {
         int32_t noise = fm1_braids_random_sample();
-        uint32_t bp = ptr + 2 * FLUTE_BORE_LENGTH - bore_integral, jp = ptr + 2 * JET_LENGTH - jet_integral;
-        int32_t ba = bore[bp & (FLUTE_BORE_LENGTH - 1)], bb = bore[(bp - 1) & (FLUTE_BORE_LENGTH - 1)];
-        int32_t ja = jet[jp & (JET_LENGTH - 1)], jb = jet[(jp - 1) & (JET_LENGTH - 1)];
+        int32_t ba = bore[fm1_physical_flute_bore_read_pos(ptr, bore_integral)];
+        int32_t bb = bore[fm1_physical_flute_bore_read_pos(ptr, bore_integral + 1)];
+        int32_t ja = jet[fm1_physical_jet_read_pos(ptr, jet_integral)];
+        int32_t jb = jet[fm1_physical_jet_read_pos(ptr, jet_integral + 1)];
 #define ARGS ba, bb, ja, jb, bore_fraction, jet_fraction, excitation, noise, intensity, coefficient, lp, dcx, dcy
         *buffer++ = fm1_fluted_out(ARGS);
-        jet[ptr & (JET_LENGTH - 1)] = (int8_t)fm1_fluted_jet(ARGS);
-        bore[ptr & (FLUTE_BORE_LENGTH - 1)] = (int8_t)fm1_fluted_bore(ARGS);
+        jet[fm1_physical_jet_write_pos(ptr)] = (int8_t)fm1_fluted_jet(ARGS);
+        bore[fm1_physical_flute_bore_write_pos(ptr)] = (int8_t)fm1_fluted_bore(ARGS);
         {
             int32_t nlp = fm1_fluted_lp(ARGS), nx = fm1_fluted_dcx(ARGS);
             dcy = fm1_fluted_dcy(ARGS);

@@ -623,3 +623,111 @@ theorem physical_bowed_body_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
       rw [Int32.not_lt, Int32.le_iff_toInt_le, hi] at notHigh
       rw [Int32.not_lt, Int32.le_iff_toInt_le, lo] at notLow
       omega
+
+/-- A value masked by a line's length less one is inside the line. -/
+private theorem physical_masked_in_line (x mask : UInt32) (length : Nat) (fits : mask.toNat < length) :
+    (x &&& mask).toNat < length := by
+  rw [UInt32.toNat_and]; exact Nat.lt_of_le_of_lt Nat.and_le_right fits
+
+/-- The comb filter's two reads (`integral` and `integral + 1` samples back) land inside its 8192 line.
+Why it matters: the glue indexes the line with this number unchecked; a delay longer than the line would read
+past it. -/
+theorem physical_comb_read_in_line (ptr integral : UInt32) :
+    (Physical.combRead ptr integral).toNat < 8192 := physical_masked_in_line _ _ _ (by decide)
+
+/-- The comb filter's write position after a sample is inside its 8192 line. The first position of a block
+comes from C++ as `phase_ % 8192`; this keeps every later one in the line.
+Why it matters: the write is unmasked in the glue, so the advance is what keeps it inside. -/
+theorem physical_comb_write_in_line (ptr : UInt32) : (Physical.combAdvance ptr).toNat < 8192 :=
+  physical_masked_in_line _ _ _ (by decide)
+
+/-- A string of `1024 >>> shift` entries has `2 ^ (10 - shift)` of them, for a shift of at most 9. -/
+private theorem physical_pluck_size (shift : UInt32) (oversampled : shift ≤ 9) :
+    (1024 >>> shift : UInt32).toNat = 2 ^ (10 - shift.toNat) := by
+  rw [UInt32.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
+  have : shift.toNat ≤ 9 := by exact UInt32.le_iff_toNat_le.mp oversampled
+  rw [Nat.mod_eq_of_lt (by omega)]
+  show 2 ^ 10 / 2 ^ shift.toNat = _
+  rw [Nat.pow_div (by omega) (by omega)]
+
+/-- The phase shifted out of its oversampling and then by 22 is below `2 ^ (10 - shift)`. -/
+private theorem physical_pluck_entry_lt (phase shift : UInt32) (oversampled : shift ≤ 9) :
+    (phase >>> shift >>> 22).toNat < 2 ^ (10 - shift.toNat) := by
+  have hs : shift.toNat ≤ 9 := UInt32.le_iff_toNat_le.mp oversampled
+  rw [UInt32.toNat_shiftRight, UInt32.toNat_shiftRight, Nat.mod_eq_of_lt (by omega)]
+  show phase.toNat >>> shift.toNat >>> 22 < _
+  rw [← Nat.shiftRight_add, Nat.shiftRight_eq_div_pow,
+    Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), ← Nat.pow_add]
+  have e : 10 - shift.toNat + (shift.toNat + 22) = 32 := by omega
+  rw [e]; exact phase.toNat_lt
+
+/-- The entry a plucked string reads, and its neighbour one further on, are both within a string of `size`
+entries, the neighbour landing at most on the guard copy `dl[size]`. The setup gives `size = 1024 >> shift` on
+each strike with `shift` at most 9 (`physical_setup_pluck_size_valid`; a larger shift would shift the phase by
+32 or more, which C leaves undefined), so both are hypotheses.
+Why it matters: the read blends two neighbours; the second is why the line is one entry longer than the
+string, and this shows that one entry is enough. -/
+theorem physical_pluck_read_in_line (phase shift size : UInt32) (sized : size = 1024 >>> shift)
+    (oversampled : shift ≤ 9) :
+    (Physical.pluckEntry (Physical.pluckPhase phase shift)).toNat + 1 ≤ size.toNat := by
+  unfold Physical.pluckEntry Physical.pluckPhase
+  rw [sized, physical_pluck_size shift oversampled]
+  exact physical_pluck_entry_lt phase shift oversampled
+
+/-- The mask of a string of `size` entries is below `size`. -/
+private theorem physical_pluck_mask_lt (shift mask size : UInt32) (sized : size = 1024 >>> shift)
+    (masked : mask = size - 1) (oversampled : shift ≤ 9) : mask.toNat < size.toNat := by
+  have pos : 0 < size.toNat := by rw [sized, physical_pluck_size shift oversampled]; exact Nat.two_pow_pos _
+  have one : (1 : UInt32) ≤ size := UInt32.le_iff_toNat_le.mpr pos
+  rw [masked, UInt32.toNat_sub_of_le _ _ one, UInt32.toNat_one]; omega
+
+/-- Where the plucked string's low-pass loop stops this sample, and each next entry the loop visits, are
+within a string of `size` entries. The setup gives `size = 1024 >> shift` and `mask = size - 1` on each
+strike, with `shift` at most 9 (`physical_setup_pluck_size_valid`), so these are hypotheses.
+Why it matters: the loop reads and writes `dl[write_ptr]` and `dl[next]` unchecked; with `size` zero the mask
+would be all ones and the loop would walk the whole address space. -/
+theorem physical_pluck_next_in_line (phase shift mask size writePtr : UInt32) (sized : size = 1024 >>> shift)
+    (masked : mask = size - 1) (oversampled : shift ≤ 9) :
+    (Physical.pluckReadPtr phase shift mask).toNat < size.toNat ∧
+    (Physical.pluckNext writePtr mask).toNat < size.toNat :=
+  have := physical_pluck_mask_lt shift mask size sized masked oversampled
+  ⟨physical_masked_in_line _ _ _ this, physical_masked_in_line _ _ _ this⟩
+
+/-- Filling a new string writes inside a string of `size` entries as long as the fill counter started at or
+below `size`. The setup gives `size * (8192 + width) >> 16` with `width` below 49152, so it does
+(`physical_setup_pluck_size_valid`).
+Why it matters: the fill counts down from where the setup left it and the glue indexes the line with the
+result unchecked. -/
+theorem physical_pluck_fill_in_line (initialization size : UInt32) (started : 1 ≤ initialization)
+    (fits : initialization ≤ size) : (Physical.pluckFillAt initialization).toNat < size.toNat := by
+  unfold Physical.pluckFillAt
+  have below := UInt32.le_iff_toNat_le.mp fits
+  have above := UInt32.le_iff_toNat_le.mp started
+  rw [UInt32.toNat_one] at above
+  rw [UInt32.toNat_sub_of_le _ _ started, UInt32.toNat_one]; omega
+
+/-- The bowed string's reads and writes land inside its lines: the bridge line is 1024 long, the neck line
+4096.
+Why it matters: both lines are `int8_t` arrays the glue indexes unchecked, and the two delays come from the
+pitch without a clamp to the line. -/
+theorem physical_bowed_lines_in_line (ptr bridgeIntegral neckIntegral : UInt32) :
+    (Physical.bridgeRead ptr bridgeIntegral).toNat < 1024 ∧ (Physical.bridgeWrite ptr).toNat < 1024 ∧
+    (Physical.neckRead ptr neckIntegral).toNat < 4096 ∧ (Physical.neckWrite ptr).toNat < 4096 :=
+  ⟨physical_masked_in_line _ _ _ (by decide), physical_masked_in_line _ _ _ (by decide),
+    physical_masked_in_line _ _ _ (by decide), physical_masked_in_line _ _ _ (by decide)⟩
+
+/-- The blown pipe's read and write land inside its 2048 bore line.
+Why it matters: the bore is indexed unchecked and the delay comes from the pitch without a clamp to the
+line. -/
+theorem physical_blown_bore_in_line (ptr integral : UInt32) :
+    (Physical.boreRead ptr integral).toNat < 2048 ∧ (Physical.boreWrite ptr).toNat < 2048 :=
+  ⟨physical_masked_in_line _ _ _ (by decide), physical_masked_in_line _ _ _ (by decide)⟩
+
+/-- The flute's reads and writes land inside its lines: the bore line is 4096 long, the jet line 1024.
+Why it matters: both lines are indexed unchecked and the two delays come from the pitch without a clamp to the
+line. -/
+theorem physical_fluted_lines_in_line (ptr boreIntegral jetIntegral : UInt32) :
+    (Physical.fluteBoreRead ptr boreIntegral).toNat < 4096 ∧ (Physical.fluteBoreWrite ptr).toNat < 4096 ∧
+    (Physical.jetRead ptr jetIntegral).toNat < 1024 ∧ (Physical.jetWrite ptr).toNat < 1024 :=
+  ⟨physical_masked_in_line _ _ _ (by decide), physical_masked_in_line _ _ _ (by decide),
+    physical_masked_in_line _ _ _ (by decide), physical_masked_in_line _ _ _ (by decide)⟩

@@ -6,9 +6,10 @@ set_option compiler.extract_closed false
 # Percussion, one sample at a time
 
 Port of the struck bell, struck drum, kick, snare and cymbal engines of Braids (`digital_oscillator.cc`,
-`excitation.h`, `svf.h`; Emilie Gillet, MIT), in the style of `Firmware/Digital.lean`. The partial tables and
-the per-block setup stay in C++; the sample arithmetic, the exciter and the filter are here. Lean shifts bind
-tighter than `*` and `+`, so shifted products are parenthesized.
+`excitation.h`, `svf.h`; Emilie Gillet, MIT), in the style of `Firmware/Digital.lean`. The sample arithmetic,
+the exciter and the filter are here; the partial tables and the per-block setup are in
+`Firmware/PercussionSetup.lean`. Lean shifts bind tighter than `*` and `+`, so shifted products are
+parenthesized.
 -/
 
 /-- One entry of Braids' filter cutoff table (257 entries), looked up by C. Trusted data. -/

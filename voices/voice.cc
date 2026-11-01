@@ -6,6 +6,13 @@
 
 #include "braids/macro_oscillator.h"
 
+extern "C" {
+// The narrowing of what the firmware sends is in voices/voice_setup_glue.c, the arithmetic in Firmware/VoiceSetup.lean.
+uint32_t fm1_voice_shape(uint32_t shape);
+int16_t fm1_voice_pitch(int32_t pitch);
+int16_t fm1_voice_parameter(int32_t value);
+}
+
 namespace {
 
 static_assert(sizeof(braids::MacroOscillator) <= BRAIDS_VOICE_BYTES, "raise BRAIDS_VOICE_BYTES in voice.h");
@@ -32,10 +39,9 @@ void braids_voice_init(void *voice) {
 
 void braids_voice_set(void *voice, uint32_t shape, int32_t pitch, int32_t timbre, int32_t color) {
   braids::MacroOscillator *osc = as_osc(voice);
-  if (shape >= BRAIDS_SHAPES) shape = 0;
-  osc->set_shape(static_cast<braids::MacroOscillatorShape>(shape));
-  osc->set_pitch(static_cast<int16_t>(pitch));
-  osc->set_parameters(static_cast<int16_t>(timbre), static_cast<int16_t>(color));
+  osc->set_shape(static_cast<braids::MacroOscillatorShape>(fm1_voice_shape(shape)));
+  osc->set_pitch(fm1_voice_pitch(pitch));
+  osc->set_parameters(fm1_voice_parameter(timbre), fm1_voice_parameter(color));
 }
 
 void braids_voice_strike(void *voice) { as_osc(voice)->Strike(); }

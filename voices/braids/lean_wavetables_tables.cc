@@ -5,3 +5,7 @@
 extern "C" uint8_t fm1_braids_wt_wave(uint32_t wave, uint32_t index) {
   return braids::wt_waves[wave * 129 + index];
 }
+
+extern "C" uint8_t fm1_braids_wt_map(uint32_t index) {
+  return braids::wt_map[index];
+}

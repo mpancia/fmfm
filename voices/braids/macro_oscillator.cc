@@ -31,10 +31,21 @@
 
 #include <algorithm>
 
-#include "stmlib/utils/dsp.h"
-
-#include "braids/parameter_interpolation.h"
-#include "braids/resources.h"
+extern "C" {
+// The per-block setup is in voices/macro_setup_glue.c, the arithmetic in Firmware/MacroSetup.lean.
+int32_t fm1_macro_csaw_shift(int16_t parameter1);
+uint32_t fm1_macro_morph_zone(int16_t parameter0);
+uint32_t fm1_macro_morph_balance(int16_t parameter0);
+int32_t fm1_macro_morph_parameter(int16_t parameter0);
+int32_t fm1_macro_morph_cutoff(int16_t pitch, int16_t parameter1);
+int32_t fm1_macro_morph_fuzz(int16_t pitch, int16_t parameter1);
+int16_t fm1_macro_triple_pitch(int16_t pitch, int16_t parameter);
+int16_t fm1_macro_sub_pitch(int16_t pitch, int16_t parameter1);
+int16_t fm1_macro_dual_sync_pitch(int16_t pitch, int16_t parameter0);
+int32_t fm1_macro_sine_parameter(int16_t pitch, int16_t parameter0);
+int32_t fm1_macro_tri_parameter(int16_t pitch, int16_t parameter0);
+int16_t fm1_macro_buzz_pitch(int16_t pitch, int16_t parameter1);
+}
 
 namespace braids {
   
@@ -57,8 +68,7 @@ void MacroOscillator::RenderCSaw(
   analog_oscillator_[0].set_parameter(parameter_[0]);
   analog_oscillator_[0].set_aux_parameter(parameter_[1]);
   analog_oscillator_[0].Render(sync, buffer, NULL, size);
-  int16_t shift = -(parameter_[1] - 32767) >> 4;
-  fm1_macro_render_csaw(buffer, shift, size);
+  fm1_macro_render_csaw(buffer, fm1_macro_csaw_shift(parameter_[1]), size);
 }
 
 void MacroOscillator::RenderMorph(
@@ -68,47 +78,20 @@ void MacroOscillator::RenderMorph(
   analog_oscillator_[0].set_pitch(pitch_);
   analog_oscillator_[1].set_pitch(pitch_);
   
-  uint16_t balance;
-  if (parameter_[0] <= 10922) {
-    analog_oscillator_[0].set_parameter(0);
-    analog_oscillator_[1].set_parameter(0);
-    analog_oscillator_[0].set_shape(OSC_SHAPE_TRIANGLE);
-    analog_oscillator_[1].set_shape(OSC_SHAPE_SAW);
-    balance = parameter_[0] * 6;
-  } else if (parameter_[0] <= 21845) {
-    analog_oscillator_[0].set_parameter(0);
-    analog_oscillator_[1].set_parameter(0);
-    analog_oscillator_[0].set_shape(OSC_SHAPE_SQUARE);
-    analog_oscillator_[1].set_shape(OSC_SHAPE_SAW);
-    balance = 65535 - (parameter_[0] - 10923) * 6;
-  } else {
-    analog_oscillator_[0].set_parameter((parameter_[0] - 21846) * 3);
-    analog_oscillator_[1].set_parameter(0);
-    analog_oscillator_[0].set_shape(OSC_SHAPE_SQUARE);
-    analog_oscillator_[1].set_shape(OSC_SHAPE_SINE);
-    balance = 0;
-  }
+  uint32_t zone = fm1_macro_morph_zone(parameter_[0]);
+  analog_oscillator_[0].set_parameter(fm1_macro_morph_parameter(parameter_[0]));
+  analog_oscillator_[1].set_parameter(0);
+  analog_oscillator_[0].set_shape(zone == 0 ? OSC_SHAPE_TRIANGLE : OSC_SHAPE_SQUARE);
+  analog_oscillator_[1].set_shape(zone == 2 ? OSC_SHAPE_SINE : OSC_SHAPE_SAW);
   
   int16_t* shape_1 = buffer;
   int16_t* shape_2 = temp_buffer_;
   analog_oscillator_[0].Render(sync, shape_1, NULL, size);
   analog_oscillator_[1].Render(sync, shape_2, NULL, size);
   
-  int32_t lp_cutoff = pitch_ - (parameter_[1] >> 1) + 128 * 128;
-  if (lp_cutoff < 0) {
-    lp_cutoff = 0;
-  } else if (lp_cutoff > 32767) {
-    lp_cutoff = 32767;
-  }
-  int32_t f = Interpolate824(lut_svf_cutoff, lp_cutoff << 17);
-  int32_t fuzz_amount = parameter_[1] << 1;
-  if (pitch_ > (80 << 7)) {
-    fuzz_amount -= (pitch_ - (80 << 7)) << 4;
-    if (fuzz_amount < 0) {
-      fuzz_amount = 0;
-    }
-  }
-  fm1_macro_render_morph(buffer, shape_2, balance, &lp_state_, f, fuzz_amount, size);
+  fm1_macro_render_morph(buffer, shape_2, fm1_macro_morph_balance(parameter_[0]), &lp_state_,
+                         fm1_macro_morph_cutoff(pitch_, parameter_[1]), fm1_macro_morph_fuzz(pitch_, parameter_[1]),
+                         size);
 }
 
 void MacroOscillator::RenderSawSquare(
@@ -155,6 +138,10 @@ const int16_t intervals[65] = {
   24 SEMI - 4, 24 SEMI, 24 SEMI
 };
 
+extern "C" int16_t fm1_braids_macro_interval(uint32_t index) {
+  return intervals[index];
+}
+
 void MacroOscillator::RenderTriple(
     const uint8_t* sync,
     int16_t* buffer,
@@ -181,11 +168,7 @@ void MacroOscillator::RenderTriple(
 
   analog_oscillator_[0].set_pitch(pitch_);
   for (size_t i = 0; i < 2; ++i) {
-    int16_t detune_1 = intervals[parameter_[i] >> 9];
-    int16_t detune_2 = intervals[((parameter_[i] >> 8) + 1) >> 1];
-    uint16_t xfade = parameter_[i] << 8;
-    int16_t detune = detune_1 + ((detune_2 - detune_1) * xfade >> 16);
-    analog_oscillator_[i + 1].set_pitch(pitch_ + detune);
+    analog_oscillator_[i + 1].set_pitch(fm1_macro_triple_pitch(pitch_, parameter_[i]));
   }
 
   analog_oscillator_[0].set_shape(base_shape);
@@ -211,8 +194,7 @@ void MacroOscillator::RenderSub(
 
   analog_oscillator_[1].set_parameter(0);
   analog_oscillator_[1].set_shape(OSC_SHAPE_SQUARE);
-  int16_t octave = parameter_[1] < 16384 ? (24 << 7) : (12 << 7);
-  analog_oscillator_[1].set_pitch(pitch_ - octave);
+  analog_oscillator_[1].set_pitch(fm1_macro_sub_pitch(pitch_, parameter_[1]));
 
   analog_oscillator_[0].Render(sync, buffer, NULL, size);
   analog_oscillator_[1].Render(sync, temp_buffer_, NULL, size);
@@ -233,7 +215,7 @@ void MacroOscillator::RenderDualSync(
 
   analog_oscillator_[1].set_parameter(0);
   analog_oscillator_[1].set_shape(base_shape);
-  analog_oscillator_[1].set_pitch(pitch_ + (parameter_[0] >> 2));
+  analog_oscillator_[1].set_pitch(fm1_macro_dual_sync_pitch(pitch_, parameter_[0]));
 
   analog_oscillator_[0].Render(sync, buffer, sync_buffer_, size);
   analog_oscillator_[1].Render(sync_buffer_, temp_buffer_, NULL, size);
@@ -246,17 +228,8 @@ void MacroOscillator::RenderSineTriangle(
     const uint8_t* sync,
     int16_t* buffer,
     size_t size) {
-  int32_t attenuation_sine = 32767 - 6 * (pitch_ - (92 << 7));
-  int32_t attenuation_tri = 32767 - 7 * (pitch_ - (80 << 7));
-  if (attenuation_tri < 0) attenuation_tri = 0;
-  if (attenuation_sine < 0) attenuation_sine = 0;
-  if (attenuation_tri > 32767) attenuation_tri = 32767;
-  if (attenuation_sine > 32767) attenuation_sine = 32767;
-  
-  int32_t timbre = parameter_[0];
-
-  analog_oscillator_[0].set_parameter(timbre * attenuation_sine >> 15);
-  analog_oscillator_[1].set_parameter(timbre * attenuation_tri >> 15);
+  analog_oscillator_[0].set_parameter(fm1_macro_sine_parameter(pitch_, parameter_[0]));
+  analog_oscillator_[1].set_parameter(fm1_macro_tri_parameter(pitch_, parameter_[0]));
   analog_oscillator_[0].set_pitch(pitch_);
   analog_oscillator_[1].set_pitch(pitch_);
   
@@ -280,7 +253,7 @@ void MacroOscillator::RenderBuzz(
 
   analog_oscillator_[1].set_parameter(parameter_[0]);
   analog_oscillator_[1].set_shape(OSC_SHAPE_BUZZ);
-  analog_oscillator_[1].set_pitch(pitch_ + (parameter_[1] >> 8));
+  analog_oscillator_[1].set_pitch(fm1_macro_buzz_pitch(pitch_, parameter_[1]));
 
   analog_oscillator_[0].Render(sync, buffer, NULL, size);
   analog_oscillator_[1].Render(sync, temp_buffer_, NULL, size);

@@ -33,6 +33,50 @@ to 16 bits in `Analog.sineAt` never changes a value.
 Why it matters: a note's pitch is exact for as long as it sounds: the frequency is `inc / 2^32` of the sample rate with
 no rounding error building up, so a long drone does not drift and two lanes an octave apart stay locked.
 
+## AnalogSetup
+
+**`analog_setup_pulse_width_in_range`**: For a parameter that is not negative (Braids' parameters are 0 to 32767), the
+square's pulse turns on between 768/32768 and 32768/32768 of the cycle and the variable saw's second slope starts
+between 1024/32768 and 32767/32768 of it.
+
+Why it matters: the sample code divides the distance to the pulse edge by the phase step to place its correction; an
+edge at phase 0 would fall on the wrap and be corrected twice, and one past the cycle would never be reached.
+
+**`analog_setup_buzz_zone_in_table`**: The buzz reads two of the 15 comb tables, both inside the set, whatever the pitch
+and parameter.
+
+Why it matters: the comb tables are C data read without a check; the clamp to the last zone is what keeps a high pitch,
+or a pitch that was never clamped, from reading past them.
+
+## Arp
+
+**`arp_note_is_held`**: Every note the arpeggiator starts is a note you are holding, raised by fewer than `octaves`
+octaves.
+
+Why it matters: the arpeggiator can only play what you play; it never adds a note of its own, whichever mode and however
+it is set.
+
+**`arp_make_valid`**: A fresh arpeggiator is consistent, for any step.
+
+Why it matters: the arpeggiator starts in a state the rest of the firmware can rely on, whatever the knobs say.
+
+**`arp_set_valid`**: Changing the settings keeps a consistent arpeggiator consistent, whatever numbers are given.
+
+Why it matters: turning the ARP knobs mid-phrase cannot leave a timer or counter out of range.
+
+**`arp_keys_valid`**: Pressing, releasing or clearing keys keeps a consistent arpeggiator consistent.
+
+Why it matters: whatever you play, and however many keys, the held set stays playable and small.
+
+**`arp_tick_valid`**: A tick keeps a consistent arpeggiator consistent.
+
+Why it matters: however long it runs, the counters stay in range and the sounding note and its timer agree.
+
+**`arp_every_note_on_has_a_note_off`**: Every note the arpeggiator starts during a run is stopped: after any sequence of
+ticks, keys and setting changes, note-ons equal note-offs plus the one note still sounding, which `silence` stops.
+
+Why it matters: letting go of the keys, or stopping, never leaves an arpeggio note hanging.
+
 ## Blend
 
 **`blend_eight_between`**: Blending two 16-bit entries by an 8-bit fraction (`Interpolate88`, `Analog.blend88`) lands
@@ -63,18 +107,23 @@ Why it matters: this is the geometric decay of the echoes. With the low-pass onl
 (`reverb_lowpass_stays_between`), each pass round the line loses at least a twentieth, so a tail of echoes dies away
 whatever the settings.
 
-**`delay_samples_in_line`**: The delay in samples is always between 1 and 32767, so the echo is read from inside the
+**`delay_samples_in_line`**: The delay in samples is always between 1 and 20479, so the echo is read from inside the
 line, never from the sample being written (an offset of 0) and never from a wrapped-round position.
 
-Why it matters: a TIME or TEMPO setting can never make the line read where it writes, which would be a feedback path
-with no delay at all.
+Why it matters: a TIME or TEMPO setting can never make a line read where it writes, which would be a feedback path with
+no delay at all.
 
-**`delay_short_notes_exact`**: At 44.1 kHz and any tempo from 40 to 240, the note values up to a dotted sixteenth (TIME
-0 to 3) give exactly `60 * 44100 * numerator / (bpm * denominator)` samples: the line is long enough that nothing is cut
-short. (Longer notes are exact too until they would pass 32767 samples, 743 ms, where they are held: a quarter note
-below 81 bpm, a dotted eighth below 61, an eighth triplet or an eighth below 41.)
+**`delay_position_in_line`**: A write position and an offset both inside a line give a read position inside it, and the
+write position moves on to one inside it.
 
-Why it matters: the echo lands on the beat the setting names, at every tempo the TEMPO knob allows.
+Why it matters: with `delay_samples_in_line`, every read and write of the two lines is in bounds; the lines are not a
+power of two, so this is the wrap by subtraction, not a mask.
+
+**`delay_notes_exact`**: At 44.1 kHz, the note values the lines are long enough for are exact, `60 * 44100 * numerator /
+(bpm * denominator)` samples: a 1/32 or a 1/16 at every tempo from 40 to 240; everything up to a dotted eighth from 97
+bpm; every note value from 130 bpm. (Below those tempos a longer note is held at 20479 samples, 464 ms.)
+
+Why it matters: the echo lands on the beat the setting names, at the tempos the setting can be played at.
 
 **`delay_store_saturates`**: A signal for the line saturates at the 16-bit ends instead of wrapping: from 32767 up it
 stores 32767, from -32768 down it stores -32768, and in between it stores the signal.
@@ -120,6 +169,28 @@ centred on zero (between -28208 and 27987): the unsigned subtraction wraps for a
 value undoes that wrap exactly.
 
 Why it matters: the toy's sample is never off by 65536; the wrap Braids relies on is proved harmless, not assumed.
+
+## DigitalSetup
+
+**`digital_setup_fm_quantizer_in_table`**: A parameter that is not negative reads two neighbouring entries of the
+129-entry FM ratio quantizer, both inside it. Braids' parameters are 0 to 32767, so `nonneg` holds for every block; a
+negative one would read 65535 entries past the table, which is why the limit is stated.
+
+Why it matters: the quantizer is C data read without a check, once per block for the three FM engines.
+
+**`digital_setup_increments_half_cycle`**: Every phase step the setup hands to the FM, ring modulator, toy and digital
+modulation sample code is below half a cycle per sample, given the facts about Braids' step table that
+`pitch_increment_bounded` needs. The detuned pitches are cut to 16 bits before the lookup, so no offset can escape the
+clamp.
+
+Why it matters: the sample code's steps come from here, and a step at or above half a cycle would alias; the modulators'
+detunes can reach pitches far outside the carrier's range, and this says the clamp still holds them.
+
+**`digital_setup_delay_in_table`**: Every pitch reads two neighbouring entries of the 97-entry delay table, both inside
+it.
+
+Why it matters: the table is C data read without a check; the clamp to note 128 and the fold into one octave are what
+keep the read inside it for any 16-bit pitch, including the lowest a filtered comb pitch reaches.
 
 ## Divider
 
@@ -179,6 +250,27 @@ exactly the average of that with the last sample.
 
 Why it matters: adding the harmonics is limited by the clip and only the clip, and the half-rate smoothing cannot wrap,
 so the engine cannot click from an overflow.
+
+## FiltersSetup
+
+**`filters_setup_cutoff_in_table`**: The swarm's high-pass reads two neighbouring entries of the 257-entry cutoff table,
+both inside it, for every pitch and parameter.
+
+Why it matters: the cutoff pitch is the oscillator's pitch moved by the parameter, which can run far past the table; the
+clamp in `swarmHpCutoff` is what keeps the read inside, and this shows it does.
+
+**`filters_setup_table_blend_le_top`**: A table of 16-bit entries that rise from one to the next and never pass `top`
+(at most 32767) blends to a value at most `top` at any phase (`Digital.lutAt`).
+
+Why it matters: a cutoff or damping coefficient read this way is a positive value no larger than the table's top entry,
+which is the range the filters' sample theorems take for it; the cut to 16 bits inside the blend changes nothing.
+
+**`filters_setup_cutoff_in_range`**: The swarm's high-pass coefficient is between 0 and 25078, given the cutoff table
+Braids ships: its entries rise from one to the next and the top one is 25078. Both are facts about `resources.cc`, so
+they are hypotheses here.
+
+Why it matters: the coefficient multiplies the filter's band-pass state on every sample; a positive 15-bit coefficient
+is the range that keeps that product in step with the original's.
 
 ## Harmony
 
@@ -277,6 +369,26 @@ zero never changes anything.
 Why it matters: the knob's own value is the centre of the motion, not its top or bottom, so adding an LFO does not shift
 the average sound; and switching depth to zero returns exactly the sound you set.
 
+## MacroSetup
+
+**`macro_setup_parameters_in_range`**: Every parameter the macro oscillator hands an analog oscillator is between 0 and
+32767, given a first parameter that is not negative (Braids' parameters are 0 to 32767): morph's pulse width and the
+sine and triangle fold amounts.
+
+Why it matters: the analog oscillators' pulse widths and fold tables are built for 0 to 32767; a negative or oversized
+parameter would put a pulse edge outside the cycle or read a shaper past its end.
+
+**`macro_setup_cutoff_in_table`**: Morph's low-pass cutoff, as a pitch, is 0 to 32767 whatever the pitch and parameter,
+and its two reads of the 257-entry cutoff table are inside it.
+
+Why it matters: the filter table is C data read without a check, once per block for the morph engine.
+
+**`macro_setup_triple_intervals_in_table`**: A triple oscillator's parameter, when not negative, reads two entries of
+the 65-entry interval table, both inside it. Braids' parameters are 0 to 32767, so `nonneg` holds for every block; a
+negative one would read before the table, which is why the limit is stated.
+
+Why it matters: the interval table is C data read without a check, twice per block for the four triple engines.
+
 ## Mix
 
 **`mix_envelope_toward_gate`**: The level of a voice one sample later lies between where it was and its gate, and so
@@ -363,12 +475,49 @@ grains.
 
 Why it matters: the cloud adds four of these for every sample; a wrapped share would be a click.
 
-**`noise_grain_envelope_index_in_table`**: A grain reads inside its 513-entry envelope as long as its envelope phase
-started the block at or below 2^24 and its rate is at most 2^18 per sample, for a block of up to 16 samples. Both are
-C++'s doing: it resets any grain whose phase has passed 2^24 before each block, and the rate table tops out at 32768
-times 8.
+**`noise_grain_envelope_index_in_table`**: A grain reads inside its 513-entry envelope as long as its envelope phase is
+at or below 2^24 + 2^22 and its rate is at most 2^18 per sample. Both come from the block's setup
+(`noise_setup_grain_reset`): a grain starts at 0 and a block of up to 16 samples at that rate cannot carry an envelope
+that was still playing past that point.
 
 Why it matters: the envelope is a plain C array read without a bounds check.
+
+## NoiseSetup
+
+**`noise_setup_cutoff_in_table`**: The filtered noise's cutoff, damping and scale read two neighbouring entries of their
+257-entry tables, both inside, for any pitch and parameter: the top byte of the shifted value is the index.
+
+Why it matters: the three tables are C data read without a check, and the pitch can be any 16-bit value.
+
+**`noise_setup_gain_correction_in_range`**: The filtered noise's gain correction is between 0 and 32767, which the
+sample theorem `noise_corrected_never_wraps` takes as a hypothesis.
+
+Why it matters: the correction multiplies every sample; above 32767 the product could leave 32 bits.
+
+**`noise_setup_grain_rate_in_table`**: A grain's rate reads inside the 257-entry rate table for any parameter from 0 to
+32767.
+
+Why it matters: the table is C data read without a check; the index is the parameter's top eight bits.
+
+**`noise_setup_grain_rate_bounded`**: A grain's rate is at most 2^18 per sample, given that the rate table's entries are
+at most 32768 (a fact about `resources.cc`, so a hypothesis here).
+
+Why it matters: `noise_grain_envelope_index_in_table` needs the rate below 2^18 to keep a block's envelope reads inside
+the envelope table.
+
+**`noise_setup_grain_reset`**: After the setup, a grain's rate is at most 2^18 and its envelope will not pass 2^24 +
+2^22 within the block's 16 samples, given a block that started that way (the first block starts at 0) and the rate
+table's top of 32768.
+
+Why it matters: these are the two hypotheses `noise_grain_envelope_index_in_table` takes, so with this the grain's
+envelope reads stay inside their table from the first block on. A grain that has ended but does not restart keeps its
+envelope, which is why the bound carries the whole block's advance.
+
+**`noise_setup_clock_period_positive`**: The clocked noise's quantization step is between 2048 and 32768 for any held
+parameter from 0 to 32767.
+
+Why it matters: the loop reduces every random value modulo this step (`Noise.clocked`); a step of 0 would be a division
+by zero in C and a silent 0 in Lean, and it cannot happen because the setup never asks for fewer than 2 steps.
 
 ## Notes
 
@@ -509,10 +658,41 @@ product.
 ring-modulated by the filtered noise at the noise gain, and all the partials at the harmonics gain, held between -32767
 and 32767. Holds for a second partial within 2048 and a fourth within 4096 (Braids starts them at 2654 and 5308 and the
 sine halves that), the others within 16 bits, filtered noise within 16384, a noise gain from 0 to 12888 and a harmonics
-gain from 0 to 16384, which are the ranges Braids' drum sets.
+gain from 0 to 16983, which are the ranges Braids' drum sets (`percussion_setup_gains_in_range`).
 
 Why it matters: the ring modulation multiplies two signals and then a gain; with any louder partial it would pass 32
 bits, so the bound on those two partials is what keeps the drum free of wraps.
+
+## PercussionSetup
+
+**`percussion_setup_partial_decay_in_table`**: Every bell and drum partial's two decays are 16-bit, the short one at
+most the long one. These are the `decayFits` hypotheses of `percussion_decay_never_grows`, so each partial only ever
+gets quieter.
+
+Why it matters: a decay above 65535, or a short one above the long one, would make `Percussion.decay` a gain and the
+partials would grow without bound.
+
+**`percussion_setup_amplitudes_in_range`**: Every bell and drum partial starts within 16 bits, and the drum's second
+partial starts at or below 4096 and its fourth at or below 8192. The first is the `amplitudeFits` hypothesis of
+`percussion_bell_partial_never_wraps` and `percussion_drum_partial_never_wraps`; the second, halved by the sine, gives
+the 2048 and 4096 bounds `percussion_drum_mix_never_wraps` puts on those two partials.
+
+Why it matters: the drum ring-modulates its second and fourth partials by the noise and then by a gain; a louder start
+on either would pass 32 bits in the mix.
+
+**`percussion_setup_drum_cutoff_in_table`**: The drum's noise filter reads its two cutoff entries inside the 257-entry
+cutoff table: the clamped cutoff, shifted by 16, has a top byte of at most 127.
+
+Why it matters: the drum is the one filter whose cutoff comes from the pitch and a parameter added together, and the
+clamp is what keeps that sum's table read inside the data.
+
+**`percussion_setup_gains_in_range`**: The gains the drum and snare mixes are handed are the ranges their sample
+theorems assume: the drum's noise gain is 0 to 12888 and its harmonics gain 0 to 16983
+(`percussion_drum_mix_never_wraps`), the snare's two gains 0 to 22000 and 0 to 38383 (`percussion_snare_never_wraps`),
+for parameters from 0 to 32767.
+
+Why it matters: the mixes multiply a signal by these gains and then add; a gain outside its range would let the sum pass
+32 bits, so the ranges are the whole reason those mixes cannot wrap.
 
 ## Physical
 
@@ -601,6 +781,84 @@ bits are taken is what keeps it inside.
 
 Why it matters: with `physical_bowed_never_wraps` this closes the loop: the two states a sample needs are the two a
 previous sample left, so the body filter never wraps however long the note is bowed.
+
+**`physical_comb_read_in_line`**: The comb filter's two reads (`integral` and `integral + 1` samples back) land inside
+its 8192 line.
+
+Why it matters: the glue indexes the line with this number unchecked; a delay longer than the line would read past it.
+
+**`physical_comb_write_in_line`**: The comb filter's write position after a sample is inside its 8192 line. The first
+position of a block comes from C++ as `phase_ % 8192`; this keeps every later one in the line.
+
+Why it matters: the write is unmasked in the glue, so the advance is what keeps it inside.
+
+**`physical_pluck_read_in_line`**: The entry a plucked string reads, and its neighbour one further on, are both within a
+string of `size` entries, the neighbour landing at most on the guard copy `dl[size]`. The setup gives `size = 1024 >>
+shift` on each strike with `shift` at most 9 (`physical_setup_pluck_size_valid`; a larger shift would shift the phase by
+32 or more, which C leaves undefined), so both are hypotheses.
+
+Why it matters: the read blends two neighbours; the second is why the line is one entry longer than the string, and this
+shows that one entry is enough.
+
+**`physical_pluck_next_in_line`**: Where the plucked string's low-pass loop stops this sample, and each next entry the
+loop visits, are within a string of `size` entries. The setup gives `size = 1024 >> shift` and `mask = size - 1` on each
+strike, with `shift` at most 9 (`physical_setup_pluck_size_valid`), so these are hypotheses.
+
+Why it matters: the loop reads and writes `dl[write_ptr]` and `dl[next]` unchecked; with `size` zero the mask would be
+all ones and the loop would walk the whole address space.
+
+**`physical_pluck_fill_in_line`**: Filling a new string writes inside a string of `size` entries as long as the fill
+counter started at or below `size`. The setup gives `size * (8192 + width) >> 16` with `width` below 49152, so it does
+(`physical_setup_pluck_size_valid`).
+
+Why it matters: the fill counts down from where the setup left it and the glue indexes the line with the result
+unchecked.
+
+**`physical_bowed_lines_in_line`**: The bowed string's reads and writes land inside its lines: the bridge line is 1024
+long, the neck line 4096.
+
+Why it matters: both lines are `int8_t` arrays the glue indexes unchecked, and the two delays come from the pitch
+without a clamp to the line.
+
+**`physical_blown_bore_in_line`**: The blown pipe's read and write land inside its 2048 bore line.
+
+Why it matters: the bore is indexed unchecked and the delay comes from the pitch without a clamp to the line.
+
+**`physical_fluted_lines_in_line`**: The flute's reads and writes land inside its lines: the bore line is 4096 long, the
+jet line 1024.
+
+Why it matters: both lines are indexed unchecked and the two delays come from the pitch without a clamp to the line.
+
+## PhysicalSetup
+
+**`physical_setup_pluck_size_valid`**: A new plucked string's numbers are the ones the line theorems take as hypotheses:
+its oversampling is at most 9 (`oversampled` in `physical_pluck_read_in_line` and `physical_pluck_next_in_line`;
+`pluckSize` and `pluckMask` are `1024 >>> shift` and `size - 1` by definition), and its fill count is at most its size
+(`fits` in `physical_pluck_fill_in_line`; the glue only fills while the count is nonzero, which is that theorem's
+`started`). Holds for `param1` from 0 to 32767.
+
+Why it matters: these are the only numbers that decide where the plucked string reads and writes its 1025-entry line;
+with them in range every position the line theorems cover is inside it.
+
+**`physical_setup_comb_delay_in_line`**: The comb filter's whole-sample delay is at most 8192, its line's length.
+
+Why it matters: the clamp is the only thing between the pitch's delay time and the 8192-entry line; the positions are
+masked, so a longer delay would not read outside the line but would read the wrong sample.
+
+**`physical_setup_envelope_pointer_in_table`**: The bowing and blowing envelope pointers a block leaves behind read
+inside their envelopes through the next block: the bowed string's pointer is held to 1440, so its two reads (at half the
+pointer and half the pointer plus one) stay below the 752-entry bowing envelope for any advance up to 16 samples, and
+the flute's is held to 360, so its read stays below the 392-entry blowing envelope. A block is 16 samples and the bowed
+string advances one per two samples, the flute three per four.
+
+Why it matters: both envelopes are read unchecked at the pointer; the clamp after each block is what keeps a long note
+from running off the end of its envelope.
+
+**`physical_setup_flute_body_in_table`**: The blown pipe and the flute read their body filter inside its 128-entry
+table, for any pitch and parameter.
+
+Why it matters: Braids indexes this table with the pitch in semitones and the pitch can reach note 140; the clamp to 127
+in the setup is what keeps the read inside the data.
 
 ## Pitch
 
@@ -828,6 +1086,19 @@ tables (16 phases by 16 amplitudes).
 Why it matters: the vowel's formant amplitudes are 4-bit by construction of its data; with any such amplitude, no phase
 can read past the formant sine or square table.
 
+## VoiceSetup
+
+**`voice_setup_pitch_in_range`**: The pitch Braids gets for a MIDI note (`play` in `fw/firmware/src/dinghy.c` sends the
+note times 128) is exactly that, below the note 128 where the phase step clamps, and a timbre value of 0 to 32767 (what
+the sounds hold and what the envelope's boost is held to) reaches Braids unchanged.
+
+Why it matters: Braids holds pitch and timbre in 16 bits; a note or a timbre value cut on the way in would play the
+wrong pitch or a parameter past the tables, and this says the firmware's range never reaches the cut.
+
+**`voice_setup_shape_in_table`**: The shape the voice plays is one of Braids' 48, whatever index the firmware sends.
+
+Why it matters: the macro oscillator picks its render function from a 48-entry table without a check.
+
 ## Vowels
 
 **`vowels_fof_contribution_never_wraps`**: Each formant filter of the FOF vowel contributes exactly its band-pass state
@@ -847,6 +1118,39 @@ engine cannot click from an overflow.
 
 Why it matters: at full drive the distortion cannot overflow and flip the sample's sign; the clip after it is the only
 thing that limits the question mark.
+
+## VowelsSetup
+
+**`vowels_setup_vowel_index_in_table`**: A parameter of 0 to 32767 selects a vowel from 0 to 7, and the vowel after it
+is at most 8, so both reads are inside the nine entries of `vowels_data`.
+
+Why it matters: the vowel blends two neighbouring rows of its data without a bounds check; the top three bits of the
+parameter can never name the last row, so the row after is always there to blend with.
+
+**`vowels_setup_consonant_index_in_table`**: A strike's random sample selects a consonant from 0 to 7, inside the eight
+entries of `consonant_data`.
+
+Why it matters: the consonant is read without a bounds check from whatever the random generator gives; the mask to three
+bits is what keeps it inside.
+
+**`vowels_setup_fof_reads_in_table`**: A parameter of 0 to 32767 selects a row of the FOF vowel's 5-by-5 grid from 0 to
+3, and the row after it is at most 4, so the four corners the blend reads are inside the grid.
+
+Why it matters: `fofBlend` reads the corner past the selected row and column; the top two bits of a parameter can never
+select the last row, so that corner exists.
+
+**`vowels_setup_formant_amplitude_in_range`**: The amplitude the vowel hands each formant is at most 15, given that
+every amplitude in `vowels_data` is at most 15 (a fact about the data, so a hypothesis here).
+
+Why it matters: the formant tables are indexed by the phase's top nibble or-ed with the amplitude, and
+`tables_formant_reads_inside_256` needs the amplitude to be a nibble; this closes that hypothesis for every parameter
+and formant.
+
+**`vowels_setup_fof_amplitude_16bit`**: The amplitude the FOF vowel hands its formant filters is a signed 16-bit value,
+for any parameters.
+
+Why it matters: `vowels_fof_contribution_never_wraps` takes a 16-bit amplitude; the blend's final cut to 16 bits (the
+original's `int16_t` return) is what makes that so, so the hypothesis is met for every block.
 
 ## Wavetables
 
@@ -884,3 +1188,48 @@ nothing wraps around.
 
 Why it matters: four full-scale voices added in 32 bits stay far inside the range, so the chord engine cannot click from
 an overflow at any chord, phase or morph position.
+
+## WavetablesSetup
+
+**`wavetables_setup_table_in_table`**: The wavetable engine reads its wavetable's definition inside the table of 20
+definitions, and the pointer's step and the one after it inside the 17 steps of a definition, for a held parameter from
+0 to 32767 and a definition of at most 16 steps (every definition in `digital_oscillator.cc` has 4, 8 or 16; a
+hypothesis here).
+
+Why it matters: both are C arrays read without a check; the 17th entry of each definition exists so that the step after
+the last can be read.
+
+**`wavetables_setup_map_in_table`**: The wave map reads its four corners inside the 256-entry map for parameters from 0
+to 32767 and corners 0 or 1 away from the square's origin.
+
+Why it matters: the map is a C array read without a check; the scaling to 15 squares is what keeps the corner after the
+last column or row inside the 16 by 16 grid.
+
+**`wavetables_setup_line_in_table`**: The wave line reads the held parameter's wave inside its 64-entry line, the scan's
+wave inside it too, and the wave after the scan's at most one past it, for parameters from 0 to 32767 and a smoothed
+parameter from 0 to 65534; the smoothed parameter and the held one stay in those ranges, so the block after can rely on
+them again. The read one past the line is Braids' own: at the top of the parameter's range its scan reaches the last
+wave and asks for the one after it. The port keeps that read so the output is Braids'.
+
+Why it matters: the line is a C array read without a check; the ranges are the invariant that bounds every block's
+reads, the first block starting at 0.
+
+**`wavetables_setup_paraphonic_in_table`**: The paraphonic engine reads its chord and the one after it inside the 17
+chords, and the first parameter's wave and the one after it inside the 33-entry short line, for parameters from 0 to
+32767.
+
+Why it matters: both are C arrays read without a check; the 17th chord and 33rd wave exist so that the entry after the
+last can be read.
+
+**`wavetables_setup_wave_in_bank`**: A wave numbered up to 255 reads its two bytes at any halved phase inside the
+33024-byte bank of 129-byte waves (`wt_waves`, `WT_WAVES_SIZE` in `resources.h`). The selection tables above hold
+numbers up to 255, a fact about their data.
+
+Why it matters: the bank is read without a check through `Wavetables.waveByte`, which adds the wave's offset to the
+byte's index; 256 waves of 129 bytes is exactly the bank, so a wave number past 255 would read past it.
+
+**`wavetables_setup_increments_half_cycle`**: Every detuned voice of the paraphonic engine steps below half a cycle per
+sample, given the phase step table's shape (`pitch_increment_bounded`).
+
+Why it matters: the detune is added to the pitch before the table's clamp, so the clamp applies to each voice and none
+of the four runs past Nyquist.

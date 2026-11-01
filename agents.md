@@ -242,9 +242,11 @@ theorem needs a definition that is not part of the code.
 - One headline theorem per property. Put the proof's pieces in `private` lemmas above it, each with a one-line
   docstring.
 
-**The index.** `docs/PROOFS.md` lists every public theorem with its claim and reason. It is generated
-(`make proofs`), and `make lint` fails if it is stale. Read it first to see what the repo proves; it is also the
-right text to show a reviewer.
+**The index.** `docs/PROOFS.md` lists every public theorem with its claim and reason, and README's "What is
+proved" section groups them (one table a group, the first sentence of each claim and reason). Both are generated
+(`make proofs`), and `make lint` fails if either is stale, or if a proof module is in no group: add a new module to
+`GROUPS` in `tools/proof_index.py`. Write the first sentence of a docstring and of its `Why it matters:` so it
+reads alone in a table cell.
 
 **The challenge.** `Challenge.lean` and `comparator.json` restate every public theorem with `sorry` for its
 proof; `make proofs` generates them from `Proofs/` and `make lint` fails if they are stale. `make comparator`

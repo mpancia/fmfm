@@ -1,13 +1,41 @@
 #!/usr/bin/env python3
 """List what the repo proves: every public theorem in Proofs/ with its one-line claim and its reason.
   tools/proof_index.py            print the index
-  tools/proof_index.py --write    write docs/PROOFS.md
-  tools/proof_index.py --check    fail if docs/PROOFS.md is out of date (make lint runs this)"""
+  tools/proof_index.py --write    write docs/PROOFS.md and the "What is proved" section of README.md
+  tools/proof_index.py --check    fail if either is out of date (make lint runs this)
+The README section groups the modules (GROUPS below); a proof module in no group is an error, so each new
+module is placed on purpose."""
 import re, sys, textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PAT = re.compile(r"/--((?:(?!-/).)*)-/\s*theorem\s+(\S+)", re.S)
+
+# README groups: (title, what the group protects, modules in order)
+GROUPS = [
+    ("The sequencer",
+     "The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift "
+     "apart, rhythms have exactly the hits asked for, and every note is in the scale and the range.",
+     ["Lane", "Run", "Rhythm", "Divider", "Euclid", "Notes", "Quantizer", "Random", "Harmony", "Arp", "Lfo"]),
+    ("The voices",
+     "Braids' engines, ported to Lean sample for sample. Each engine's arithmetic stays inside a 16-bit sample and "
+     "reads its tables inside their bounds, so no shape, timbre or pitch can wrap, overflow or read past a table.",
+     ["Pitch", "Tables", "Analog", "Digital", "Blend", "Filters", "Noise", "Percussion", "Physical", "Vowels",
+      "Wavetables"]),
+    ("Setting a voice up",
+     "The per-note and per-block work: a sound's parameters land in range, the smoothing never overshoots, and "
+     "the setup code reads its tables inside their bounds.",
+     ["VoiceSetup", "Smooth", "AnalogSetup", "DigitalSetup", "MacroSetup", "FiltersSetup", "NoiseSetup",
+      "PercussionSetup", "PhysicalSetup", "VowelsSetup", "WavetablesSetup"]),
+    ("The mix and the effects",
+     "The mix cannot wrap, the reverb's and the delay's memory is read and written inside the lines, their gains "
+     "are below one so tails die away, and their filters and interpolation cannot overshoot.",
+     ["Mix", "Reverb", "Delay"]),
+    ("Patches",
+     "A saved patch loads back exactly as saved, and a slot holding anything else is rejected whole.",
+     ["Patch"]),
+]
+BEGIN, END = "<!-- proofs:begin -->", "<!-- proofs:end -->"
 
 def collect():
     rows = []
@@ -36,13 +64,53 @@ def render(rows):
             out += [wrap(f"Why it matters: {why}"), ""]
     return "\n".join(out).rstrip() + "\n"
 
+def sentence(text):
+    """The first sentence, so a table cell stays short."""
+    return re.split(r"(?<=[.!?])\s", text, maxsplit=1)[0].rstrip(".") + "." if text else ""
+
+def render_readme(rows):
+    placed = {m for _, _, mods in GROUPS for m in mods}
+    missing = sorted({m for m, _, _, _ in rows} - placed)
+    if missing:
+        print(f"proof_index: add {', '.join(missing)} to a GROUPS entry in tools/proof_index.py"); sys.exit(1)
+    by_module = {}
+    for mod, name, claim, why in rows:
+        by_module.setdefault(mod, []).append((name, claim, why))
+    out = [BEGIN,
+           f"{len(rows)} theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the",
+           "docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.", ""]
+    for title, about, mods in GROUPS:
+        count = sum(len(by_module.get(m, [])) for m in mods)
+        if not count:
+            continue
+        out += [f"<details><summary><b>{title}</b>: {count} theorems</summary>", "", wrap(about), "",
+                "| Theorem | Says | Protects against |", "|---|---|---|"]
+        for m in mods:
+            for name, claim, why in by_module.get(m, []):
+                out.append(f"| `{name}` | {sentence(claim)} | {sentence(why)} |")
+        out += ["", "</details>", ""]
+    return "\n".join(out).rstrip() + "\n" + END
+
+def readme_with(section):
+    text = (ROOT / "README.md").read_text()
+    if BEGIN not in text or END not in text:
+        print("README.md has no <!-- proofs:begin --> ... <!-- proofs:end --> section"); sys.exit(1)
+    head, rest = text.split(BEGIN, 1)
+    _, tail = rest.split(END, 1)
+    return head + section + tail
+
 if __name__ == "__main__":
-    text = render(collect())
+    rows = collect()
+    text = render(rows)
     target = ROOT / "docs" / "PROOFS.md"
+    readme = readme_with(render_readme(rows))
     if "--write" in sys.argv:
         target.write_text(text)
+        (ROOT / "README.md").write_text(readme)
     elif "--check" in sys.argv:
         if not target.exists() or target.read_text() != text:
             print("docs/PROOFS.md is out of date: run tools/proof_index.py --write"); sys.exit(1)
+        if (ROOT / "README.md").read_text() != readme:
+            print("README.md's What is proved section is out of date: run tools/proof_index.py --write"); sys.exit(1)
     else:
         print(text)

@@ -14,6 +14,13 @@ void fm1_vowels_render_question(uint32_t *phase, uint32_t inc, uint32_t *cycle, 
                                 int32_t *seed_state, int16_t *length_state, uint32_t dit, int32_t threshold,
                                 int32_t parameter, int16_t *buffer, uint32_t size);
 
+/* The per-block setup of the same engines, in vowels_setup_glue.c (Firmware/VowelsSetup.lean). */
+void fm1_vowels_setup_vowel(int32_t parameter0, int32_t parameter1, uint32_t *increments, uint32_t *amplitudes);
+int32_t fm1_vowels_setup_consonant(int32_t random, int32_t parameter1, uint32_t *increments, uint32_t *amplitudes);
+int32_t fm1_vowels_setup_fof(int32_t parameter0, int32_t parameter1, int32_t *cutoffs);
+uint32_t fm1_vowels_setup_question_dit_of(int32_t parameter);
+int32_t fm1_vowels_setup_question_threshold_of(int32_t parameter);
+
 #ifdef __cplusplus
 }
 #endif

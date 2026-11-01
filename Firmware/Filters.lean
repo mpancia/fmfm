@@ -6,7 +6,8 @@ set_option compiler.extract_closed false
 # Saw swarm, digital filters, vosim and harmonics, one sample at a time
 
 Port of the matching engines of Braids (`digital_oscillator.cc`, Emilie Gillet, MIT), in the style of
-`Firmware/Digital.lean`. Per-block setup (increments, cutoffs, the harmonic amplitudes) stays in C++.
+`Firmware/Digital.lean`. The per-block setup (increments, cutoffs, the harmonic amplitudes) is
+`Firmware/FiltersSetup.lean`.
 -/
 
 /-- One entry of Braids' bell-shaped window (257 entries), looked up by C. Trusted data. -/

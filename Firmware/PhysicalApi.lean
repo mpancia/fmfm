@@ -116,3 +116,66 @@ set_option compiler.extract_closed false
     (intensity : Int32) (coefficient : Int32) (lp : Int32) (dcX : Int32) (dcY : Int32) : Int16 :=
   (Physical.fluted boreA boreB jetA jetB boreFraction jetFraction excitation noise intensity coefficient lp dcX dcY).out
 
+/-- `comb`: where a read `integral` samples back sits. -/
+@[export fm1_physical_comb_read_pos] def combReadPos (ptr integral : UInt32) : UInt32 :=
+  Physical.combRead ptr integral
+
+/-- `comb`: the write position after a sample. -/
+@[export fm1_physical_comb_advance_pos] def combAdvancePos (ptr : UInt32) : UInt32 := Physical.combAdvance ptr
+
+/-- `pluck`: where the next noise sample of a new string goes. -/
+@[export fm1_physical_pluck_fill_pos] def pluckFillPos (initialization : UInt32) : UInt32 :=
+  Physical.pluckFillAt initialization
+
+/-- `pluck`: how far the low-pass loop runs this sample. -/
+@[export fm1_physical_pluck_read_pos] def pluckReadPos (phase shift mask : UInt32) : UInt32 :=
+  Physical.pluckReadPtr phase shift mask
+
+/-- `pluck`: the entry after the write position. -/
+@[export fm1_physical_pluck_next_pos] def pluckNextPos (writePtr mask : UInt32) : UInt32 :=
+  Physical.pluckNext writePtr mask
+
+/-- `pluck`: the phase with the oversampling taken out. -/
+@[export fm1_physical_pluck_phase] def pluckPhase (phase shift : UInt32) : UInt32 :=
+  Physical.pluckPhase phase shift
+
+/-- `pluck`: the entry a phase picks. -/
+@[export fm1_physical_pluck_entry_pos] def pluckEntryPos (phase : UInt32) : UInt32 :=
+  Physical.pluckEntry phase
+
+/-- `bowed`: a read in the bridge line. -/
+@[export fm1_physical_bridge_read_pos] def bridgeReadPos (ptr integral : UInt32) : UInt32 :=
+  Physical.bridgeRead ptr integral
+
+/-- `bowed`: the write position in the bridge line. -/
+@[export fm1_physical_bridge_write_pos] def bridgeWritePos (ptr : UInt32) : UInt32 := Physical.bridgeWrite ptr
+
+/-- `bowed`: a read in the neck line. -/
+@[export fm1_physical_neck_read_pos] def neckReadPos (ptr integral : UInt32) : UInt32 :=
+  Physical.neckRead ptr integral
+
+/-- `bowed`: the write position in the neck line. -/
+@[export fm1_physical_neck_write_pos] def neckWritePos (ptr : UInt32) : UInt32 := Physical.neckWrite ptr
+
+/-- `blown`: a read in the bore line. -/
+@[export fm1_physical_bore_read_pos] def boreReadPos (ptr integral : UInt32) : UInt32 :=
+  Physical.boreRead ptr integral
+
+/-- `blown`: the write position in the bore line. -/
+@[export fm1_physical_bore_write_pos] def boreWritePos (ptr : UInt32) : UInt32 := Physical.boreWrite ptr
+
+/-- `fluted`: a read in the bore line. -/
+@[export fm1_physical_flute_bore_read_pos] def fluteBoreReadPos (ptr integral : UInt32) : UInt32 :=
+  Physical.fluteBoreRead ptr integral
+
+/-- `fluted`: the write position in the bore line. -/
+@[export fm1_physical_flute_bore_write_pos] def fluteBoreWritePos (ptr : UInt32) : UInt32 :=
+  Physical.fluteBoreWrite ptr
+
+/-- `fluted`: a read in the jet line. -/
+@[export fm1_physical_jet_read_pos] def jetReadPos (ptr integral : UInt32) : UInt32 :=
+  Physical.jetRead ptr integral
+
+/-- `fluted`: the write position in the jet line. -/
+@[export fm1_physical_jet_write_pos] def jetWritePos (ptr : UInt32) : UInt32 := Physical.jetWrite ptr
+

@@ -75,10 +75,6 @@ set_option compiler.extract_closed false
     (amplitude : Int32) : Int32 :=
   (Percussion.bellPartial phase inc amplitude).contribution
 
-/-- `decay`: a partial's amplitude after one block. -/
-@[export fm1_partial_decay] def partialDecay (amplitude decayLong decayShort parameter : Int32) : Int32 :=
-  Percussion.decay amplitude decayLong decayShort parameter
-
 /-- `drum_noise`: the low-pass state `lp0` after the sample. -/
 @[export fm1_drum_noise_lp0] def drumNoiseLp0 (noise : Int32) (lp0 : Int32) (lp1 : Int32) (lp2 : Int32)
     (f : Int32) : Int32 :=

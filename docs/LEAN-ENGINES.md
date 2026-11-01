@@ -36,11 +36,25 @@ in `voices/`:
 | `Firmware/Macro.lean` | the macro oscillator's mixing of the above | `macro_glue.c` |
 | `Firmware/Smooth.lean` | the per-sample smoothing of a parameter and of the phase step across a block | `analog_glue.c`, `digital_glue.c`, `macro_glue.c` (included next to the engine's own Api) |
 | `Firmware/Pitch.lean` | the pitch to phase step of both Braids oscillators (clamp, fold into the table's octave, blend, shift) | `pitch_glue.c` |
+| `Firmware/DigitalSetup.lean` | the per-block setup of the FM, ring modulator, toy and digital modulation engines (FM ratio quantizer, modulator and symbol steps, feedback attenuation, toy decimation) and `ComputeDelay` (the delay-line length of a pitch) | `digital_setup_glue.c` |
+| `Firmware/AnalogSetup.lean` | the analog oscillator's per-block setup: the pitch clamp, the square's and variable saw's pulse widths, the buzz's comb zones and crossfade | `analog_setup_glue.c` |
+| `Firmware/MacroSetup.lean` | the macro oscillator's per-block setup: CSAW's shift, morph's zone, balance, pulse width, low-pass cutoff and fuzz, the triple detunes (interval table), the sub, sync and buzz pitches, the sine and triangle fold amounts | `macro_setup_glue.c` |
+| `Firmware/VoiceSetup.lean` | the voice's doorway (`voices/voice.cc`): the shape guard and the cut of pitch and timbre to Braids' 16 bits | `voice_setup_glue.c` |
+| `Firmware/FiltersSetup.lean` | the per-block setup of the saw swarm (detune, the seven steps, the high-pass cutoff), the digital filters (the resonance's target step and its glide per sample), vosim (formant steps) and harmonics (peaks, width, the twelve target amplitudes) | `filters_setup_glue.c` |
+| `Firmware/VowelsSetup.lean` | the per-block setup of the vowel (vowel and consonant formant steps, amplitudes and noise, from the phoneme data read through accessors), the FOF vowel (`InterpolateFormantParameter`, the five cutoffs and the amplitude) and the question mark (dit length, noise threshold) | `vowels_setup_glue.c` |
+| `Firmware/NoiseSetup.lean` | the per-block setup of the noise engines: the hysteresis on parameters, the filtered noise's cutoff, damping, three gains and gain correction, the twin peaks' coefficients, scales, sharpness and makeup, the clocked noise's shifted step, generator period and quantizer step, the cloud's grain restarts (rate, envelope reset, detuned step; the glue draws the random numbers), the particle density | `noise_setup_glue.c` |
+| `Firmware/WavetablesSetup.lean` | the per-block setup of the wavetable engines: which wavetable, steps and waves a block plays and their crossfade, the wave map's corners and crossfades, the wave line's smoothing, scan, waves, mode and balance, the paraphonic chord detunes, voice steps and waves (the wave, line, chord and map tables read through accessors) | `wavetables_setup_glue.c` |
+| `Firmware/PercussionSetup.lean` | the per-block setup of the percussion engines: the bell and drum partial tables (offsets, amplitudes, decays) and each partial's pitch, step and decayed amplitude, the drum's cutoff, filter coefficient and gains, the kick's resonance and low-pass, the snare's decay, resonances, levels, frequencies and gains, the hat's seven steps | `percussion_setup_glue.c` |
+| `Firmware/PhysicalSetup.lean` | the per-block setup of the physical models: the comb's smoothed pitch and clamped delay, a new string's oversampling, size, mask and fill, the loss and update chance, the bowed, blown and fluted delays with their octave transpositions (a fixed chain of halvings), bow and breath, the body filter (its note held to the table, where Braids reads past it above note 127), the envelope pointer clamps | `physical_setup_glue.c` |
 
-What stays C++ in `voices/braids/`: the per-block setup other than the phase step (filter coefficients, which waves
-or partials a block uses, the hysteresis on parameters), the delay lines and state arrays (the glue does every
-load and store; Lean gets numbers and returns the numbers to store), and Braids' random number generator (the
-glue draws the numbers and passes them in, so the sequence is the one Braids produces).
+What stays C++ or C in `voices/`: the per-block control flow (which `Render` runs, `strike_`/`init_` flags,
+state resets), the delay lines and state arrays themselves (the glue does every load and store; Lean computes
+every position and every value, `Proofs/Physical.lean` shows each position inside its line), the tables
+(`resources.cc`, read through `fm1_braids_*` accessors), and Braids' random number generator (the glue draws
+the numbers and passes them in, so the sequence is the one Braids produces). The per-block setup (pitch to
+phase step, filter coefficients, which waves or partials a block uses, the hysteresis on parameters) is Lean
+in the `*Setup.lean` modules, so the ranges the sample theorems take are themselves theorems
+(`Proofs/*Setup.lean`), with the facts about table data stated as hypotheses.
 
 ## How a port is checked
 
@@ -59,7 +73,7 @@ glue draws the numbers and passes them in, so the sequence is the one Braids pro
 ## What is trusted
 
 - The tables (every `@[extern "fm1_braids_*"]` in `Firmware/`): Braids' data, read by C accessors in
-  `voices/braids/analog_oscillator.cc`, `digital_oscillator.cc` and `lean_*_tables.cc`. The Lean code blends neighbouring entries; the differential test shows
+  `voices/braids/analog_oscillator.cc`, `digital_oscillator.cc`, `macro_oscillator.cc` and `lean_*_tables.cc`. The Lean code blends neighbouring entries; the differential test shows
   the blend matches the original over the real tables.
 - Division by zero: Lean gives 0, C++ would trap. The step is above 65536 for any audible pitch, so the engine never
   divides by zero; the proofs do not cover a step below that.
@@ -100,16 +114,26 @@ glue draws the numbers and passes them in, so the sequence is the one Braids pro
   cymbal, bell and drum partials, the drum mix, and the noise resonators, boost, burst and grains are the exact
   arithmetic clipped, not wrapped, under the ranges the glue hands over, and the friction, jet, overdrive and
   grain-envelope reads stay inside their tables (`Proofs/Physical.lean`, `Percussion.lean`, `Noise.lean`).
-  The bowed string's body filter is the one place the Lean differs from Braids: its state is held within 2^18
-  (`Physical.bodyState`, never reached in the test) so that the range its sample proof needs is a proved
-  invariant (`physical_bowed_body_stays_bounded`) and not an assumption about numbers Braids never clips.
-  The guarantee that the engines sound like Braids is the differential test.
+  The bowed string's body filter and the flute's body filter note are the two places the Lean differs from
+  Braids: the filter's state is held within 2^18 (`Physical.bodyState`, never reached in the test) so that the
+  range its sample proof needs is a proved invariant (`physical_bowed_body_stays_bounded`) and not an
+  assumption about numbers Braids never clips, and the flute's note is held at 127 (`PhysicalSetup.flutedNote`,
+  above the test's pitches) where Braids reads past its 128-entry table. The guarantee that the engines sound
+  like Braids is the differential test.
 - Samples that Braids itself can overflow are not proved: the kick's low-pass step, the blown pipe's reed
   product and the state-variable filter's cutoff times high-pass can pass 32 bits at the extremes of their
   clipped states, and the clocked noise's quantized value can pass 16 bits; the Lean matches Braids there.
-- Indexes that depend on C data are not proved: the comb zone (0 to 14), the formant amplitude (0 to 15), the
-  bowing and blowing envelope pointers (clamped per block by C++) and the question mark's position in its code
-  table (bounded by the stop symbol in the data). The grain envelope read is proved only given the per-block
-  reset and the rate table's top value.
+- Indexes that depend on C data are not proved: the question mark's position in its code table (bounded by the
+  stop symbol in the data). The bowing and blowing envelope reads are proved from the clamp after each block
+  (`physical_setup_envelope_pointer_in_table`), a new plucked string's size, mask and fill from its setup
+  (`physical_setup_pluck_size_valid`), and the drum's cutoff read and the gains and decays the percussion mixes
+  assume from theirs (`Proofs/PercussionSetup.lean`). The grain
+  envelope read is proved from the block's setup given the rate table's top value
+  (`noise_setup_grain_reset`), the wave line's wave after the scan's reads one past Braids' 64-entry line at
+  the top of the parameter's range (Braids' own overrun, kept so the output matches), the wave numbers the
+  selection tables hold are data (`wavetables_setup_wave_in_bank` takes a number up to 255), the vowel's
+  formant amplitude (0 to 15) is proved only given that the phoneme data holds nibbles, and the swarm's cutoff
+  coefficient's range only given the cutoff table's top entry (`Proofs/VowelsSetup.lean`,
+  `Proofs/FiltersSetup.lean`).
 - The chip's CPU cost of the Lean path is unmeasured; on x86 the analog oscillators run at about 1.3 times the
   original's time per sample.

@@ -17,3 +17,7 @@ extern "C" uint16_t fm1_braids_lut_blowing_envelope(uint32_t index) {
 extern "C" uint16_t fm1_braids_lut_blowing_jet(uint32_t index) {
   return static_cast<uint16_t>(braids::lut_blowing_jet[index]);
 }
+
+extern "C" uint16_t fm1_braids_lut_flute_body_filter(uint32_t index) {
+  return braids::lut_flute_body_filter[index];
+}

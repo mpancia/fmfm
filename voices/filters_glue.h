@@ -17,6 +17,12 @@ void fm1_filters_render_vosim(uint32_t *phase, uint32_t inc, uint32_t *formants,
 void fm1_filters_render_harmonics(uint32_t *phase, int16_t *previous, uint32_t inc, int32_t *amplitude,
                                   const int32_t *target, const uint8_t *sync, int16_t *buffer, uint32_t size);
 
+/* The per-block setup of the same engines, in filters_setup_glue.c (Firmware/FiltersSetup.lean). */
+void fm1_filters_setup_swarm(int32_t pitch, int32_t detune, int32_t cutoff, uint32_t *increments, int32_t *f);
+uint32_t fm1_filters_setup_filter_step(int32_t pitch, int32_t parameter, uint32_t current, uint32_t size);
+uint32_t fm1_filters_setup_vosim(int32_t parameter);
+void fm1_filters_setup_harmonics(int32_t parameter0, int32_t parameter1, uint32_t inc, int32_t *target);
+
 #ifdef __cplusplus
 }
 #endif

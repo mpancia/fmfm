@@ -7,8 +7,8 @@ set_option compiler.extract_closed false
 
 Port of the wavetable, wave map, wave line and paraphonic wave engines of Braids (`digital_oscillator.cc`,
 Emilie Gillet, MIT). A wave is named by its number in Braids' table of 129-byte waves; choosing the waves
-(per block) and the loops stay in C. Lean shifts bind tighter than `*` and `+`, so shifted products are
-parenthesized.
+(per block) is in `Firmware/WavetablesSetup.lean` and the loops stay in C. Lean shifts bind tighter than `*`
+and `+`, so shifted products are parenthesized.
 -/
 
 /-- One byte of one of Braids' waves (`wt_waves`, 129 bytes each), looked up by C. Trusted data. -/

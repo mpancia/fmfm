@@ -13,3 +13,11 @@ extern "C" uint16_t fm1_braids_lut_resonator_scale(uint32_t index) {
 extern "C" uint16_t fm1_braids_lut_granular_envelope(uint32_t index) {
   return braids::lut_granular_envelope[index];
 }
+
+extern "C" uint16_t fm1_braids_lut_svf_scale(uint32_t index) {
+  return braids::lut_svf_scale[index];
+}
+
+extern "C" uint16_t fm1_braids_lut_granular_envelope_rate(uint32_t index) {
+  return braids::lut_granular_envelope_rate[index];
+}
