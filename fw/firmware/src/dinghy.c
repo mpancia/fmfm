@@ -22,6 +22,7 @@ static void app_idle(void);
 #include "reverb.h"
 #include "delay.h"
 #include "alfred.h"
+#include "watch.h"
 #ifndef ALFRED_LOOK
 #define ALFRED_LOOK 6                           /* the look a fresh unit starts with (index into THEMES): CATALOGUE, the site's */
 #endif
@@ -59,6 +60,14 @@ static void render_voice(uint32_t v, int32_t *out, int32_t *bus, uint32_t n)
             int32_t s;                                                    /* the arithmetic is Lean: Firmware/Mix.lean */
             amp = (int32_t)fm1_mix_envelope_step((uint32_t)amp, (uint32_t)g, (uint32_t)up, (uint32_t)down);
             s = (int32_t)fm1_mix_voice_sample((uint16_t)block[j], voice[v].gain, (uint32_t)amp);
+#ifdef WATCHED
+            {
+                int32_t pl = (int32_t)fm1_mix_pan_sample((uint32_t)s, (uint32_t)voice[v].pan_left);
+                int32_t pr = (int32_t)fm1_mix_pan_sample((uint32_t)s, (uint32_t)voice[v].pan_right);
+                int32_t as = s < 0 ? -s : s;
+                WATCH(W_PAN_NO_GAIN, (pl < 0 ? -pl : pl) <= as && (pr < 0 ? -pr : pr) <= as && as <= 65024);
+            }
+#endif
             out[2u * (i + j)] += (int32_t)fm1_mix_pan_sample((uint32_t)s, (uint32_t)voice[v].pan_left);
             out[2u * (i + j) + 1u] += (int32_t)fm1_mix_pan_sample((uint32_t)s, (uint32_t)voice[v].pan_right);
             bus[i + j] += (int32_t)fm1_mix_send_sample((uint32_t)s, voice[v].send);   /* the send bus is left plus right */
@@ -73,10 +82,9 @@ static volatile uint32_t reverb_ready;          /* the reverb memory is cleared 
 static volatile int32_t reverb_return = 32768;  /* Q15 gain of the wet signal into the mix */
 static volatile int32_t delay_return;           /* the same for the delay; the delay is off while it is 0 */
 
-static void app_audio(int32_t *out, uint32_t n)
+static void app_audio_mix(int32_t *out, uint32_t n)
 {
     uint32_t v, i;
-    if (n > FM1_REVERB_BLOCK) n = FM1_REVERB_BLOCK;
     for (i = 0; i < n; i++) send_bus[i] = 0;
     for (v = 0; v < NV; v++)
         if (voice[v].amp || voice[v].gate)
@@ -99,6 +107,18 @@ static void app_audio(int32_t *out, uint32_t n)
         *l = (int32_t)fm1_mix_in((uint32_t)*l, (uint32_t)wet_left[i], gain);
         *r = (int32_t)fm1_mix_in((uint32_t)*r, (uint32_t)wet_right[i], gain);
     }
+}
+
+static void app_audio(int32_t *out, uint32_t n)
+{
+    if (n > FM1_REVERB_BLOCK) n = FM1_REVERB_BLOCK;
+    app_audio_mix(out, n);
+#ifdef WATCHED
+    {
+        uint32_t i;                             /* the sample the master stage sees: at most 524287 either way */
+        for (i = 0; i < 2u * n; i++) WATCH(W_MIX_BOUNDED, out[i] <= 524287 && out[i] >= -524287);
+    }
+#endif
 }
 
 /* ---- notes (main loop) */
@@ -216,19 +236,41 @@ static uint32_t lane_mask(uint32_t i)           /* the scale, turned to the key 
 {
     uint32_t scale = lane_scale(i);
     uint32_t follow = progression ? cfg[i].chord : 0u;
-    return fm1_harmony_mask(scale, key, chord_root(scale), follow);
+    uint32_t mask = fm1_harmony_mask(scale, key, chord_root(scale), follow);
+#ifdef WATCHED
+    {
+        uint32_t root = chord_root(scale), in_key = fm1_harmony_mask(scale, key, 0, 0);
+        WATCH(W_MASK_NONEMPTY, mask != 0 && mask < 4096u);
+        WATCH(W_FOLLOW_IN_KEY, (mask & in_key) == mask);
+        WATCH(W_CHORD_ROOT, root < 12u && ((fm1_harmony_mask(scale, 0, 0, 0) >> root) & 1u));
+    }
+#endif
+    return mask;
 }
 
 static void lane_apply(uint32_t i)
 {
-    lane[i] = fm1_lane_reconfigure(lane[i], cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i));
-    lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, lfo[i].target ? lfo[i].chance : cfg[i].chance, cfg[i].amount, cfg[i].mutate);
+    uint32_t mask = lane_mask(i), chance = lfo[i].target ? lfo[i].chance : cfg[i].chance;
+    lane[i] = fm1_lane_reconfigure(lane[i], cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], mask);
+    lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, chance, cfg[i].amount, cfg[i].mutate);
     lane[i] = fm1_lane_set_rhythm(lane[i], cfg[i].feel, cfg[i].rotate, cfg[i].accents, cfg[i].rule, cfg[i].ratchet, cfg[i].subhits, 0);
+    WATCH_LANE_SET(i, mask, cfg[i].hits, cfg[i].steps, cfg[i].feel, chance);
 }
 
 static void lane_report(uint32_t i)             /* play what the lane just started, stop what it stopped */
 {
     uint32_t off = fm1_lane_off_of(lane[i]), on = fm1_lane_on_of(lane[i]);
+#ifdef WATCHED
+    if (on < 128u) {
+        uint32_t steps = wlane[i].steps, step = fm1_lane_step_of(lane[i]);
+        WATCH(W_NOTE_IN_SCALE, (wlane[i].mask >> (on % 12u)) & 1u);
+        if (wlane[i].feel < 2u)                 /* a pulse: the note belongs to the step the counter just left */
+            WATCH(W_NOTE_ON_HIT, fm1_lane_hit_at_of(lane[i], (step + steps - 1u) % steps));
+        wlane[i].ons++; wlane[i].bar_ons++;
+    }
+    if (off < 128u) wlane[i].offs++;
+    WATCH(W_NOTE_ON_OFF, wlane[i].ons == wlane[i].offs || wlane[i].ons == wlane[i].offs + 1u);
+#endif
     if (off < 128u) { stop(off); midi_send(0x80u | (midi_out_base + i), off, 0); }
     if (on < 128u && !cfg[i].muted && lfo[i].level) {
         uint32_t vel = lfo[i].level;
@@ -262,6 +304,7 @@ static void lane_remake(uint32_t i)             /* a new lane from the settings:
                             0x9E3779B9u * (cfg[i].seed + 1u));
     lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, cfg[i].chance, cfg[i].amount, cfg[i].mutate);
     lane[i] = fm1_lane_set_rhythm(lane[i], cfg[i].feel, cfg[i].rotate, cfg[i].accents, cfg[i].rule, cfg[i].ratchet, cfg[i].subhits, 1);
+    WATCH_LANE_SET(i, lane_mask(i), cfg[i].hits, cfg[i].steps, cfg[i].feel, cfg[i].chance);
 }
 
 static void lanes_remask(void)                  /* the key, scale lock or chord changed */
@@ -320,6 +363,7 @@ static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint
         lane[i] = fm1_lane_make(cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i), cfg[i].low, cfg[i].span,
                                 0x9E3779B9u * (cfg[i].seed + 1u));
         lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, cfg[i].chance, cfg[i].amount, cfg[i].mutate);
+        WATCH_LANE_SET(i, lane_mask(i), cfg[i].hits, cfg[i].steps, 0, cfg[i].chance);   /* a made lane's rhythm is plain */
     }
 }
 
@@ -397,6 +441,22 @@ static void patch_save(uint32_t slot)
     patch = fm1_patch_make(bpm, key, progression, rate_bars, scale_lock, reverb_time, reverb_bright, reverb_amount,
                            delay_time, delay_feedback, delay_tone, delay_amount, lanes[0], lanes[1], lanes[2], lanes[3]);
     bytes = fm1_patch_encode(patch);
+#ifdef WATCHED
+    {                                           /* the bytes decode, and encode again to the same bytes */
+        lean_object *again;
+        lean_inc(bytes);
+        again = fm1_patch_decode(bytes);
+        if (lean_is_scalar(again)) WATCH(W_PATCH_ROUND_TRIP, 0);
+        else {
+            lean_object *p = lean_ctor_get(again, 0), *b2;
+            lean_inc(p); lean_dec(again);
+            b2 = fm1_patch_encode(p);
+            WATCH(W_PATCH_ROUND_TRIP, lean_sarray_size(b2) == lean_sarray_size(bytes) &&
+                  !memcmp(lean_sarray_cptr(b2), lean_sarray_cptr(bytes), lean_sarray_size(bytes)));
+            lean_dec(b2);
+        }
+    }
+#endif
     silence_lanes();                            /* a flash write stalls the sound */
     slot_save(slot, lean_sarray_cptr(bytes), (uint32_t)lean_sarray_size(bytes));
     lean_dec(bytes);
@@ -467,12 +527,30 @@ static void clock_poll(void)                    /* 24 ticks a quarter note: bpm 
     } else tick_acc += dt * bpm * 4u;
     while (set.clock ? ext_ticks > 0 : tick_acc >= fm1_swing_tick_length(tick_count % 24u, set.swing)) {
         if (set.clock) ext_ticks--; else tick_acc -= fm1_swing_tick_length(tick_count % 24u, set.swing);
+#ifdef WATCHED
+        {
+            uint32_t len = fm1_swing_tick_length(tick_count % 24u, set.swing);
+            WATCH(W_SWING_TICK, len >= 3334u && len <= 16666u);
+            watch_quarter = tick_count % 24u ? watch_quarter + len : len;
+            if (tick_count % 24u == 23u) WATCH(W_SWING_QUARTER, watch_quarter == 240000u);
+        }
+#endif
         arp = fm1_arp_tick(arp);                /* the arpeggiator keeps time whether the lanes run or not */
         arp_report();
         if (!running) continue;
         for (i = 0; i < NL; i++) {
+#ifdef WATCHED
+            uint32_t before = fm1_lane_step_of(lane[i]);
+#endif
             lane[i] = fm1_lane_tick(lane[i]);
             lane_report(i);
+#ifdef WATCHED
+            if (wlane[i].steps > 1u && before == wlane[i].steps - 1u && fm1_lane_step_of(lane[i]) == 0) {   /* a bar ended */
+                if (wlane[i].bar_ok && wlane[i].feel == 0 && wlane[i].chance >= 100u)
+                    WATCH(W_BAR_HITS, wlane[i].bar_ons == wlane[i].hits);
+                wlane[i].bar_ok = 1; wlane[i].bar_ons = 0;
+            }
+#endif
         }
         tick_count++;
         if (progression && tick_count % (96u * rate_bars) == 0) { chord_index++; lanes_remask(); }   /* a chord every bar or more */
@@ -1303,6 +1381,7 @@ static void app_main(void)
         set.oct = 0, set.ch = 0, set.look = ALFRED_LOOK;
     for (k = 0; k < NV; k++) braids_voice_init(vmem[k]);
     for (k = 0; k < NL; k++) lane[k] = fm1_lane_make(1, 1, 1, 1, 36, 1, 1u);
+    for (k = 0; k < NL; k++) WATCH_LANE_SET(k, 1, 1, 1, 0, 100);
     arp = fm1_arp_make(SPEED[arp_cfg.rate], 0x2545F491u);
     arp_apply();
     fm1_reverb_init(FM1_REVERB_SCALE_44K, 48694);              /* a half hertz at 44.1 kHz */
@@ -1468,4 +1547,9 @@ __attribute__((export_name("web_patch_name"))) const char *web_patch_name(uint32
 }
 __attribute__((export_name("web_patch_index"))) uint32_t web_patch_index(void) { return patch_index; }
 __attribute__((export_name("web_demo_auto"))) uint32_t web_demo_auto(void) { return demo_auto; }
+/* the watched theorems (watch.h): how many times each was checked on the running machine, and how often it failed */
+__attribute__((export_name("web_watch_count"))) uint32_t web_watch_count(void) { return W_COUNT; }
+__attribute__((export_name("web_watch_name"))) const char *web_watch_name(uint32_t i) { return watch[i % W_COUNT].theorem; }
+__attribute__((export_name("web_watch_checks"))) uint32_t web_watch_checks(uint32_t i) { return watch[i % W_COUNT].checks; }
+__attribute__((export_name("web_watch_fails"))) uint32_t web_watch_fails(uint32_t i) { return watch[i % W_COUNT].fails; }
 #endif

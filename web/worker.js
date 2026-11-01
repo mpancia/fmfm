@@ -33,6 +33,14 @@ const imports = { env: {
     Atomics.store(ctl, 21, exports.web_patch_index());
     Atomics.store(ctl, 23, exports.web_demo_auto());
     Atomics.store(ctl, 19, ms);
+    if (ms % 500 === 0) {                                      // the watched theorems' counters (watch.h), twice a second
+      const watch = [];
+      for (let i = 0; i < exports.web_watch_count(); i++) {
+        const b = new Uint8Array(mem.buffer, exports.web_watch_name(i)); let n = 0; while (b[n]) n++;
+        watch.push([new TextDecoder().decode(b.subarray(0, n)), exports.web_watch_checks(i), exports.web_watch_fails(i)]);
+      }
+      postMessage({ watch });
+    }
   },
   js_audio(ptr, frames) {
     const src = new Int16Array(mem.buffer, ptr, frames * 2);

@@ -5,3 +5,4 @@ vendor/
 build/
 backups/
 __pycache__/
+tests/ExportCheck.lean

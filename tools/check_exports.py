@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""The compiler, checked: every scalar `@[export fm1_*]` function of Firmware/, compiled to C and built for this
+computer, is run on random inputs, and Lean's kernel then checks that the definition itself gives the same
+values (`example : f a b = c := by decide`). The Lean to C compiler, the C compiler and lean.h are on the trusted
+list; this is the evidence that, on this code, their output agrees with what was proved about.
+
+  tools/check_exports.py [samples per function, default 6]
+
+Writes build/export_check/check.c and tests/ExportCheck.lean (generated, not committed), and runs both. Exit 1
+on any disagreement or a function that could not be run. Functions with object arguments (lanes, patches) are
+not covered; the differential tests and the simulator cover those paths."""
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "build/export_check"
+SCALAR = {"UInt32": ("uint32_t", 32, False), "Int32": ("uint32_t", 32, True), "Int16": ("uint16_t", 16, True),
+          "UInt16": ("uint16_t", 16, False), "UInt8": ("uint8_t", 8, False), "Bool": ("uint8_t", 1, False)}
+EXPORT = re.compile(r"@\[export (fm1_\w+)\]\s*def (\w+)\s*((?:\([^)]*\)\s*)*):\s*(\w+)\s*:=", re.S)
+PARAMS = re.compile(r"\(([^:]+):\s*(\w+)\)")
+
+
+def exports():
+    found = []
+    for path in sorted((ROOT / "Firmware").glob("*.lean")):
+        for sym, name, params, ret in EXPORT.findall(path.read_text()):
+            args = [(n, t) for names, t in PARAMS.findall(params) for n in names.split()]
+            if ret in SCALAR and all(t in SCALAR for _, t in args):
+                found.append((path.stem, sym, name, args, ret))
+    return found
+
+
+FUNC = re.compile(r"^(?:LEAN_EXPORT |static )?(?:inline )?[\w*]+ (\w+)\(([^)]*)\)\s*\{", re.M)   # Lean's C: `){` then `_start:`
+
+
+def table_readers(c_text):
+    """The functions of one generated C file that read a Braids table (`fm1_braids_*`, no bounds check in C),
+    directly or through a helper: random inputs would read past the table, so these are left out."""
+    bodies = {}
+    for m in FUNC.finditer(c_text):
+        depth, i = 1, m.end()
+        while depth and i < len(c_text):
+            depth += {"{": 1, "}": -1}.get(c_text[i], 0)
+            i += 1
+        bodies[m.group(1)] = c_text[m.end():i]
+    reads = {f for f, b in bodies.items() if "fm1_braids_" in b}
+    changed = True
+    while changed:
+        changed = False
+        for f, b in bodies.items():
+            if f not in reads and any(re.search(rf"\b{re.escape(r)}\(", b) for r in reads):
+                reads.add(f)
+                changed = True
+    return reads
+
+
+def runnable(funcs):
+    skip = set()
+    for c in list((ROOT / "build/lean_gen").glob("*Api.c")) + list((ROOT / ".lake/build/ir/Firmware").glob("*.c")):
+        skip |= table_readers(c.read_text())
+    kept = [f for f in funcs if f[1] not in skip]
+    return kept, [f[1] for f in funcs if f[1] in skip]
+
+
+def c_program(funcs, samples):
+    out = ["#include <stdint.h>", "#include <stdio.h>", ""]
+    for _, sym, _, args, ret in funcs:
+        out.append(f"{SCALAR[ret][0]} {sym}({', '.join(SCALAR[t][0] for _, t in args) or 'void'});")
+    out += ["", "static uint32_t rng = 12345u;",
+            "static uint32_t draw(void) { rng = rng * 1664525u + 1013904223u; return rng; }",
+            "/* inputs: full-width values, and often small or special ones, so edges get hit too */",
+            "static uint32_t pick(unsigned bits) {",
+            "    uint32_t r = draw(), v = draw(), mask = bits >= 32 ? 0xFFFFFFFFu : (1u << bits) - 1u;",
+            "    switch (r >> 29) { case 0: return 0; case 1: return v & 127u; case 2: return mask; case 3: return mask >> 1;",
+            "                       case 4: return (mask >> 1) + 1u; default: return v & mask; }",
+            "}", "", "int main(void) {", "    unsigned i;"]
+    for _, sym, _, args, ret in funcs:
+        decl = "; ".join(f"{SCALAR[t][0]} {n}" for n, t in args)
+        picks = " ".join(f"{n} = ({SCALAR[t][0]})pick({SCALAR[t][1]});" for n, t in args)
+        fmt = " ".join("%u" for _ in args)
+        vals = ", ".join(f"(unsigned){n}" for n, _ in args)
+        out.append(f"    for (i = 0; i < {samples}; i++) {{ {decl}{'; ' if decl else ''}{picks}")
+        out.append(f"        printf(\"{sym} {fmt} = %u\\n\"{', ' + vals if vals else ''}, "
+                   f"(unsigned){sym}({', '.join(n for n, _ in args)})); }}")
+    out += ["    return 0;", "}"]
+    return "\n".join(out) + "\n"
+
+
+def lean_literal(value, t):
+    if t == "Bool":
+        return "true" if value else "false"
+    return f"({value} : {t})"          # a wide literal wraps in Int32/Int16, as the C's bits do
+
+
+def lean_file(funcs, lines):
+    by_sym = {sym: (mod, name, args, ret) for mod, sym, name, args, ret in funcs}
+    out = ["import Firmware", "",
+           "/-! Generated by tools/check_exports.py; not committed. Each `example` asks the kernel whether the Lean",
+           "definition gives the value the compiled C gave on a random input. -/", ""]
+    count = 0
+    for line in lines:
+        head, _, result = line.rpartition(" = ")
+        parts = head.split()
+        sym, values = parts[0], parts[1:]
+        _, name, args, ret = by_sym[sym]
+        call = " ".join([name] + [lean_literal(int(v), t) for v, (_, t) in zip(values, args)])
+        out.append(f"example : {call} = {lean_literal(int(result), ret)} := by decide +kernel")
+        count += 1
+    return "\n".join(out) + "\n", count
+
+
+def main():
+    samples = int(sys.argv[1]) if len(sys.argv) > 1 else 6
+    OUT.mkdir(parents=True, exist_ok=True)
+    env = dict(os.environ, PATH=f"{Path.home()}/.elan/bin:{os.environ['PATH']}")
+    run = lambda *cmd: subprocess.run(cmd, cwd=ROOT, env=env, check=True, capture_output=True, text=True)
+    run("sh", "tools/build_lean_fw.sh", "host")
+    run("sh", "tools/build_braids.sh", "host")
+    prefix = run("lean", "--print-prefix").stdout.strip()
+    cc = [f"{prefix}/bin/clang", "--target=i386-linux-gnu", "-m32", "-msse2", "-w", "-isystem", f"{prefix}/include/clang",
+          "-isystem", f"{prefix}/include", "-I", str(ROOT / "rt"), "-Os", "-ffunction-sections", "-fdata-sections"]
+    funcs, skipped = runnable(exports())
+    objects = sorted(str(p) for p in (ROOT / "build/lean/host").glob("*.o"))
+    objects += sorted(str(p) for p in (ROOT / "build/braids/host").glob("*.o"))   # the tables the Lean reads through C
+    for api in sorted((ROOT / "build/lean_gen").glob("*Api.c")):       # the modules the glue includes inline
+        obj = OUT / (api.stem + ".o")
+        run(*cc, "-c", str(api), "-o", str(obj))
+        objects.append(str(obj))
+    (OUT / "check.c").write_text(c_program(funcs, samples))
+    run(*cc, "-c", str(OUT / "check.c"), "-o", str(OUT / "check.o"))
+    run("c++", "-m32", "-o", str(OUT / "check"), str(OUT / "check.o"), *objects, str(ROOT / "build/init/host/libInit.a"),
+        "-Wl,--gc-sections", "-Wl,--unresolved-symbols=ignore-all")
+    missing = [l.split()[-1] for l in run("nm", "-u", str(OUT / "check")).stdout.splitlines()
+               if " U " in l and "GLIBC" not in l and "__" not in l and "initialize_" not in l]   # initialisers never run
+    if missing:
+        print("export check: unresolved in the host build:", " ".join(missing)); sys.exit(1)
+    lines = run(str(OUT / "check")).stdout.strip().split("\n")
+    text, count = lean_file(funcs, lines)
+    target = ROOT / "tests/ExportCheck.lean"
+    target.write_text(text)
+    result = subprocess.run(["lake", "env", "lean", str(target)], cwd=ROOT, env=env, capture_output=True, text=True)
+    bad = [l for l in result.stdout.splitlines() if "error" in l]
+    for l in bad[:10]:
+        print(l)
+    print(f"export check: {len(funcs)} scalar exports ({len(skipped)} table readers left out), {count} values from the "
+          f"compiled C, {len(bad)} the kernel disagrees with")
+    sys.exit(1 if bad or result.returncode else 0)
+
+
+if __name__ == "__main__":
+    main()

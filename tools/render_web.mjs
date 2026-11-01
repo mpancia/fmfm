@@ -57,3 +57,12 @@ for (let s = 0; s * RATE < frames; s++) {
 console.log(`${out}: ${(frames / RATE).toFixed(1)} s, peak ${peak} (${(20 * Math.log10(peak / 32768 + 1e-9)).toFixed(1)} dBFS), ` +
   `${clipped} clipped samples`);
 console.log('dBFS by second: ' + seconds.map((v) => v.toFixed(0)).join(' '));
+{                                            // the watched theorems (fw/firmware/src/watch.h): checks and failures
+  const w = []; let fails = 0, checks = 0;
+  for (let i = 0; i < inst.exports.web_watch_count(); i++) {
+    const b = new Uint8Array(inst.exports.memory.buffer, inst.exports.web_watch_name(i)); let n = 0; while (b[n]) n++;
+    const c = inst.exports.web_watch_checks(i), f = inst.exports.web_watch_fails(i);
+    checks += c; fails += f; if (f) w.push(`${Buffer.from(b.subarray(0, n))} ${f}/${c}`);
+  }
+  console.log(`watched: ${checks} checks, ${fails} failed${w.length ? ' (' + w.join(', ') + ')' : ''}`);
+}

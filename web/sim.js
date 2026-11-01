@@ -165,6 +165,18 @@ async function powerOn() {
   worker.onmessage = (e) => {
     if (e.data.error) powerOff('Firmware stopped: ' + e.data.error);
     else if (e.data.report !== undefined) { if (e.data.fatal) powerOff('Lean runtime stopped the firmware: ' + e.data.report); else status('Lean: ' + e.data.report); }
+    else if (e.data.watch) {
+      $('watch').tBodies[0].replaceChildren(...e.data.watch.map(([name, checks, fails]) => {
+        const tr = document.createElement('tr'), link = document.createElement('a');
+        link.href = `https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md`; link.title = 'in docs/PROOFS.md'; link.textContent = name;
+        tr.insertCell().append(link);
+        tr.insertCell().textContent = checks.toLocaleString() + ' checks';
+        const f = tr.insertCell();
+        f.textContent = fails ? fails.toLocaleString() + ' failed' : checks ? 'held' : 'not yet';
+        f.className = fails ? 'fail' : 'ok';
+        return tr;
+      }));
+    }
     else if (e.data.ready) {
       running = true; $('off').hidden = true; $('power').textContent = 'Power off'; $('power').disabled = false; status('Booting...');
       const sel = $('patch');

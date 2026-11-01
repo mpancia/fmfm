@@ -23,5 +23,7 @@ for (let i = 0; i < ndemo; i++) {
   const loud = 10 * Math.log10(seconds.reduce((s, v) => s + Math.pow(10, v / 10), 0) / seconds.length);
   ok(`${names[i]}: no clipping, peak ${peak} dBFS in -20..-3, loudness ${loud.toFixed(1)} dBFS in -36..-20`,
     clipped === 0 && peak >= -20 && peak <= -3 && loud > -36 && loud < -20);
+  const watched = text.match(/watched: (\d+) checks, (\d+) failed(.*)/);
+  ok(`${names[i]}: the watched theorems hold (${watched[1]} checks${watched[3]})`, Number(watched[2]) === 0 && Number(watched[1]) > 0);
 }
 process.exitCode = failed ? 1 : 0;

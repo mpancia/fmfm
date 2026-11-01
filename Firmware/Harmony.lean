@@ -61,12 +61,14 @@ def Harmony.chordRoot (scale p s : Nat) : Nat :=
   let tones := Harmony.tones (Harmony.scale scale) 0
   tones.getD (Harmony.degree p s % tones.length) 0
 
-/-- C entry: the chord root for the lanes and the screen (see `Harmony.chordRoot`). -/
+/-- C entry: the chord root for the lanes and the screen (see `Harmony.chordRoot`). The settings are reduced as
+32-bit numbers before they become `Nat`: on the chip a `Nat` above 2^31 would need the big-number runtime it
+does not have. -/
 @[export fm1_harmony_chord_root]
 def harmonyChordRoot (scale progression step : UInt32) : UInt32 :=
-  (Harmony.chordRoot (scale.toNat % 14) (progression.toNat % 8) (step.toNat % 4)).toUInt32
+  (Harmony.chordRoot (scale % 14).toNat (progression % 8).toNat (step % 4).toNat).toUInt32
 
 /-- C entry: the mask for a lane (see `Harmony.laneMask`). -/
 @[export fm1_harmony_mask]
 def harmonyMask (scale key chordRoot follow : UInt32) : UInt32 :=
-  (Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) (chordRoot.toNat % 12) (follow.toNat % 3)).toUInt32
+  (Harmony.laneMask (scale % 14).toNat (key % 12).toNat (chordRoot % 12).toNat (follow % 3).toNat).toUInt32

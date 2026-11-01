@@ -7,7 +7,7 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
 
-.PHONY: install run web test test-lean audit build check lean-check fw flash-deps clean lint proofs comparator perf
+.PHONY: install run web test test-lean test-exports audit build check lean-check fw flash-deps clean lint proofs comparator perf
 
 
 install:
@@ -49,6 +49,11 @@ lean-check:
 test-lean:
 	sh tools/test_lean_engines.sh
 
+# The compiler, checked: every scalar Lean export compiled to C and built for this computer, run on random inputs,
+# and the kernel asked whether the definitions give the same values (tools/check_exports.py).
+test-exports:
+	python3 tools/check_exports.py
+
 # The firmware on this computer with Linux perf counters: instructions a sample (docs/BUDGET.md).
 perf:
 	sh tools/perf_host.sh
@@ -74,7 +79,7 @@ lint:
 	python3 tools/lint.py
 
 # Lint, the chip link check, the differential tests, then Comparator (Linux, bubblewrap).
-check: lint lean-check test-lean comparator
+check: lint lean-check test-lean test-exports comparator
 
 # Only needed to flash from this computer: python MIDI libs for fw/tools/fm1_install.py.
 flash-deps:

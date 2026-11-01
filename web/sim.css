@@ -71,3 +71,12 @@ kbd { font: 13px var(--mono); border: 1px solid var(--hairline); padding: 0 4px;
   .keys { height: 120px; }
   .key.black { height: 72px; }
 }
+
+.watch { margin-top: 28px; border-top: 1px solid var(--hairline); padding-top: 16px; }
+.watch h2 { margin: 0 0 6px; font-size: 15px; font-weight: 300; }
+.watch h2 small { color: var(--muted); margin-left: 10px; }
+#watch { border-collapse: collapse; font: 13px/1.6 var(--mono); width: 100%; }
+#watch td { padding: 1px 0; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+#watch td:nth-child(2), #watch td:nth-child(3) { text-align: right; padding-left: 16px; }
+#watch td.fail { color: #c0392b; }
+#watch td.ok { color: var(--muted); }

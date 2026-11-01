@@ -127,7 +127,18 @@ ok('the scales are real: minor in C is 0x5AD, major in D is major turned up two 
    scaleMask(1, 0, 0, 0) === 0x5AD && scaleMask(0, 2, 0, 0) === (((0xAB5 << 2) | (0xAB5 >> 10)) & 0xFFF) &&
    bits(scaleMask(0, 0, 0, 2)) === 3);
 ok('no Lean runtime reports', reports.length === 0);
+// the proofs, watched (fw/firmware/src/watch.h): the theorems' statements checked on the running machine
+const watched = [];
+for (let i = 0; i < inst.exports.web_watch_count(); i++) {
+  const b = new Uint8Array(mem.buffer, inst.exports.web_watch_name(i)); let n = 0; while (b[n]) n++;
+  watched.push([Buffer.from(b.subarray(0, n)).toString(), inst.exports.web_watch_checks(i), inst.exports.web_watch_fails(i)]);
+}
+const idle = watched.filter(([, c]) => c === 0).map(([t]) => t), broken = watched.filter(([, , f]) => f > 0).map(([t, c, f]) => `${t} ${f}/${c}`);
+const checks = watched.reduce((a, [, c]) => a + c, 0);
+ok(`every watched theorem was checked on the running machine (${watched.length} theorems, ${checks} checks)${idle.length ? ': never checked ' + idle.join(' ') : ''}`, idle.length === 0);
+ok(`no watched theorem failed${broken.length ? ': ' + broken.join(', ') : ''}`, broken.length === 0);
 const leanPoolUsed = inst.exports.web_lean_pool_used();
 ok(`the Lean heap's high-water mark stays under half its 32 KiB pool (${leanPoolUsed} B)`, leanPoolUsed < 16384);
 console.log({ reports });
+console.log(watched.map(([t, c, f]) => `${t}:${c}/${f}`).join(" "));
 if (process.env.PEAKS) console.log([...peaks].map(([h, p]) => `${h * 0.5}s:${p}`).join(' '));

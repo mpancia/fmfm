@@ -59,10 +59,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-219 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+225 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 60 theorems</summary>
+<details><summary><b>The sequencer</b>: 64 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -85,6 +85,7 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `lane_from_patch_keeps_feel` | A patch lane that fits gives a lane with exactly the rhythm source the patch holds: none of the clamps on the way (`Lane.make`, `Rhythm.make`) change a fitting value. | the FEEL settings a patch saves are the ones it plays back; what you hear after loading is what you heard before saving. |
 | `run_every_note_on_has_a_note_off` | Every note a lane starts during a run is stopped: after any sequence of ticks and setting changes, the number of note-ons equals the number of note-offs plus the one note still sounding, which stopping the clock then reports as stopped (`lane_silence_stops_note`) and leaves nothing sounding. | this is the no-stuck-notes promise for a whole performance, not one tick: however long you play and whatever you turn, pressing stop leaves nothing sounding and nothing unaccounted for. |
 | `run_clock_never_drifts` | After `n` ticks from a fresh lane, the clock stands at `(n / div) % steps`, whatever notes played. | the step position depends only on the tick count, so four lanes at different speeds stay in phase forever: nothing a note does can make a lane drift. |
+| `run_bar_plays_every_hit` | A plain lane (the Euclidean source, play chance 100) plays exactly `hits` notes in a bar: over the `steps * div` ticks of a bar from a fresh lane, the trace has `hits` note-ons, for any settings at all (`make` holds them to what the knobs can produce). | the safety theorems say a lane never plays on a rest; this one says it does play on every hit. |
 | `rhythm_automaton_row_fits` | One generation of the automaton stays inside the bar: the new row has no bit at or beyond `steps` (a bar has at most 32 steps). | the row is a `steps`-bit pattern however long the automaton runs; a hit can never appear on a step that does not exist, and the row stays the size the circle draws. |
 | `rhythm_accent_only_on_hit` | An accent only falls on a hit. | accents shape the rhythm's hits; they can never add a note where the pattern has a rest. |
 | `rhythm_rotate_keeps_hits` | Turning the bar (ROTATE) keeps the number of hits: a turned bar has exactly `hits` hits, like the plain one (`euclid_hit_count`). | ROTATE moves the pattern round the circle without adding or losing a note. |
@@ -93,6 +94,7 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `rhythm_rule_204_freezes` | Rule 204 freezes the bar: a row that fits the bar comes back unchanged every generation. | there is a rule on which the automaton is exactly the Euclidean bar it was seeded with, so turning RULE from 204 is the way to make it move. |
 | `swing_tick_in_range` | Every tick is between a third and five thirds of a straight tick, at every swing setting. | swing can never make a tick vanish (a zero-length tick would fire two steps at once) or stretch one past the next eighth. |
 | `swing_keeps_time` | A tick of the first eighth and a tick of the second add up to exactly two straight ticks, so the twelve ticks of a pair of eighths take exactly 24 straight ticks, whatever the swing. | swing moves notes inside each pair of eighths and nothing else: a bar is as long as it was, the four lanes stay in phase with each other and with a MIDI clock, and `run_clock_never_drifts` still holds for the swung clock, tick for tick. |
+| `swing_quarter_note_exact` | A quarter note under swing is exactly 24 straight ticks long, at every setting, and every tick inside it starts strictly after the one before (each is at least 3334). | swing is a feel, not a tempo change: a quarter note, a bar and a song take the time the TEMPO knob says, a MIDI clock sent out would stay in step with one received, and no two ticks can fall together. |
 | `divider_pulse_count` | A divide-by-`div` counter that starts at 0 and gets `ticks` ticks gives exactly `ticks / div` pulses. | a divide-by-4 clock never drops or doubles a beat, however long it runs. |
 | `divider_count_bounded` | The count never reaches `div`: it always stays between 0 and `div - 1`. | the counter is a small number for good, so it can never grow into a big number the chip's Lean runtime cannot handle. |
 | `euclid_hit_count` | A bar of `steps` steps with `hits` hits (`hits ≤ steps`) plays exactly `hits` notes. | the pattern has the density you asked for, with no missing or extra notes. |
@@ -113,7 +115,9 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `quantizer_snap_keeps_scale_notes` | A note that is already in the scale stays as it is. | quantizing a melody that is already in key changes nothing, so it can be repeated. |
 | `quantizer_snap_in_scale` | `snap` gives a note of the scale, as long as the scale has at least one note and the note is at least 6 (so a search 6 semitones down cannot run off the bottom). | the melody can never play a note outside the key you chose. |
 | `quantizer_snap_is_near` | `snap` never moves a note more than 6 semitones (same conditions as above). | quantizing keeps the shape of the melody; no note jumps by an octave. |
+| `quantizer_snap_monotone` | The quantizer never inverts an interval: of two notes at least 6, the higher never snaps below where the lower snaps, for every non-empty scale. | UP goes up, DOWN goes down and a WALK keeps its direction after the snap to the scale; quantising can merge two notes onto one scale note, but it cannot swap their order and turn a rising line into a falling one. |
 | `random_below_lt` | A random pick is always below its limit, so it is a valid index into a list of `limit` choices. | a pick one too big would read past the end of a note list or a step table. |
+| `random_never_stands_still` | The generator never stands still: no state maps to itself, so a random lane can never freeze on one value. | whatever the seed, the next draw is a different state, so random, walk and the play chance keep moving; a stuck generator would play one note forever. |
 | `harmony_mask_never_empty` | The mask handed to a lane always has at least one note and fits in 12 bits, for every scale, key, chord and follow mode the firmware offers. | `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for the chord-following lanes too, so a chord change can never leave a lane with nothing to play. |
 | `harmony_follow_in_key` | With chord follow, 7TH or TRIAD, every note a lane may play is a note of the key's scale, whatever chord it is on: the chord is stacked from the key's scale at the chord root, not a shape moved to the root. | a chord progression played with chord follow stays in the key. |
 | `harmony_progression_chord_has_root` | With chord follow on a chord of a progression, the chord's root is among the lane's notes, in every scale and key (and without follow it is too, being a note of the key). | joined with `harmony_chord_root_in_key`, a progression's chord is a chord of the key with its root present; a lane following it can play the root, not only upper notes of some other chord. |
@@ -280,7 +284,7 @@ reads its tables inside their bounds.
 
 </details>
 
-<details><summary><b>The mix and the effects</b>: 27 theorems</summary>
+<details><summary><b>The mix and the effects</b>: 28 theorems</summary>
 
 The mix cannot wrap, the reverb's and the delay's memory is read and written inside the lines, their gains are below one
 so tails die away, and their filters and interpolation cannot overshoot.
@@ -314,12 +318,14 @@ so tails die away, and their filters and interpolation cannot overshoot.
 | `delay_position_in_line` | A write position and an offset both inside a line give a read position inside it, and the write position moves on to one inside it. | with `delay_samples_in_line`, every read and write of the two lines is in bounds; the lines are not a power of two, so this is the wrap by subtraction, not a mask. |
 | `delay_notes_exact` | At 44.1 kHz, the note values the lines are long enough for are exact, `60 * 44100 * numerator / (bpm * denominator)` samples: a 1/32 or a 1/16 at every tempo from 40 to 240; everything up to a dotted eighth from 97 bpm; every note value from 130 bpm. | the echo lands on the beat the setting names, at the tempos the setting can be played at. |
 | `delay_store_saturates` | A signal for the line saturates at the 16-bit ends instead of wrapping: from 32767 up it stores 32767, from -32768 down it stores -32768, and in between it stores the signal. | a send louder than full scale clips at the top of the line, as tape would, rather than flipping sign into a click that would then echo. |
+| `delay_echoes_die_away` | An echo going round the undriven line `n` times is at most its starting size times `(19/20)^n`, plus 20 (the roundings of the hops, one each, kept below 20 by the same ratio), for every feedback setting; so however loud the echo started, after enough hops it is within 20 counts of silence (a count being 1/32768). | the delay's tail ends. |
 
 </details>
 
-<details><summary><b>Patches</b>: 5 theorems</summary>
+<details><summary><b>Patches</b>: 6 theorems</summary>
 
-A saved patch loads back exactly as saved, and a slot holding anything else is rejected whole.
+A saved patch loads back exactly as saved, a slot holding anything else is rejected whole, and every factory patch is in
+range.
 
 | Theorem | Says | Protects against |
 |---|---|---|
@@ -328,6 +334,7 @@ A saved patch loads back exactly as saved, and a slot holding anything else is r
 | `patch_decode_rejects_wrong_marker` | A slot whose first byte is not the patch marker 0xA7 never loads. | a slot never written, or written by other software, is told apart by its first byte and treated as empty rather than read as a scramble of settings. |
 | `patch_decode_rejects_wrong_size` | A slot that is not exactly 106 bytes long never loads. | a slot written by a firmware with a different patch layout is rejected whole instead of being read field by field in the wrong places. |
 | `patch_encode_size` | Every saved patch is 106 bytes long. | the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a different count would make every saved patch unloadable. |
+| `presets_all_fit` | Every factory patch is one the knobs could have produced: all 128 satisfy `Patch.Fits`, every global and every lane setting in range, checked value by value. | the firmware trusts its own patch table without the checks a loaded slot gets (`patch_decode_only_fits`); this closes that gap, so no shipped patch can hand a lane a sound index, scale, step count or note range it would read past a table with. |
 
 </details>
 <!-- proofs:end -->
@@ -360,14 +367,15 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 | `make install` | elan + Lean, `.venv`, JieLi toolchain (SHA-256 pinned, into `vendor/`), `lake build` |
 | `make run` | build the web simulator and serve it at http://localhost:8000/ (Power on, then play) |
 | `make web` | build only: `build/web/` |
-| `make test` | headless test of the web build in node (boot, sound, screen, LEDs) |
+| `make test` | headless test of the web build in node (boot, sound, screen, LEDs, the watched theorems) |
+| `make test-exports` | the compiler, checked: every scalar Lean export run as compiled C and the kernel asked for the same values |
 | `make fw` | build `fw/build/dinghy.fwsc` with the Lean code linked in (does not flash) |
 | `make lean-check` | the Lean code in `Firmware/` links for the chip with only the small runtime in `rt/` |
 | `make proofs` | list every proved theorem with what it claims and why (`docs/PROOFS.md`); regenerate the Comparator challenge |
 | `make comparator` | `lake comparator`: `Proofs/` proves every statement of `Challenge.lean`, standard axioms only, kernel-checked in a sandbox (`PARANOID=1` adds the five external checkers) |
 | `make perf` | the firmware on this computer, counting instructions a sample (`docs/BUDGET.md`: what fits the chip) |
 | `make lint` | style checks, proof layout checks |
-| `make check` | `make lint` + `make lean-check` + `make test-lean` + `make comparator` |
+| `make check` | `make lint` + `make lean-check` + `make test-lean` + `make test-exports` + `make comparator` |
 | `make flash-deps` | optional: MIDI libraries for `fw/tools/fm1_install.py` |
 
 ## Reproducibility
@@ -402,3 +410,23 @@ all accept. They do not cover:
   `Proofs/Mix.lean` shows never wraps; the master gain and the clip in `fw/firmware/src/platform.c` stay C.
 - The hardware, and `web/web_host.c` for the simulator.
 - Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.
+
+Two checks reach into that list from the proved side:
+
+- **The compiler, checked** (`make test-exports`, `tools/check_exports.py`): every scalar `@[export fm1_*]`
+  function (291 of 376; the rest read Braids' tables or take objects) is compiled to C and built for this computer,
+  run on random inputs, and Lean's kernel is then asked whether the definition gives the same value
+  (`example : f a = c := by decide +kernel`): 1746 values a run, in step on every one. The kernel evaluates the
+  definition itself, so this is the compiled code against the thing the theorems are about, with the Lean to C
+  compiler, clang and `lean.h` in between. Writing it found one bug: `fm1_harmony_chord_root` reduced its
+  arguments after turning them into `Nat`, so a value above 2^31 (which the C never sends) would have reached
+  the big-number runtime the chip does not have; it reduces them as 32-bit numbers now.
+- **The proofs, watched** (`fw/firmware/src/watch.h`, the simulator page and `make test`): in the simulator and
+  host builds, twelve theorems' statements are asserted on the running machine at the point `dinghy.c` consumes
+  the Lean's answer: every note a lane starts is in its scale and on a hit, note-ons and note-offs balance, a plain
+  lane plays exactly its hits a bar, the mix and the pan stay inside their proved bounds, a swung quarter note is
+  24 straight ticks, the chord root is in the key, a saved patch decodes back to its bytes. The theorems are about
+  the Lean, so a failure here could only come from the trusted C handing the Lean something a theorem's hypothesis
+  excludes, or from the compiled code not being the definition: evidence about exactly the parts the proofs do
+  not reach. The simulator shows the counters; `make test` fails on a violation (about 30 million checks over
+  the smoke run and the seven demos, none failing).

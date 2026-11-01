@@ -1,5 +1,8 @@
 import Firmware.Harmony
 
+/-- The C entries reduce their arguments as 32-bit numbers; as plain numbers that is the same reduction. -/
+private theorem harmony_mod_toNat (x : UInt32) (n : UInt32) : (x % n).toNat = x.toNat % n.toNat := UInt32.toNat_mod x n
+
 /-- Checked for every scale, key, chord root and follow mode: the mask is never empty and fits in 12 bits. -/
 private theorem harmony_every_mask_ok :
     ∀ scale, scale < 14 → ∀ key, key < 12 → ∀ root, root < 12 → ∀ follow, follow < 3 →
@@ -34,6 +37,8 @@ the chord-following lanes too, so a chord change can never leave a lane with not
 theorem harmony_mask_never_empty (scale key root follow : UInt32) :
     (harmonyMask scale key root follow).toNat ≠ 0 ∧ (harmonyMask scale key root follow).toNat < 4096 := by
   unfold harmonyMask
+  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat = 12 from rfl,
+    show (3 : UInt32).toNat = 3 from rfl, show (8 : UInt32).toNat = 8 from rfl, show (4 : UInt32).toNat = 4 from rfl]
   have ⟨ne, small⟩ := harmony_every_mask_ok (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
     (Nat.mod_lt _ (by decide)) (root.toNat % 12) (Nat.mod_lt _ (by decide)) (follow.toNat % 3)
     (Nat.mod_lt _ (by decide))
@@ -49,6 +54,8 @@ theorem harmony_follow_in_key (scale key root follow : UInt32) :
     (harmonyMask scale key root follow).toNat &&& (harmonyMask scale key 0 0).toNat =
       (harmonyMask scale key root follow).toNat := by
   unfold harmonyMask
+  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat = 12 from rfl,
+    show (3 : UInt32).toNat = 3 from rfl, show (8 : UInt32).toNat = 8 from rfl, show (4 : UInt32).toNat = 4 from rfl]
   have ⟨_, s2⟩ := harmony_every_mask_ok (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
     (Nat.mod_lt _ (by decide)) (root.toNat % 12) (Nat.mod_lt _ (by decide)) (follow.toNat % 3)
     (Nat.mod_lt _ (by decide))
@@ -71,6 +78,8 @@ theorem harmony_progression_chord_has_root (scale key progression step follow : 
     (harmonyMask scale key (harmonyChordRoot scale progression step) follow).toNat.testBit
       ((key.toNat % 12 + (harmonyChordRoot scale progression step).toNat) % 12) = true := by
   unfold harmonyMask harmonyChordRoot
+  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat = 12 from rfl,
+    show (3 : UInt32).toNat = 3 from rfl, show (8 : UInt32).toNat = 8 from rfl, show (4 : UInt32).toNat = 4 from rfl]
   have ⟨_, small⟩ := harmony_every_root_in_scale (scale.toNat % 14) (Nat.mod_lt _ (by decide))
     (progression.toNat % 8) (Nat.mod_lt _ (by decide)) (step.toNat % 4) (Nat.mod_lt _ (by decide))
   have has := harmony_every_chord_has_root (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
@@ -95,6 +104,8 @@ theorem harmony_chord_root_in_key (scale progression step : UInt32) :
     (Harmony.scale (scale.toNat % 14)).testBit (harmonyChordRoot scale progression step).toNat = true ∧
       (harmonyChordRoot scale progression step).toNat < 12 := by
   unfold harmonyChordRoot
+  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat = 12 from rfl,
+    show (3 : UInt32).toNat = 3 from rfl, show (8 : UInt32).toNat = 8 from rfl, show (4 : UInt32).toNat = 4 from rfl]
   have ⟨inScale, small⟩ := harmony_every_root_in_scale (scale.toNat % 14) (Nat.mod_lt _ (by decide))
     (progression.toNat % 8) (Nat.mod_lt _ (by decide)) (step.toNat % 4) (Nat.mod_lt _ (by decide))
   generalize Harmony.chordRoot (scale.toNat % 14) (progression.toNat % 8) (step.toNat % 4) = r at *
