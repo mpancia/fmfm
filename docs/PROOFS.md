@@ -77,6 +77,12 @@ ticks, keys and setting changes, note-ons equal note-offs plus the one note stil
 
 Why it matters: letting go of the keys, or stopping, never leaves an arpeggio note hanging.
 
+**`arp_up_plays_pattern`**: UP with a step a tick, from the start of the pattern, plays the pattern through note for
+note: as many ticks as the pattern has notes start exactly the pattern, in order.
+
+Why it matters: UP is a rising run over exactly what you hold, each note once, in order, before it comes round; the same
+reading gives every later lap, since the position comes back to the start.
+
 ## Blend
 
 **`blend_eight_between`**: Blending two 16-bit entries by an 8-bit fraction (`Interpolate88`, `Analog.blend88`) lands
@@ -423,6 +429,15 @@ zero never changes anything.
 Why it matters: the knob's own value is the centre of the motion, not its top or bottom, so adding an LFO does not shift
 the average sound; and switching depth to zero returns exactly the sound you set.
 
+## Machine
+
+**`machine_every_note_on_has_a_note_off`**: Over any performance, every note any part starts is stopped: across the four
+lanes and the arpeggiator, however long the lists of ticks, knob changes and keys, the note-ons equal the note-offs plus
+what is still sounding, and PLAY stopping leaves nothing sounding anywhere.
+
+Why it matters: this is the no-stuck-notes promise for the whole instrument, every part together, not one part at a
+time: whatever you do, stop is silence.
+
 ## MacroSetup
 
 **`macro_setup_parameters_in_range`**: Every parameter the macro oscillator hands an analog oscillator is between 0 and
@@ -631,6 +646,17 @@ picks still read, have been pushed out).
 
 Why it matters: FLIP at zero is a promise of an exact loop of LENGTH notes, the hook a listener can hold on to; turning
 FLIP up is the only way the loop changes.
+
+**`notes_grammar_phrase_never_empty`**: A grammar always has a phrase: at every depth it holds at least one symbol.
+
+Why it matters: the GRAMMAR source never falls back to a default symbol; every note it plays comes from the phrase the
+grammar wrote.
+
+**`notes_scale_tone_in_scale`**: CHORD's tones are notes of the scale: the `n`-th tone above `low` is in the scale
+whenever the scale has more than `n` notes in the five octaves above `low`.
+
+Why it matters: the CHORD source climbs real scale (or chord) tones, not positions that the snap then has to mend; with
+chord follow on, those are the chord's notes.
 
 ## Patch
 

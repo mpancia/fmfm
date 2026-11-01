@@ -57,10 +57,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-207 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+211 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 52 theorems</summary>
+<details><summary><b>The sequencer</b>: 56 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -104,6 +104,8 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `notes_grammar_moves_at_most_two` | GRAMMAR moves at most two positions a note: its symbols step or skip, up or down. | the grammar shapes a line of steps and thirds, never a leap, whatever grammar and depth. |
 | `notes_learn_keeps_valid` | A key the player presses leaves the memory consistent, for any note: the step sequencer writes it into the range, the markov chain counts it. | nothing you play can corrupt the memory the lane plays from. |
 | `notes_turing_locked_repeats` | TURING with FLIP at 0 is a locked loop: after `len` picks the register's `len`-bit window is exactly what it was, so the notes repeat every `len` picks (once the bits above the window, which the first picks still read, have been pushed out). | FLIP at zero is a promise of an exact loop of LENGTH notes, the hook a listener can hold on to; turning FLIP up is the only way the loop changes. |
+| `notes_grammar_phrase_never_empty` | A grammar always has a phrase: at every depth it holds at least one symbol. | the GRAMMAR source never falls back to a default symbol; every note it plays comes from the phrase the grammar wrote. |
+| `notes_scale_tone_in_scale` | CHORD's tones are notes of the scale: the `n`-th tone above `low` is in the scale whenever the scale has more than `n` notes in the five octaves above `low`. | the CHORD source climbs real scale (or chord) tones, not positions that the snap then has to mend; with chord follow on, those are the chord's notes. |
 | `quantizer_snap_keeps_scale_notes` | A note that is already in the scale stays as it is. | quantizing a melody that is already in key changes nothing, so it can be repeated. |
 | `quantizer_snap_in_scale` | `snap` gives a note of the scale, as long as the scale has at least one note and the note is at least 6 (so a search 6 semitones down cannot run off the bottom). | the melody can never play a note outside the key you chose. |
 | `quantizer_snap_is_near` | `snap` never moves a note more than 6 semitones (same conditions as above). | quantizing keeps the shape of the melody; no note jumps by an octave. |
@@ -116,6 +118,8 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `arp_keys_valid` | Pressing, releasing or clearing keys keeps a consistent arpeggiator consistent. | whatever you play, and however many keys, the held set stays playable and small. |
 | `arp_tick_valid` | A tick keeps a consistent arpeggiator consistent. | however long it runs, the counters stay in range and the sounding note and its timer agree. |
 | `arp_every_note_on_has_a_note_off` | Every note the arpeggiator starts during a run is stopped: after any sequence of ticks, keys and setting changes, note-ons equal note-offs plus the one note still sounding, which `silence` stops. | letting go of the keys, or stopping, never leaves an arpeggio note hanging. |
+| `arp_up_plays_pattern` | UP with a step a tick, from the start of the pattern, plays the pattern through note for note: as many ticks as the pattern has notes start exactly the pattern, in order. | UP is a rising run over exactly what you hold, each note once, in order, before it comes round; the same reading gives every later lap, since the position comes back to the start. |
+| `machine_every_note_on_has_a_note_off` | Over any performance, every note any part starts is stopped: across the four lanes and the arpeggiator, however long the lists of ticks, knob changes and keys, the note-ons equal the note-offs plus what is still sounding, and PLAY stopping leaves nothing sounding anywhere. | this is the no-stuck-notes promise for the whole instrument, every part together, not one part at a time: whatever you do, stop is silence. |
 | `lfo_modulate_in_range` | A modulated value stays a percentage, 0 to 100, for any base, depth and phase. | a modulator can never push a lane's chance, level or timbre setting out of the range the rest of the firmware expects, however it is set. |
 | `lfo_triangle_symmetric` | The triangle is the same on the way up as on the way down: mirroring the phase mirrors nothing. | the modulator rises and falls by the same path, so a one-bar LFO repeats exactly every bar with no step or jump at the turn. |
 | `lfo_modulate_centred` | At the middle of its swing the modulator leaves the setting exactly as it is; and a depth of zero never changes anything. | the knob's own value is the centre of the motion, not its top or bottom, so adding an LFO does not shift the average sound; and switching depth to zero returns exactly the sound you set. |

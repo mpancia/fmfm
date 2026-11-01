@@ -59,6 +59,9 @@ theorem arp_every_note_on_has_a_note_off (a : Arp) (fresh : a.playing = none) (o
     Arp.noteOns (a.trace ops) = Arp.noteOffs (a.trace ops) + (a.run ops).soundingCount ∧
       (a.run ops).silence.playing = none := sorry
 
+theorem arp_up_plays_pattern (a : Arp) (mode : a.mode = 1) (div : a.div = 1) (start : a.pos = 0)
+    (held : a.held ≠ []) : a.played a.pattern.length = a.pattern := sorry
+
 -- Proofs/Blend.lean
 theorem blend_eight_between (a b : Int32) (index : UInt32)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
@@ -301,6 +304,12 @@ theorem lfo_modulate_centred (base depth phase : UInt32) (small : base.toNat ≤
     (deep : depth.toNat ≤ 100) :
     lfoModulate base depth 1073741824 = base ∧ lfoModulate base 0 phase = base := sorry
 
+-- Proofs/Machine.lean
+theorem machine_every_note_on_has_a_note_off (m : Machine) (quiet : m.Quiet) (laneOps : Fin 4 → List Lane.Op)
+    (arpOps : List Arp.Op) :
+    m.noteOns laneOps arpOps = m.noteOffs laneOps arpOps + (m.run laneOps arpOps).soundingCount ∧
+      (m.run laneOps arpOps).stop.Quiet := sorry
+
 -- Proofs/MacroSetup.lean
 theorem macro_setup_parameters_in_range (pitch p0 : Int16) (nonneg : 0 ≤ p0) :
     (0 ≤ (MacroSetup.morphParameter p0).toInt ∧ (MacroSetup.morphParameter p0).toInt ≤ 32767) ∧
@@ -472,6 +481,12 @@ theorem notes_learn_keeps_valid (rule : NoteRule) (span : Nat) (s : NoteState) (
 
 theorem notes_turing_locked_repeats (len span : Nat) (s : NoteState) (lenPos : 0 < len) (lenMax : len ≤ 16) :
     (Notes.picks ⟨6, len, 0⟩ span len s).2.shift % 2 ^ len = s.shift % 2 ^ len := sorry
+
+theorem notes_grammar_phrase_never_empty (g depth : Nat) : Notes.phraseOf g depth ≠ [] := sorry
+
+theorem notes_scale_tone_in_scale (mask low n : Nat)
+    (enough : n < ((List.range 60).filter (fun k => Quantizer.inScale mask (low + k))).length) :
+    Quantizer.inScale mask (Notes.scaleTone mask low n) = true := sorry
 
 -- Proofs/Patch.lean
 theorem patch_decode_encode_round_trip (p : Patch) (fits : p.Fits) :

@@ -49,6 +49,11 @@ loop, register and automaton row, and an unlearnt chain.
 - ROTATE keeps the number of hits (`rhythm_rotate_keeps_hits`); rule 0 is silence, rule 255 is every step, rule
   204 freezes the bar (`rhythm_rule_zero_dies`, `rhythm_rule_full_fills`, `rhythm_rule_204_freezes`); a patch's FEEL
   settings come back exactly when it loads (`lane_from_patch_keeps_feel`).
+- GRAMMAR always has a phrase (`notes_grammar_phrase_never_empty`); CHORD's tones are scale tones
+  (`notes_scale_tone_in_scale`).
+- The whole instrument at once: over any performance of the four lanes and the arpeggiator, every note-on has
+  a note-off and PLAY stopping leaves nothing sounding anywhere (`machine_every_note_on_has_a_note_off`,
+  `Spec/Machine.lean`).
 - Not proved: anything about which other rules live or die, or the markov chain's learnt weights beyond their
   range.
 
@@ -68,7 +73,8 @@ them go. The keys still teach STEP and MARKOV lanes while the arpeggiator plays 
 
 Proved (`Proofs/Arp.lean`): every note it starts is one you are holding, raised by whole octaves
 (`arp_note_is_held`); every op keeps it consistent; over any run of ticks, keys and settings every note-on has a
-note-off (`arp_every_note_on_has_a_note_off`).
+note-off (`arp_every_note_on_has_a_note_off`); UP plays what you hold through, note for note, in order
+(`arp_up_plays_pattern`).
 
 ## The demo songs
 

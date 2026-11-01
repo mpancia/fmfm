@@ -36,3 +36,4 @@ import Proofs.NoiseSetup
 import Proofs.WavetablesSetup
 import Proofs.PercussionSetup
 import Proofs.PhysicalSetup
+import Proofs.Machine
