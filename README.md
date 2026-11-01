@@ -59,10 +59,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-225 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+230 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 64 theorems</summary>
+<details><summary><b>The sequencer</b>: 69 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -99,6 +99,11 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `divider_count_bounded` | The count never reaches `div`: it always stays between 0 and `div - 1`. | the counter is a small number for good, so it can never grow into a big number the chip's Lean runtime cannot handle. |
 | `euclid_hit_count` | A bar of `steps` steps with `hits` hits (`hits ≤ steps`) plays exactly `hits` notes. | the pattern has the density you asked for, with no missing or extra notes. |
 | `euclid_last_step_hits` | The last step of a bar is a hit whenever the bar has any hits. | the pattern always ends on a note, so the bar's last step (just before the circle comes round) is where every Euclidean rhythm lands; the ratchet's first sub-hit relies on it too. |
+| `euclid_window_balanced` | Every window of `len` steps of a bar of `steps` steps with `hits` hits plays `len * hits / steps` notes or one more, wherever it starts, across the bar line included: the pattern is maximally even. | this is what "spread out" means and the reason the hits never bunch: 5 hits in 16 steps gives every 4 steps one or two notes, every 8 steps two or three, and any two stretches of the same length are within one note of each other. |
+| `euclid_windows_within_one` | Two windows of the same length never differ by more than one note: a direct form of the balance. | whichever two bars, half-bars or beats you compare, the Euclidean pattern gives them the same number of notes or one apart; it has no busy and empty stretches. |
+| `euclid_is_christoffel` | The firmware's pattern is the lower Christoffel word of slope `hits / steps` in Berstel's form: a step is a hit exactly when the multiples of `hits` wrap round modulo `steps` there (for `hits < steps`; `hits = steps` is every step). | it names what the sequencer plays: a Christoffel word, the discrete line from (0, 0) to (steps, hits), the same object as the maximally even scales, so everything known about those words (they are balanced, their conjugates are the Euclidean rhythms, their reversal is the upper word) is about these rhythms. |
+| `euclid_bjorklund_is_rotation` | Bjorklund's algorithm, as Toussaint describes it, plays the firmware's pattern turned round: for every bar of up to 32 steps and every number of hits, its output is `Euclid.hit` read from some step, checked case by case. | "Euclidean rhythm" usually means Bjorklund's output; the firmware plays the floor-function form instead because a step is then one division, with no list to build. |
+| `euclid_major_scale_is_seven_of_twelve` | The major scale is the seven-hit Euclidean pattern on twelve steps, started on its sixth step; the major pentatonic is the five-hit one started on its seventh (both as the SCALE table's masks). | the scales and the rhythms are one construction: the diatonic scale is the maximally even seven of twelve (Clough and Douthett), so the SCALE knob and the HITS knob are reading the same word; a lane set to seven hits in twelve steps taps out the major scale. |
 | `notes_start_valid` | A fresh note memory is consistent for any range from 1 to 65535 positions and any loop length from 1 to 16. | the lane starts in a state the algorithms can rely on, whatever the seed. |
 | `notes_choose_stays_in_range` | Whichever algorithm picks, the pitch is inside the range and the memory stays consistent. | the note can never land outside the range the lane was given, and no algorithm can corrupt the memory the next pick depends on, however long it runs. |
 | `notes_up_visits_every_position` | UP climbs one position a note and wraps at the top, so from position `p` the `i`-th note is at `(p + i) % span`: the first `span` notes visit every position once. | an UP lane is a rising scale that covers its whole range with no position skipped or repeated. |

@@ -278,6 +278,43 @@ Why it matters: the pattern has the density you asked for, with no missing or ex
 Why it matters: the pattern always ends on a note, so the bar's last step (just before the circle comes round) is where
 every Euclidean rhythm lands; the ratchet's first sub-hit relies on it too.
 
+**`euclid_window_balanced`**: Every window of `len` steps of a bar of `steps` steps with `hits` hits plays `len * hits /
+steps` notes or one more, wherever it starts, across the bar line included: the pattern is maximally even.
+
+Why it matters: this is what "spread out" means and the reason the hits never bunch: 5 hits in 16 steps gives every 4
+steps one or two notes, every 8 steps two or three, and any two stretches of the same length are within one note of each
+other. It is the Clough–Douthett maximal-evenness property of the floor-function set, and the balance property of the
+Christoffel word, for the pattern the firmware plays.
+
+**`euclid_windows_within_one`**: Two windows of the same length never differ by more than one note: a direct form of the
+balance.
+
+Why it matters: whichever two bars, half-bars or beats you compare, the Euclidean pattern gives them the same number of
+notes or one apart; it has no busy and empty stretches.
+
+**`euclid_is_christoffel`**: The firmware's pattern is the lower Christoffel word of slope `hits / steps` in Berstel's
+form: a step is a hit exactly when the multiples of `hits` wrap round modulo `steps` there (for `hits < steps`; `hits =
+steps` is every step).
+
+Why it matters: it names what the sequencer plays: a Christoffel word, the discrete line from (0, 0) to (steps, hits),
+the same object as the maximally even scales, so everything known about those words (they are balanced, their conjugates
+are the Euclidean rhythms, their reversal is the upper word) is about these rhythms.
+
+**`euclid_bjorklund_is_rotation`**: Bjorklund's algorithm, as Toussaint describes it, plays the firmware's pattern
+turned round: for every bar of up to 32 steps and every number of hits, its output is `Euclid.hit` read from some step,
+checked case by case.
+
+Why it matters: "Euclidean rhythm" usually means Bjorklund's output; the firmware plays the floor-function form instead
+because a step is then one division, with no list to build. This says they are the same rhythm, one rotation apart (the
+ROTATE knob reaches the rest), for every setting the knobs allow.
+
+**`euclid_major_scale_is_seven_of_twelve`**: The major scale is the seven-hit Euclidean pattern on twelve steps, started
+on its sixth step; the major pentatonic is the five-hit one started on its seventh (both as the SCALE table's masks).
+
+Why it matters: the scales and the rhythms are one construction: the diatonic scale is the maximally even seven of
+twelve (Clough and Douthett), so the SCALE knob and the HITS knob are reading the same word; a lane set to seven hits in
+twelve steps taps out the major scale.
+
 ## Filters
 
 **`filters_swarm_sum_range`**: The sum of the swarm's seven saws lies between -28672 and 28665, whatever the phases.

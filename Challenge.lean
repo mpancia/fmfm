@@ -191,6 +191,23 @@ theorem euclid_hit_count (hits steps : Nat) (positive : 0 < steps) (fits : hits 
 theorem euclid_last_step_hits (hits steps : Nat) (positive : 0 < hits) (fits : hits ≤ steps) :
     Euclid.hit hits steps (steps - 1) = true := sorry
 
+theorem euclid_window_balanced (hits steps start len : Nat) (positive : 0 < steps) (fits : hits ≤ steps) :
+    len * hits / steps ≤ Euclid.countBetween hits steps start (start + len) ∧
+      Euclid.countBetween hits steps start (start + len) ≤ len * hits / steps + 1 := sorry
+
+theorem euclid_windows_within_one (hits steps a b len : Nat) (positive : 0 < steps) (fits : hits ≤ steps) :
+    Euclid.countBetween hits steps a (a + len) ≤ Euclid.countBetween hits steps b (b + len) + 1 := sorry
+
+theorem euclid_is_christoffel (hits steps k : Nat) (proper : hits < steps) :
+    Euclid.hit hits steps k = Euclid.christoffel hits steps k := sorry
+
+theorem euclid_bjorklund_is_rotation (steps : Nat) (positive : 0 < steps) (small : steps ≤ 32) (hits : Nat)
+    (fits : hits ≤ steps) :
+    ∃ rotation, rotation < steps ∧ Euclid.word hits steps rotation = Euclid.bjorklund hits steps := sorry
+
+theorem euclid_major_scale_is_seven_of_twelve :
+    Euclid.mask 7 6 = Harmony.scale 0 ∧ Euclid.mask 5 7 = Harmony.scale 2 := sorry
+
 -- Proofs/Filters.lean
 theorem filters_swarm_sum_range (p0 p1 p2 p3 p4 p5 p6 : UInt32) :
     -28672 ≤ (Filters.swarmSum p0 p1 p2 p3 p4 p5 p6).toInt ∧
