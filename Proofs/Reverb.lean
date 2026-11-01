@@ -581,6 +581,10 @@ private theorem reverb_loop_bounded (input tail state oldestA oldestB decay brig
   have b2 := reverb_allpass_bounded afterA oldestB (-diffusion) (by omega) readB negUnit
   omega
 
+/-- A number within `n` in size lies between `-n` and `n`. -/
+private theorem reverb_within_of_natAbs (p : Int) (n : Nat) (small : p.natAbs ≤ n) : -n ≤ p ∧ p ≤ n := by
+  constructor <;> omega
+
 /-- The wet sample a loop hands to the mixer is exactly twice the sum the loop stores (no wrap in the
 doubling or in any addition before it), it is at most 16448.0 in size (2^29 + 2^21, a quarter of the 32-bit
 range), the low-pass's new state stays within 8192.0 (2^28), and the mixer's return gain of up to 2.0
@@ -623,7 +627,11 @@ theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state 
   generalize Reverb.loopSmooth input tail state decay bright = smoothed at *
   generalize Reverb.loop input tail state oldestA oldestB decay bright diffusion = stored at *
   have doubled := reverb_double_value stored (by omega)
-  refine ⟨doubled, by omega, smoothFits, ?_⟩
+  have wetFits : (Reverb.mul stored 65536).toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21 := by
+    rw [doubled, Int.natAbs_mul]
+    show 2 * stored.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21
+    omega
+  refine ⟨doubled, wetFits, smoothFits, ?_⟩
   generalize Reverb.mul stored 65536 = wet at *
   clear inputIs
   unfold Mix.wetSample
@@ -631,9 +639,15 @@ theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state 
   have product : (wet.toInt * returnGain.toInt).natAbs ≤ (2 ^ 29 + 2 ^ 21) * 65536 := by
     rw [Int.natAbs_mul]; exact Nat.mul_le_mul (by omega) returnUnit
   generalize wet.toInt * returnGain.toInt = p at *
-  have inner : p.bmod (2 ^ 64) = p := Int.bmod_eq_of_le (by omega) (by omega)
+  have ⟨pLow, pHigh⟩ := reverb_within_of_natAbs p _ product
+  have inner : p.bmod (2 ^ 64) = p :=
+    Int.bmod_eq_of_le (by simp only [Nat.reducePow]; omega)
+      (by simp only [Nat.reducePow]; omega)
   rw [inner]
-  exact Int.bmod_eq_of_le (by omega) (by omega)
+  have qLow : -(1077936128 : Int) ≤ p / 32768 := by omega
+  have qHigh : p / 32768 ≤ 1077936128 := by omega
+  exact Int.bmod_eq_of_le (by simp only [Nat.reducePow]; omega)
+    (by simp only [Nat.reducePow]; omega)
 
 /-- A sample read back from the memory after any number of trips round an undriven tank is still a memory
 sample, at most 8.0 in size.

@@ -11,6 +11,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HEAD = re.compile(r"^theorem\s+(\S+)", re.M)
 
+def proof_start(body):
+    """Where the proof begins: the first `:=` that is not a `let` inside the statement."""
+    for m in re.finditer(r":=", body):
+        line = body[body.rfind("\n", 0, m.start()) + 1:m.start()]
+        if not re.search(r"\blet\b", line):
+            return m.start()
+    raise SystemExit("no proof found in " + body[:60])
+
 def statements():
     """(module, name, statement) for every public theorem, statement as written up to its `:=`."""
     rows = []
@@ -18,8 +26,7 @@ def statements():
         text = path.read_text()
         for m in HEAD.finditer(text):
             body = text[m.end():]
-            end = re.search(r":=\s*(?:by\b|$)", body, re.M).start()   # the proof starts; a `let` inside is kept
-            rows.append((path.stem, m.group(1), body[:end].rstrip()))
+            rows.append((path.stem, m.group(1), body[:proof_start(body)].rstrip()))
     return rows
 
 def render(rows):
