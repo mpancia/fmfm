@@ -331,10 +331,10 @@ theorem patch_decode_only_fits (bytes : ByteArray) (p : Patch) (loaded : Patch.d
 theorem patch_decode_rejects_wrong_marker (bytes : ByteArray) (nonEmpty : 0 < bytes.size)
     (wrong : bytes[0] ≠ 0xA7) : Patch.decode bytes = none := sorry
 
-theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 74) :
+theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 98) :
     Patch.decode bytes = none := sorry
 
-theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 74 := sorry
+theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 98 := sorry
 
 -- Proofs/Percussion.lean
 theorem percussion_excite_decays (state decay counter level : Int32)
@@ -490,6 +490,16 @@ theorem physical_bowed_body_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
     let step := Physical.bowed bridgeA bridgeB nutA nutB bridgeFraction neckFraction lp excitation bow y0 y1
     step.biquad.toInt.natAbs ≤ 2 ^ 18 := sorry
 
+-- Proofs/Pitch.lean
+theorem pitch_table_reads_inside (pitch : Int16) :
+    (Pitch.tableIndex pitch).toNat < 97 ∧ (Pitch.tableIndex pitch + 1).toNat < 97 := sorry
+
+theorem pitch_increment_bounded (pitch : Int16)
+    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
+    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
+    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
+    (Pitch.phaseIncrement pitch).toNat < 2 ^ 31 := sorry
+
 -- Proofs/Quantizer.lean
 theorem quantizer_snap_keeps_scale_notes (mask note : Nat) (inside : Quantizer.inScale mask note = true) :
     Quantizer.snap mask note = note := sorry
@@ -572,6 +582,15 @@ theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state 
     wet.toInt = 2 * stored.toInt ∧ wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21 ∧
       (Reverb.loopSmooth input tail state decay bright).toInt.natAbs ≤ 2 ^ 28 ∧
       (Mix.wetSample wet returnGain).toInt = wet.toInt * returnGain.toInt / 32768 := sorry
+
+theorem reverb_tail_stays_in_memory (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
+    (n : Nat) : Reverb.fromMemory (Reverb.trips tail decay bright diffusion n) := sorry
+
+theorem reverb_tail_dies_away (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
+    (decayBelowOne : decay.toInt.natAbs ≤ 32767) (brightNonneg : 0 ≤ bright.toInt)
+    (brightUnit : bright.toInt ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) (n : Nat) :
+    (Reverb.trips tail decay bright diffusion n).toInt.natAbs ≤
+      tail.toInt.natAbs * decay.toInt.natAbs ^ (2 * n) / 2 ^ (30 * n) + 16385 := sorry
 
 -- Proofs/Rhythm.lean
 theorem rhythm_automaton_row_fits (rule steps row : Nat) : Automaton.step rule steps row < 2 ^ steps := sorry

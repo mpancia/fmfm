@@ -634,3 +634,64 @@ theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state 
   have inner : p.bmod (2 ^ 64) = p := Int.bmod_eq_of_le (by omega) (by omega)
   rw [inner]
   exact Int.bmod_eq_of_le (by omega) (by omega)
+
+/-- A sample read back from the memory after any number of trips round an undriven tank is still a memory
+sample, at most 8.0 in size.
+Why it matters: however many times a tail goes round, and whatever the gains, the 16-bit memory format caps
+it; it cannot grow without bound or wrap. -/
+theorem reverb_tail_stays_in_memory (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
+    (n : Nat) : Reverb.fromMemory (Reverb.trips tail decay bright diffusion n) := by
+  cases n with
+  | zero => exact read
+  | succ n => exact reverb_decompress_in_memory _
+
+/-- One trip's rounding, carried through the floor division: a sample within 16385 of a share stays within
+16385 of the share times the decay gain squared, when the gain is at most 32767. -/
+private theorem reverb_trip_step (x0 x1 share d : Nat) (step : x1 * 2 ^ 30 ≤ x0 * d * d + 2 ^ 30)
+    (within : x0 ≤ share + 16385) (below : d ≤ 32767) :
+    x1 ≤ share * d * d / 2 ^ 30 + 16385 := by
+  have squared : d * d ≤ 32767 * 32767 := Nat.mul_le_mul below below
+  have grow : x0 * (d * d) ≤ (share + 16385) * (d * d) := Nat.mul_le_mul_right _ within
+  rw [Nat.add_mul] at grow
+  rw [Nat.mul_assoc] at step ⊢
+  generalize d * d = p at *
+  generalize share * p = s at *
+  generalize x0 * p = y at *
+  omega
+
+/-- The share after `n` trips, scaled once more by the squared gain, is at most the share after `n + 1`. -/
+private theorem reverb_share_step (t d n : Nat) :
+    t * d ^ (2 * n) / 2 ^ (30 * n) * d * d / 2 ^ 30 ≤ t * d ^ (2 * (n + 1)) / 2 ^ (30 * (n + 1)) := by
+  have pw : t * d ^ (2 * (n + 1)) = t * d ^ (2 * n) * d * d := by
+    rw [Nat.mul_succ, Nat.pow_add, Nat.pow_two, ← Nat.mul_assoc, ← Nat.mul_assoc]
+  have pw2 : 2 ^ (30 * (n + 1)) = 2 ^ (30 * n) * 2 ^ 30 := by rw [Nat.mul_succ, Nat.pow_add]
+  rw [pw, pw2, ← Nat.div_div_eq_div_mul]
+  apply Nat.div_le_div_right
+  generalize t * d ^ (2 * n) = a
+  generalize 2 ^ (30 * n) = b
+  calc a / b * d * d = d * d * (a / b) := by ac_rfl
+    _ ≤ d * d * a / b := Nat.mul_div_le_mul_div_assoc _ _ _
+    _ = a * d * d / b := by ac_rfl
+
+/-- After `n` trips round an undriven tank, a sample is at most its starting size times the decay gain to
+the power `2n` (in Q15, so divided by `2^30` per trip), plus 16385 (half a unit in Q15). The decay gain
+must be at most 32767, strictly below 1.0, so the geometric part really shrinks. A plain geometric bound
+with no constant is false: each trip rounds by up to one unit (`reverb_round_trip_decays`), and those
+roundings add up over the trips to a sum that the gain keeps below 16385, like a geometric series. The
+16-bit memory stores steps of 8, so in practice the tail settles to within a few steps of silence.
+Why it matters: a tail started at any level dies down towards silence and cannot creep back up: no number
+of trips lets the rounding pile up into audible noise or a tone that never ends. -/
+theorem reverb_tail_dies_away (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
+    (decayBelowOne : decay.toInt.natAbs ≤ 32767) (brightNonneg : 0 ≤ bright.toInt)
+    (brightUnit : bright.toInt ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) (n : Nat) :
+    (Reverb.trips tail decay bright diffusion n).toInt.natAbs ≤
+      tail.toInt.natAbs * decay.toInt.natAbs ^ (2 * n) / 2 ^ (30 * n) + 16385 := by
+  induction n with
+  | zero => simp [Reverb.trips]
+  | succ n ih =>
+    have step := reverb_round_trip_decays (Reverb.trips tail decay bright diffusion n) decay bright diffusion
+      (reverb_tail_stays_in_memory tail decay bright diffusion read n) (by omega) brightNonneg brightUnit
+      diffusionUnit
+    rw [Reverb.trips]
+    exact Nat.le_trans (reverb_trip_step _ _ _ _ step ih decayBelowOne)
+      (Nat.add_le_add_right (reverb_share_step _ _ _) _)

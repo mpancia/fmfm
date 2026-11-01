@@ -12,6 +12,7 @@
  *             js_frame(fb, leds_lo, leds_hi)  the screen, 240x240 RGB565, plus the LEDs
  * FM-1 only (no SMK-37). */
 #include <stdint.h>
+#include "fm1_lean.h"
 
 #define WEB_IMPORT(n) __attribute__((import_module("env"), import_name(#n)))
 WEB_IMPORT(js_sync) void js_sync(uint32_t ms);
@@ -168,3 +169,8 @@ static void platform_poll(void)                 /* one call = one millisecond */
 }
 
 __attribute__((export_name("web_run"))) void web_run(void) { app_main(); }
+/* the Lean scale table, for tools/smoke_web.mjs: an uninitialised table reads as chromatic and nothing else notices */
+__attribute__((export_name("web_harmony_mask"))) uint32_t web_harmony_mask(uint32_t scale, uint32_t key, uint32_t root, uint32_t follow)
+{
+    return fm1_harmony_mask(scale, key, root, follow);
+}

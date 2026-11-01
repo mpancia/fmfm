@@ -46,3 +46,10 @@ def Reverb.halfTrip (tail decay bright diffusion : Int32) : Int16 :=
 the opposite sign of diffusion. -/
 def Reverb.roundTrip (tail decay bright diffusion : Int32) : Int16 :=
   Reverb.halfTrip (Reverb.decompress (Reverb.halfTrip tail decay bright diffusion)) decay bright (-diffusion)
+
+/-- A sample after `n` full trips round an undriven tank, read back from the memory after each: trip 0 is the
+sample itself. -/
+def Reverb.trips (tail decay bright diffusion : Int32) : Nat → Int32
+  | 0 => tail
+  | n + 1 =>
+    Reverb.decompress (Reverb.roundTrip (Reverb.trips tail decay bright diffusion n) decay bright diffusion)

@@ -22,3 +22,4 @@ import Proofs.Mix
 import Proofs.Smooth
 import Proofs.Patch
 import Proofs.Vowels
+import Proofs.Pitch

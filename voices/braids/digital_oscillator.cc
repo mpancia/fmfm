@@ -47,6 +47,8 @@ void fm1_digital_render_toy(uint32_t*, uint8_t*, uint16_t*, uint32_t, uint16_t, 
                             uint32_t);
 void fm1_digital_render_modulation(uint32_t*, uint32_t*, uint16_t*, int32_t*, uint8_t*, uint32_t, uint32_t, int32_t,
                                    int16_t*, uint32_t);
+// The pitch to phase step is in voices/pitch_glue.c, the arithmetic in Firmware/Pitch.lean.
+uint32_t fm1_pitch_increment_of(int16_t pitch);
 }
 
 #include <algorithm>
@@ -68,25 +70,7 @@ static const uint16_t kOctave = 12 * 128;
 
 
 uint32_t DigitalOscillator::ComputePhaseIncrement(int16_t midi_pitch) {
-  if (midi_pitch >= kPitchTableStart) {
-    midi_pitch = kPitchTableStart - 1;
-  }
-  
-  int32_t ref_pitch = midi_pitch;
-  ref_pitch -= kPitchTableStart;
-  
-  size_t num_shifts = 0;
-  while (ref_pitch < 0) {
-    ref_pitch += kOctave;
-    ++num_shifts;
-  }
-  
-  uint32_t a = lut_oscillator_increments[ref_pitch >> 4];
-  uint32_t b = lut_oscillator_increments[(ref_pitch >> 4) + 1];
-  uint32_t phase_increment = a + \
-      (static_cast<int32_t>(b - a) * (ref_pitch & 0xf) >> 4);
-  phase_increment >>= num_shifts;
-  return phase_increment;
+  return fm1_pitch_increment_of(midi_pitch);
 }
 
 uint32_t DigitalOscillator::ComputeDelay(int16_t midi_pitch) {

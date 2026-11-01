@@ -48,6 +48,8 @@ void fm1_analog_render_triangle_fold(uint32_t*, uint32_t*, uint32_t, int32_t*, i
                                      uint32_t);
 void fm1_analog_render_sine_fold(uint32_t*, uint32_t*, uint32_t, int32_t*, int32_t, const uint8_t*, int16_t*, uint32_t);
 void fm1_analog_render_buzz(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t*, int16_t*, uint32_t);
+// The pitch to phase step is in voices/pitch_glue.c, the arithmetic in Firmware/Pitch.lean.
+uint32_t fm1_pitch_increment_of(int16_t pitch);
 }
 
 namespace braids {
@@ -57,29 +59,9 @@ using namespace stmlib;
 static const size_t kNumZones = 15;
 
 static const uint16_t kHighestNote = 128 * 128;
-static const uint16_t kPitchTableStart = 128 * 128;
-static const uint16_t kOctave = 12 * 128;
 
 uint32_t AnalogOscillator::ComputePhaseIncrement(int16_t midi_pitch) {
-  if (midi_pitch >= kHighestNote) {
-    midi_pitch = kHighestNote - 1;
-  }
-  
-  int32_t ref_pitch = midi_pitch;
-  ref_pitch -= kPitchTableStart;
-  
-  size_t num_shifts = 0;
-  while (ref_pitch < 0) {
-    ref_pitch += kOctave;
-    ++num_shifts;
-  }
-  
-  uint32_t a = lut_oscillator_increments[ref_pitch >> 4];
-  uint32_t b = lut_oscillator_increments[(ref_pitch >> 4) + 1];
-  uint32_t phase_increment = a + \
-      (static_cast<int32_t>(b - a) * (ref_pitch & 0xf) >> 4);
-  phase_increment >>= num_shifts;
-  return phase_increment;
+  return fm1_pitch_increment_of(midi_pitch);
 }
 
 void AnalogOscillator::Render(
@@ -237,4 +219,9 @@ extern "C" uint16_t fm1_braids_ws_tri_fold(uint32_t index) {
 }
 extern "C" uint16_t fm1_braids_comb(uint32_t zone, uint32_t index) {
   return static_cast<uint16_t>(braids::waveform_table[WAV_BANDLIMITED_COMB_0 + zone][index]);
+}
+
+// The top octave of phase steps (97 entries), for the Lean code (Firmware/Pitch.lean, `Pitch.incrementTable`).
+extern "C" uint32_t fm1_braids_oscillator_increment(uint32_t index) {
+  return braids::lut_oscillator_increments[index];
 }

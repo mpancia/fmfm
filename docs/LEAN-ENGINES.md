@@ -35,8 +35,9 @@ in `voices/`:
 | `Firmware/Physical.lean` | comb filter, plucked, bowed, blown, fluted | `physical_glue.c` |
 | `Firmware/Macro.lean` | the macro oscillator's mixing of the above | `macro_glue.c` |
 | `Firmware/Smooth.lean` | the per-sample smoothing of a parameter and of the phase step across a block | `analog_glue.c`, `digital_glue.c`, `macro_glue.c` (included next to the engine's own Api) |
+| `Firmware/Pitch.lean` | the pitch to phase step of both Braids oscillators (clamp, fold into the table's octave, blend, shift) | `pitch_glue.c` |
 
-What stays C++ in `voices/braids/`: the per-block setup (pitch to phase step, filter coefficients, which waves
+What stays C++ in `voices/braids/`: the per-block setup other than the phase step (filter coefficients, which waves
 or partials a block uses, the hysteresis on parameters), the delay lines and state arrays (the glue does every
 load and store; Lean gets numbers and returns the numbers to store), and Braids' random number generator (the
 glue draws the numbers and passes them in, so the sequence is the one Braids produces).

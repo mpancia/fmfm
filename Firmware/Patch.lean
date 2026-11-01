@@ -43,6 +43,11 @@ structure Patch where
   reverbTime : Nat
   reverbBright : Nat
   reverbAmount : Nat
+  /-- The send delay: note value (0 to 7), feedback, tone, return, the last three in percent. -/
+  delayTime : Nat
+  delayFeedback : Nat
+  delayTone : Nat
+  delayAmount : Nat
   lane0 : PatchLane
   lane1 : PatchLane
   lane2 : PatchLane
@@ -62,10 +67,12 @@ def PatchLane.Fits (l : PatchLane) : Prop :=
 instance (l : PatchLane) : Decidable l.Fits := by unfold PatchLane.Fits; infer_instance
 
 /-- The patch settings the knobs can produce: 40 to 240 bpm, 12 keys, 8 progressions, a chord rate of 1, 2 or
-4 bars, a scale lock of 0 to 14, reverb settings at most 100, and four lanes that fit. -/
+4 bars, a scale lock of 0 to 14, reverb settings at most 100, a delay note value below 8 with its other
+settings at most 100, and four lanes that fit. -/
 def Patch.Fits (p : Patch) : Prop :=
   40 ≤ p.bpm ∧ p.bpm ≤ 240 ∧ p.key < 12 ∧ p.progression < 8 ∧ (p.rate = 1 ∨ p.rate = 2 ∨ p.rate = 4) ∧
   p.scaleLock ≤ 14 ∧ p.reverbTime ≤ 100 ∧ p.reverbBright ≤ 100 ∧ p.reverbAmount ≤ 100 ∧
+  p.delayTime < 8 ∧ p.delayFeedback ≤ 100 ∧ p.delayTone ≤ 100 ∧ p.delayAmount ≤ 100 ∧
   p.lane0.Fits ∧ p.lane1.Fits ∧ p.lane2.Fits ∧ p.lane3.Fits
 
 instance (p : Patch) : Decidable p.Fits := by unfold Patch.Fits; infer_instance
@@ -90,19 +97,21 @@ def PatchLane.ofBytes : List UInt8 → Option (PatchLane × List UInt8)
             ratchet := ratchet.toNat, subHits := subHits.toNat }, rest)
   | _ => none
 
-/-- The 98 bytes of a patch as they sit in a flash slot: the marker byte 0xA7, the layout version 2, the
-eight global settings, then the four lanes. (Version 1 slots, 74 bytes without the rhythm source, no longer
-load.) -/
+/-- The 102 bytes of a patch as they sit in a flash slot: the marker byte 0xA7, the layout version 3, the
+twelve global settings, then the four lanes. (Version 1 slots, 74 bytes without the rhythm source, and version
+2, 98 bytes without the delay, no longer load.) -/
 def Patch.bytes (p : Patch) : List UInt8 :=
-  [0xA7, 2, UInt8.ofNat p.bpm, UInt8.ofNat p.key, UInt8.ofNat p.progression, UInt8.ofNat p.rate,
-   UInt8.ofNat p.scaleLock, UInt8.ofNat p.reverbTime, UInt8.ofNat p.reverbBright, UInt8.ofNat p.reverbAmount]
+  [0xA7, 3, UInt8.ofNat p.bpm, UInt8.ofNat p.key, UInt8.ofNat p.progression, UInt8.ofNat p.rate,
+   UInt8.ofNat p.scaleLock, UInt8.ofNat p.reverbTime, UInt8.ofNat p.reverbBright, UInt8.ofNat p.reverbAmount,
+   UInt8.ofNat p.delayTime, UInt8.ofNat p.delayFeedback, UInt8.ofNat p.delayTone, UInt8.ofNat p.delayAmount]
   ++ p.lane0.bytes ++ p.lane1.bytes ++ p.lane2.bytes ++ p.lane3.bytes
 
 /-- A patch read from exactly the bytes `Patch.bytes` writes; `none` for any other marker, version or
 length. -/
 def Patch.ofBytes : List UInt8 → Option Patch
-  | marker :: version :: bpm :: key :: prog :: rate :: scaleLock :: time :: bright :: amount :: lanes => do
-    guard (marker = 0xA7 ∧ version = 2)
+  | marker :: version :: bpm :: key :: prog :: rate :: scaleLock :: time :: bright :: amount :: dTime ::
+      dFeedback :: dTone :: dAmount :: lanes => do
+    guard (marker = 0xA7 ∧ version = 3)
     let (lane0, lanes) ← PatchLane.ofBytes lanes
     let (lane1, lanes) ← PatchLane.ofBytes lanes
     let (lane2, lanes) ← PatchLane.ofBytes lanes
@@ -110,7 +119,8 @@ def Patch.ofBytes : List UInt8 → Option Patch
     guard lanes.isEmpty
     pure { bpm := bpm.toNat, key := key.toNat, progression := prog.toNat, rate := rate.toNat,
            scaleLock := scaleLock.toNat, reverbTime := time.toNat, reverbBright := bright.toNat,
-           reverbAmount := amount.toNat, lane0, lane1, lane2, lane3 }
+           reverbAmount := amount.toNat, delayTime := dTime.toNat, delayFeedback := dFeedback.toNat,
+           delayTone := dTone.toNat, delayAmount := dAmount.toNat, lane0, lane1, lane2, lane3 }
   | _ => none
 
 /-- The bytes to write to a flash slot. (Built from an array, not `List.toByteArray`, whose compiled form

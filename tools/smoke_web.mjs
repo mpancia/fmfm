@@ -112,6 +112,11 @@ const shapes = audible(20500, 29500);
 ok(`every shape plays without crashing the firmware (${shapes[0]} of ${shapes[1]} half-seconds audible)`, shapes[0] >= 0.8 * shapes[1]);
 ok(`the reverb tail rings on after PLAY stops and then dies away (${tail.join(', ')})`, tail[0] > 300 && tail[1] < tail[0] && tail[2] <= tail[1]);
 ok('FX, LFO and ENV open three different pages', changed(shots.fx, shots.lfo) > 500 && changed(shots.lfo, shots.env) > 500 && changed(shots.fx, shots.env) > 500);
+const scaleMask = inst.exports.web_harmony_mask;
+const bits = (m) => m.toString(2).split('1').length - 1;
+ok('the scales are real: minor in C is 0x5AD, major in D is major turned up two semitones, a triad has three notes',
+   scaleMask(1, 0, 0, 0) === 0x5AD && scaleMask(0, 2, 0, 0) === (((0xAB5 << 2) | (0xAB5 >> 10)) & 0xFFF) &&
+   bits(scaleMask(0, 0, 0, 2)) === 3);
 ok('no Lean runtime reports', reports.length === 0);
 console.log({ reports });
 if (process.env.PEAKS) console.log([...peaks].map(([h, p]) => `${h * 0.5}s:${p}`).join(' '));

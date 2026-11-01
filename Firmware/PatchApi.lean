@@ -14,11 +14,12 @@ def patchLaneMake (hits steps speed scale sound low span algo chance amount muta
 
 /-- C entry: a patch from the global settings and its four lanes. -/
 @[export fm1_patch_make]
-def patchMake (bpm key progression rate scaleLock reverbTime reverbBright reverbAmount : UInt32)
-    (lane0 lane1 lane2 lane3 : PatchLane) : Patch :=
+def patchMake (bpm key progression rate scaleLock reverbTime reverbBright reverbAmount
+    delayTime delayFeedback delayTone delayAmount : UInt32) (lane0 lane1 lane2 lane3 : PatchLane) : Patch :=
   { bpm := bpm.toNat, key := key.toNat, progression := progression.toNat, rate := rate.toNat,
     scaleLock := scaleLock.toNat, reverbTime := reverbTime.toNat, reverbBright := reverbBright.toNat,
-    reverbAmount := reverbAmount.toNat, lane0, lane1, lane2, lane3 }
+    reverbAmount := reverbAmount.toNat, delayTime := delayTime.toNat, delayFeedback := delayFeedback.toNat,
+    delayTone := delayTone.toNat, delayAmount := delayAmount.toNat, lane0, lane1, lane2, lane3 }
 
 /-- C entry: the bytes to store. -/
 @[export fm1_patch_encode]
@@ -29,7 +30,7 @@ def patchEncode (p : Patch) : ByteArray := p.encode
 def patchDecode (bytes : ByteArray) : Option Patch := Patch.decode bytes
 
 /-- C entry: global setting `index`, in the order of `Patch`: bpm, key, progression, rate, scale lock, reverb
-decay, brightness, return. -/
+decay, brightness, return, delay note value, feedback, tone, return. -/
 @[export fm1_patch_field]
 def patchField (p : Patch) (index : UInt32) : UInt32 :=
   match index with
@@ -40,7 +41,11 @@ def patchField (p : Patch) (index : UInt32) : UInt32 :=
   | 4 => p.scaleLock.toUInt32
   | 5 => p.reverbTime.toUInt32
   | 6 => p.reverbBright.toUInt32
-  | _ => p.reverbAmount.toUInt32
+  | 7 => p.reverbAmount.toUInt32
+  | 8 => p.delayTime.toUInt32
+  | 9 => p.delayFeedback.toUInt32
+  | 10 => p.delayTone.toUInt32
+  | _ => p.delayAmount.toUInt32
 
 /-- C entry: lane `index` (0 to 3) of the patch. -/
 @[export fm1_patch_lane]

@@ -16,10 +16,12 @@ Why it matters: a user slot restores exactly what was saved, every lane setting 
 field lost, swapped or rounded on the way through flash. -/
 theorem patch_decode_encode_round_trip (p : Patch) (fits : p.Fits) :
     Patch.decode (Patch.encode p) = some p := by
-  obtain ⟨bpm, key, progression, rate, scaleLock, time, bright, amount, lane0, lane1, lane2, lane3⟩ := p
+  obtain ⟨bpm, key, progression, rate, scaleLock, time, bright, amount, dTime, dFeedback, dTone, dAmount, lane0, lane1,
+    lane2, lane3⟩ := p
   have fitsAll := fits
   simp only [Patch.Fits] at fits
-  obtain ⟨_, bpmLe, keyLt, progLt, _, lockLe, timeLe, brightLe, amountLe, fits0, fits1, fits2, fits3⟩ := fits
+  obtain ⟨_, bpmLe, keyLt, progLt, _, lockLe, timeLe, brightLe, amountLe, dTimeLt, dFeedbackLe, dToneLe, dAmountLe,
+    fits0, fits1, fits2, fits3⟩ := fits
   have byte : ∀ n, n < 256 → (UInt8.ofNat n).toNat = n := fun n h => UInt8.toNat_ofNat_of_lt' h
   have last := patchLane_ofBytes_bytes lane3 fits3 []
   rw [List.append_nil] at last
@@ -46,7 +48,7 @@ private theorem patch_ofBytes_wrong_marker (l : List UInt8) (wrong : l[0]? ≠ s
     Patch.ofBytes l = none := by
   unfold Patch.ofBytes
   split
-  · rename_i marker version bpm key prog rate lock time bright amount lanes
+  · rename_i marker version bpm key prog rate lock time bright amount dTime dFeedback dTone dAmount lanes
     simp at wrong
     simp [guard, wrong]
   · rfl
@@ -70,12 +72,12 @@ private theorem patchLane_ofBytes_length (l rest : List UInt8) (lane : PatchLane
     simp
   · simp at parsed
 
-/-- Bytes that read as a patch are exactly 98 long. -/
+/-- Bytes that read as a patch are exactly 102 long. -/
 private theorem patch_ofBytes_length (l : List UInt8) (p : Patch) (parsed : Patch.ofBytes l = some p) :
-    l.length = 98 := by
+    l.length = 102 := by
   unfold Patch.ofBytes at parsed
   split at parsed
-  · rename_i marker version bpm key prog rate lock time bright amount lanes
+  · rename_i marker version bpm key prog rate lock time bright amount dTime dFeedback dTone dAmount lanes
     simp only [guard, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
       Option.some.injEq] at parsed
     obtain ⟨_, _, ⟨lane0, rest0⟩, p0, ⟨lane1, rest1⟩, p1, ⟨lane2, rest2⟩, p2, ⟨lane3, rest3⟩, p3, _, empty,
@@ -90,10 +92,10 @@ private theorem patch_ofBytes_length (l : List UInt8) (p : Patch) (parsed : Patc
     omega
   · simp at parsed
 
-/-- A slot that is not exactly 98 bytes long never loads.
+/-- A slot that is not exactly 102 bytes long never loads.
 Why it matters: a slot written by a firmware with a different patch layout is rejected whole instead of
 being read field by field in the wrong places. -/
-theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 98) :
+theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 102) :
     Patch.decode bytes = none := by
   unfold Patch.decode
   split
@@ -103,8 +105,8 @@ theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size 
     exact absurd length wrong
   · rfl
 
-/-- Every saved patch is 98 bytes long.
+/-- Every saved patch is 102 bytes long.
 Why it matters: the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a
 different count would make every saved patch unloadable. -/
-theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 98 := by
+theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 102 := by
   simp [Patch.encode, Patch.bytes, PatchLane.bytes, ByteArray.size]

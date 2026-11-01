@@ -28,8 +28,12 @@ import Firmware.Macro
 import Firmware.MacroApi
 import Firmware.Reverb
 import Firmware.ReverbApi
+import Firmware.Delay
+import Firmware.DelayApi
 import Firmware.Mix
 import Firmware.Smooth
 import Firmware.SmoothApi
 import Firmware.Patch
 import Firmware.PatchApi
+import Firmware.Pitch
+import Firmware.PitchApi
