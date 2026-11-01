@@ -26,7 +26,7 @@ enum { AP1, AP2, AP3, AP4, DAP1A, DAP1B, DEL1, DAP2A, DAP2B, DEL2, LINES };
 static uint32_t scale_q8, write_pos, start[LINES], length[LINES], phase[2], phase_step[2], lfo_now[2];
 static int32_t lowpass_state[2];
 static int32_t k_time = 16384, k_lowpass = 20000, k_diffusion = 22938, k_input = 6554;
-static int32_t acc, previous;                  /* Clouds' accumulator and last read */
+static int32_t acc;                            /* Clouds' accumulator */
 
 static int32_t s32(uint32_t v) { return (int32_t)v; }
 static uint32_t scaled(uint32_t samples) { return (samples * scale_q8 + 128u) >> 8; }
@@ -39,25 +39,25 @@ static int32_t fetch(uint32_t line, uint32_t offset)
 }
 static void read_line(uint32_t line, int32_t gain)       /* the oldest sample of the line ("TAIL") */
 {
-    previous = fetch(line, length[line] - 1u);
-    acc += s32(fm1_rv_mul((uint32_t)previous, (uint32_t)gain));
+    acc += s32(fm1_rv_mul((uint32_t)fetch(line, length[line] - 1u), (uint32_t)gain));
 }
 static void write_line(uint32_t line, uint32_t offset, int32_t gain)
 {
     ring[fm1_rv_pos(write_pos, start[line], offset)] = (uint16_t)fm1_rv_compress((uint32_t)acc);
     acc = s32(fm1_rv_mul((uint32_t)acc, (uint32_t)gain));
 }
-static void write_allpass(uint32_t line, int32_t gain)
+static void allpass(uint32_t line, int32_t gain)         /* Reverb.allpass: its oldest sample in, its sum stored */
 {
-    write_line(line, 0, gain);
-    acc += previous;
+    int32_t oldest = fetch(line, length[line] - 1u);
+    int32_t summed = s32(fm1_rv_allpass_store((uint32_t)acc, (uint32_t)oldest, (uint32_t)gain));
+    ring[fm1_rv_pos(write_pos, start[line], 0)] = (uint16_t)fm1_rv_compress((uint32_t)summed);
+    acc = s32(fm1_rv_allpass_out((uint32_t)summed, (uint32_t)oldest, (uint32_t)gain));
 }
 static void read_modulated(uint32_t line, uint32_t base, uint32_t depth, uint32_t which, int32_t gain)
 {
     uint32_t q16 = fm1_rv_mod_offset(base, depth, scale_q8, lfo_now[which]), whole = q16 >> 16;
     int32_t a = fetch(line, whole), b = fetch(line, whole + 1u);
-    previous = s32(fm1_rv_interpolate((uint32_t)a, (uint32_t)b, q16 & 0xFFFFu));
-    acc += s32(fm1_rv_mul((uint32_t)previous, (uint32_t)gain));
+    acc += s32(fm1_rv_mul(fm1_rv_interpolate((uint32_t)a, (uint32_t)b, q16 & 0xFFFFu), (uint32_t)gain));
 }
 static void lowpass(uint32_t which, int32_t coefficient)
 {
@@ -106,32 +106,32 @@ void fm1_reverb_block(const int32_t *send, int32_t *wet_left, int32_t *wet_right
             lfo_now[0] = fm1_rv_lfo(phase[0]); lfo_now[1] = fm1_rv_lfo(phase[1]);
             phase[0] += 32u * phase_step[0]; phase[1] += 32u * phase_step[1];
         }
-        acc = 0; previous = 0;
+        acc = 0;
 
         read_modulated(AP1, 10u, 60u, 0, 32768);               /* smear the first diffuser inside its loop */
                                                                /* these bases and depths, and DEL2's below, are the ones
                                                                 * reverb_modulated_read_stays_in_line is about */
         write_line(AP1, scaled(100u), 0);
-        read_value(send[n], k_input);
-        read_line(AP1, k_diffusion); write_allpass(AP1, -k_diffusion);
-        read_line(AP2, k_diffusion); write_allpass(AP2, -k_diffusion);
-        read_line(AP3, k_diffusion); write_allpass(AP3, -k_diffusion);
-        read_line(AP4, k_diffusion); write_allpass(AP4, -k_diffusion);
+        read_value(send[n], k_input);                          /* Reverb.diffuse */
+        allpass(AP1, -k_diffusion);
+        allpass(AP2, -k_diffusion);
+        allpass(AP3, -k_diffusion);
+        allpass(AP4, -k_diffusion);
         apout = acc;
 
-        load(apout);                                           /* the first loop, which makes the left output */
+        load(apout);                                           /* the first loop (Reverb.loop), the left output */
         read_modulated(DEL2, 4680u, 100u, 1, k_time);
         lowpass(0, k_lowpass);
-        read_line(DAP1A, -k_diffusion); write_allpass(DAP1A, k_diffusion);
-        read_line(DAP1B, k_diffusion); write_allpass(DAP1B, -k_diffusion);
+        allpass(DAP1A, k_diffusion);
+        allpass(DAP1B, -k_diffusion);
         write_line(DEL1, 0, two);
         wet_left[n] = acc;
 
-        load(apout);                                           /* the second loop, which makes the right output */
+        load(apout);                                           /* the second loop, with the opposite diffusion, the right */
         read_line(DEL1, k_time);
         lowpass(1, k_lowpass);
-        read_line(DAP2A, k_diffusion); write_allpass(DAP2A, -k_diffusion);
-        read_line(DAP2B, -k_diffusion); write_allpass(DAP2B, k_diffusion);
+        allpass(DAP2A, -k_diffusion);
+        allpass(DAP2B, k_diffusion);
         write_line(DEL2, 0, two);
         wet_right[n] = acc;
     }

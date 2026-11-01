@@ -19,6 +19,12 @@ numbers. `fx/reverb_glue.c` includes the generated code and runs the network wit
 @[export fm1_rv_decompress] def rvDecompress (stored : Int16) : Int32 := Reverb.decompress stored
 /-- A signal times a Q15 gain. -/
 @[export fm1_rv_mul] def rvMul (signal gain : Int32) : Int32 := Reverb.mul signal gain
+/-- An allpass's half that goes into its line. -/
+@[export fm1_rv_allpass_store] def rvAllpassStore (acc oldest gain : Int32) : Int32 :=
+  Reverb.allpassStore acc oldest gain
+/-- An allpass's half that passes on. -/
+@[export fm1_rv_allpass_out] def rvAllpassOut (summed oldest gain : Int32) : Int32 :=
+  Reverb.allpassOut summed oldest gain
 /-- One low-pass step. -/
 @[export fm1_rv_lowpass] def rvLowpass (state signal coefficient : Int32) : Int32 :=
   Reverb.lowpass state signal coefficient

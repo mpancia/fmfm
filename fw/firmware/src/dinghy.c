@@ -86,8 +86,8 @@ static void app_audio(int32_t *out, uint32_t n)
         fm1_delay_block(send_bus, wet_left, wet_right, n);
         for (i = 0; i < n; i++) {
             int32_t *l = &out[2u * i], *r = l + 1;
-            *l = (int32_t)fm1_mix_limit((uint32_t)(*l + (int32_t)fm1_mix_wet_sample((uint32_t)wet_left[i], gain)));
-            *r = (int32_t)fm1_mix_limit((uint32_t)(*r + (int32_t)fm1_mix_wet_sample((uint32_t)wet_right[i], gain)));
+            *l = (int32_t)fm1_mix_in((uint32_t)*l, (uint32_t)wet_left[i], gain);
+            *r = (int32_t)fm1_mix_in((uint32_t)*r, (uint32_t)wet_right[i], gain);
         }
     }
     if (!reverb_return) return;
@@ -95,8 +95,8 @@ static void app_audio(int32_t *out, uint32_t n)
     for (i = 0; i < n; i++) {
         const uint32_t gain = (uint32_t)reverb_return;
         int32_t *l = &out[2u * i], *r = l + 1;
-        *l = (int32_t)fm1_mix_limit((uint32_t)(*l + (int32_t)fm1_mix_wet_sample((uint32_t)wet_left[i], gain)));
-        *r = (int32_t)fm1_mix_limit((uint32_t)(*r + (int32_t)fm1_mix_wet_sample((uint32_t)wet_right[i], gain)));
+        *l = (int32_t)fm1_mix_in((uint32_t)*l, (uint32_t)wet_left[i], gain);
+        *r = (int32_t)fm1_mix_in((uint32_t)*r, (uint32_t)wet_right[i], gain);
     }
 }
 

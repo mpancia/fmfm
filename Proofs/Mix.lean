@@ -218,3 +218,103 @@ theorem mix_limit_fits_master (x : Int32) :
     rw [ite_eq_right, ite_eq_right]
     · rw [Int32.not_lt, Int32.le_iff_toInt_le, lo]; omega
     · rw [Int32.not_lt, Int32.le_iff_toInt_le, hi]; omega
+
+/-- The limit as a plain number: the clip of the integer. -/
+private theorem mix_limit_value (x : Int32) :
+    (Mix.limit x).toInt = if x.toInt > 524287 then 524287 else if x.toInt < -524287 then -524287 else x.toInt := by
+  have hi : (524287 : Int32).toInt = 524287 := by decide
+  have lo : (-524287 : Int32).toInt = -524287 := by decide
+  unfold Mix.limit
+  have above : (x > 524287) ↔ (x.toInt > 524287) := by show (524287 < x) ↔ _; rw [Int32.lt_iff_toInt_lt, hi]
+  have below : (x < -524287) ↔ (x.toInt < -524287) := by rw [Int32.lt_iff_toInt_lt, lo]
+  by_cases h1 : x > 524287
+  · simp only [h1, above.mp h1, ite_true, hi]
+  · have a := mt above.mpr h1
+    by_cases h2 : x < -524287
+    · simp only [h1, h2, a, below.mp h2, ite_true, ite_false, lo]
+    · have b := mt below.mpr h2
+      simp only [h1, h2, a, b, ite_false]
+
+/-- One effect's return into a mix that is already within the limit: the sum is exact (no wrap), and the
+result is the sum clipped to 524287, for a wet sample within 2^29 + 2^21 and a gain up to 65500 (twice the
+largest RETURN).
+Why it matters: this is the step `app_audio` takes for the delay and then for the reverb; however loud a
+return, it can only clip, never wrap. -/
+theorem mix_in_never_wraps (mix wet gain : Int32) (mixHeld : mix.toInt.natAbs ≤ 524287)
+    (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21) (returnInRange : 0 ≤ gain.toInt ∧ gain.toInt ≤ 65500) :
+    (mix + Mix.wetSample wet gain).toInt = mix.toInt + wet.toInt * gain.toInt / 32768 ∧
+      (Mix.mixIn mix wet gain).toInt.natAbs ≤ 524287 ∧
+      (Mix.mixIn mix wet gain).toInt =
+        (if mix.toInt + wet.toInt * gain.toInt / 32768 > 524287 then 524287
+         else if mix.toInt + wet.toInt * gain.toInt / 32768 < -524287 then -524287
+         else mix.toInt + wet.toInt * gain.toInt / 32768) := by
+  obtain ⟨value, bound⟩ := mix_wet_return wet gain wetBounded returnInRange
+  have sum : (mix + Mix.wetSample wet gain).toInt = mix.toInt + wet.toInt * gain.toInt / 32768 := by
+    rw [mix_add_exact _ _ (by rw [value]; omega), value]
+  refine ⟨sum, ?_, ?_⟩
+  · unfold Mix.mixIn
+    rw [mix_limit_value, sum]
+    split
+    · decide
+    · split
+      · decide
+      · omega
+  · unfold Mix.mixIn
+    rw [mix_limit_value, sum]
+
+/-- The sample the master stage sees, from the six voices through both sends: the dry sum of up to six voice
+samples (each within 65024, as `mix_voice_sample_never_wraps` gives), then the delay's echo (a stored 16-bit
+sample), then the reverb's wet sample (within 2^29 + 2^21, as `reverb_wet_never_overflows` gives), each with
+a return gain up to 65500. Every addition on the way is exact, the delay's return never reaches the limit, and
+the result is within 524287, so `platform.c`'s product with the master gain (at most 4088) fits 32 bits.
+Why it matters: this joins the voice, delay, reverb and mix promises into one statement about the whole
+audio path of `app_audio`: whatever the lanes play and however the sends are set, the sample the master stage
+sees is the mix, clipped at the limit, and never a wrapped burst. -/
+theorem mix_machine_sample_bounded (voices : List Int32) (echo delayGain wet reverbGain : Int32)
+    (atMostSix : voices.length ≤ 6) (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024)
+    (echoStored : echo.toInt.natAbs ≤ 32768) (delayInRange : 0 ≤ delayGain.toInt ∧ delayGain.toInt ≤ 65500)
+    (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21)
+    (reverbInRange : 0 ≤ reverbGain.toInt ∧ reverbGain.toInt ≤ 65500) :
+    let dry := voices.foldl (· + ·) 0
+    let withDelay := Mix.mixIn dry echo delayGain
+    let out := Mix.mixIn withDelay wet reverbGain
+    withDelay.toInt = dry.toInt + echo.toInt * delayGain.toInt / 32768 ∧
+      withDelay.toInt.natAbs ≤ 455680 ∧
+      out.toInt.natAbs ≤ 524287 ∧ out.toInt.natAbs * 4088 < 2 ^ 31 ∧
+      (out.toInt.natAbs < 524287 → out.toInt = withDelay.toInt + wet.toInt * reverbGain.toInt / 32768) := by
+  intro dry withDelay out
+  have hd : withDelay = Mix.mixIn dry echo delayGain := rfl
+  have ho : out = Mix.mixIn withDelay wet reverbGain := rfl
+  obtain ⟨_, dryBound, _, _, _⟩ := mix_bus_never_wraps voices 0 0 atMostSix eachBounded (by decide) (by decide)
+  have dryB : dry.toInt.natAbs ≤ 390144 := dryBound
+  clear_value dry withDelay out
+  subst hd ho
+  have echoWet : echo.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21 := by omega
+  obtain ⟨sum1, held1, value1⟩ := mix_in_never_wraps dry echo delayGain (by omega) echoWet delayInRange
+  have product := mix_product_bound echo.toInt delayGain.toInt 32768 65500 echoStored (by omega) (by omega)
+  have quotient : (echo.toInt * delayGain.toInt / 32768).natAbs ≤ 65536 := by
+    have lo : -(32768 * 65500 : Int) ≤ echo.toInt * delayGain.toInt := by omega
+    have hi : echo.toInt * delayGain.toInt ≤ 32768 * 65500 := by omega
+    have := Int.ediv_le_ediv (by decide : (0 : Int) < 32768) hi
+    have := Int.ediv_le_ediv (by decide : (0 : Int) < 32768) lo
+    omega
+  have delayValue : (Mix.mixIn dry echo delayGain).toInt = dry.toInt + echo.toInt * delayGain.toInt / 32768 := by
+    rw [value1]
+    split
+    · omega
+    · split
+      · omega
+      · rfl
+  have delayBound : (Mix.mixIn dry echo delayGain).toInt.natAbs ≤ 455680 := by rw [delayValue]; omega
+  generalize Mix.mixIn dry echo delayGain = withDelay at *
+  obtain ⟨sum2, held2, value2⟩ := mix_in_never_wraps withDelay wet reverbGain (by omega) wetBounded reverbInRange
+  refine ⟨delayValue, delayBound, held2, ?_, ?_⟩
+  · exact (mix_limit_fits_master _).1
+  · intro inside
+    rw [value2] at inside ⊢
+    split at inside
+    · omega
+    · split at inside
+      · omega
+      · rename_i notHigh notLow
+        rw [ite_eq_right notHigh, ite_eq_right notLow]

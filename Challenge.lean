@@ -242,9 +242,13 @@ theorem filters_setup_cutoff_in_range (pitch parameter : Int32) :
 theorem harmony_mask_never_empty (scale key root follow : UInt32) :
     (harmonyMask scale key root follow).toNat ≠ 0 ∧ (harmonyMask scale key root follow).toNat < 4096 := sorry
 
-theorem harmony_triad_within_scale (scale key root : UInt32) :
-    (harmonyMask scale key root 2).toNat &&& (harmonyMask scale key root 1).toNat =
+theorem harmony_triad_in_key (scale key root : UInt32) :
+    (harmonyMask scale key root 2).toNat &&& (harmonyMask scale key 0 0).toNat =
       (harmonyMask scale key root 2).toNat := sorry
+
+theorem harmony_progression_chord_has_root (scale key progression step : UInt32) :
+    (harmonyMask scale key (harmonyChordRoot scale progression step) 2).toNat.testBit
+      ((key.toNat % 12 + (harmonyChordRoot scale progression step).toNat) % 12) = true := sorry
 
 theorem harmony_chord_root_in_key (scale progression step : UInt32) :
     (Harmony.scale (scale.toNat % 14)).testBit (harmonyChordRoot scale progression step).toNat = true ∧
@@ -359,6 +363,28 @@ theorem mix_bus_never_wraps (voices : List Int32) (wet gain : Int32) (atMostSix 
 
 theorem mix_limit_fits_master (x : Int32) :
     (Mix.limit x).toInt.natAbs * 4088 < 2 ^ 31 ∧ (x.toInt.natAbs ≤ 524287 → Mix.limit x = x) := sorry
+
+theorem mix_in_never_wraps (mix wet gain : Int32) (mixHeld : mix.toInt.natAbs ≤ 524287)
+    (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21) (returnInRange : 0 ≤ gain.toInt ∧ gain.toInt ≤ 65500) :
+    (mix + Mix.wetSample wet gain).toInt = mix.toInt + wet.toInt * gain.toInt / 32768 ∧
+      (Mix.mixIn mix wet gain).toInt.natAbs ≤ 524287 ∧
+      (Mix.mixIn mix wet gain).toInt =
+        (if mix.toInt + wet.toInt * gain.toInt / 32768 > 524287 then 524287
+         else if mix.toInt + wet.toInt * gain.toInt / 32768 < -524287 then -524287
+         else mix.toInt + wet.toInt * gain.toInt / 32768) := sorry
+
+theorem mix_machine_sample_bounded (voices : List Int32) (echo delayGain wet reverbGain : Int32)
+    (atMostSix : voices.length ≤ 6) (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024)
+    (echoStored : echo.toInt.natAbs ≤ 32768) (delayInRange : 0 ≤ delayGain.toInt ∧ delayGain.toInt ≤ 65500)
+    (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21)
+    (reverbInRange : 0 ≤ reverbGain.toInt ∧ reverbGain.toInt ≤ 65500) :
+    let dry := voices.foldl (· + ·) 0
+    let withDelay := Mix.mixIn dry echo delayGain
+    let out := Mix.mixIn withDelay wet reverbGain
+    withDelay.toInt = dry.toInt + echo.toInt * delayGain.toInt / 32768 ∧
+      withDelay.toInt.natAbs ≤ 455680 ∧
+      out.toInt.natAbs ≤ 524287 ∧ out.toInt.natAbs * 4088 < 2 ^ 31 ∧
+      (out.toInt.natAbs < 524287 → out.toInt = withDelay.toInt + wet.toInt * reverbGain.toInt / 32768) := sorry
 
 -- Proofs/Noise.lean
 theorem noise_particle_amplitude_fades (noise : UInt32) (amplitude : UInt16)

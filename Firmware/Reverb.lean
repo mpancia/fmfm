@@ -97,3 +97,41 @@ so the tail always dies away. -/
 /-- Low-pass amount for a brightness setting of 0 to 100: 0.6 to 0.97 in Q15. Higher is brighter. -/
 @[inline] def Reverb.brightGain (bright : UInt32) : Int32 :=
   (19661 + (12124 * (min bright 100)) / 100).toInt32
+
+/-! The tank, as `fx/reverb_glue.c` runs it for one sample, with the samples it reads from the delay memory as
+parameters. The glue owns the memory and the filter states and calls `allpassStore`, `allpassOut`, `lowpass`
+and `mul` in this order; these definitions are that order written down, and what `Spec/Reverb.lean` builds
+its trips from. -/
+
+/-- One allpass, the half that goes into its line: the accumulator plus the line's oldest sample times the
+opposite gain. The glue stores this. -/
+@[inline] def Reverb.allpassStore (acc oldest gain : Int32) : Int32 := acc + Reverb.mul oldest (-gain)
+
+/-- The other half, what the allpass passes on: the stored sum times the gain plus the oldest sample. -/
+@[inline] def Reverb.allpassOut (summed oldest gain : Int32) : Int32 := Reverb.mul summed gain + oldest
+
+/-- One allpass on the accumulator, both halves. -/
+def Reverb.allpass (acc oldest gain : Int32) : Int32 :=
+  Reverb.allpassOut (Reverb.allpassStore acc oldest gain) oldest gain
+
+/-- The four input diffusers: the send times the input gain, through four allpasses with the negative of the
+diffusion as their gain. `oldest1` to `oldest4` are the samples read from their lines. -/
+def Reverb.diffuse (send inputGain diffusion oldest1 oldest2 oldest3 oldest4 : Int32) : Int32 :=
+  let fed := Reverb.mul send inputGain
+  let afterFirst := Reverb.allpass fed oldest1 (-diffusion)
+  let afterSecond := Reverb.allpass afterFirst oldest2 (-diffusion)
+  let afterThird := Reverb.allpass afterSecond oldest3 (-diffusion)
+  Reverb.allpass afterThird oldest4 (-diffusion)
+
+/-- A loop's low-pass output: the diffused input plus the sample read from the other loop's long delay times
+the decay gain, smoothed from `state`. This is also the low-pass's state for the next sample. -/
+def Reverb.loopSmooth (input tail state decay bright : Int32) : Int32 :=
+  Reverb.lowpass state (input + Reverb.mul tail decay) bright
+
+/-- One loop of the tank, from the diffused input to the sum it stores in its long delay: the low-pass
+output through the loop's two allpasses, with `diffusion` then its negative as their gains. The first loop
+has the glue's `k_diffusion` as `diffusion`, the second its negative. -/
+def Reverb.loop (input tail state oldestA oldestB decay bright diffusion : Int32) : Int32 :=
+  let afterA := Reverb.allpass (Reverb.loopSmooth input tail state decay bright) oldestA diffusion
+  Reverb.allpass afterA oldestB (-diffusion)
+

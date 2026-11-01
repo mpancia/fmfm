@@ -390,7 +390,7 @@ private theorem reverb_allpass_bounded (acc oldest gain : Int32) (accFits : acc.
     (read : Reverb.fromMemory oldest) (unit : gain.toInt.natAbs ≤ 32768) :
     (Reverb.allpass acc oldest gain).toInt.natAbs ≤ acc.toInt.natAbs + 2 * oldest.toInt.natAbs := by
   unfold Reverb.fromMemory at *
-  dsimp only [Reverb.allpass]
+  dsimp only [Reverb.allpass, Reverb.allpassStore, Reverb.allpassOut]
   have negUnit : (-gain).toInt.natAbs ≤ 32768 := by rw [reverb_neg_value gain unit]; omega
   have m1 := reverb_mul_shrinks oldest (-gain) (by omega) negUnit
   generalize Reverb.mul oldest (-gain) = fromLine at *

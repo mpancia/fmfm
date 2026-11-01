@@ -43,7 +43,8 @@ Note algorithms (SEQ > NOTES), per lane: RANDOM, WALK (random steps of up to AMO
 LOOP (a memory of AMOUNT notes that replays, with MUTATE percent chance of replacing a note each time).
 Chord progressions (GLO > HARMONY, written as scale degrees so 1-4-5-1 is I IV V in a major key and i iv v in a
 minor one) change the chord every bar or more; a lane follows them in SEQ > RANGE: SCALE moves its scale to the
-chord root, TRIAD keeps only the chord's notes.
+chord root, TRIAD keeps only the chord's notes (the first, third and fifth of the key's scale from the chord root,
+so a lane on TRIAD never leaves the key: `harmony_triad_in_key`).
 
 Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
 snaps it to the scale. That logic is Lean, and so are the sound engines, the effects and the patch format; the
@@ -58,10 +59,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-212 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+215 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 57 theorems</summary>
+<details><summary><b>The sequencer</b>: 58 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -112,7 +113,8 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `quantizer_snap_is_near` | `snap` never moves a note more than 6 semitones (same conditions as above). | quantizing keeps the shape of the melody; no note jumps by an octave. |
 | `random_below_lt` | A random pick is always below its limit, so it is a valid index into a list of `limit` choices. | a pick one too big would read past the end of a note list or a step table. |
 | `harmony_mask_never_empty` | The mask handed to a lane always has at least one note and fits in 12 bits, for every scale, key, chord and follow mode the firmware offers. | `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for the chord-following lanes too, so a chord change can never leave a lane with nothing to play. |
-| `harmony_triad_within_scale` | A chord's notes are always notes of the scale it was taken from. | TRIAD follow narrows a lane to the chord; it can never add a note that is outside the key. |
+| `harmony_triad_in_key` | With TRIAD follow, every note a lane may play is a note of the key's scale, whatever chord it is on: the chord is the first, third and fifth of the key's scale from the chord root, not a shape moved to the root. | a chord progression played with TRIAD follow stays in the key. |
+| `harmony_progression_chord_has_root` | With TRIAD follow on a chord of a progression, the chord's root is among the lane's notes, in every scale and key. | joined with `harmony_chord_root_in_key`, a progression's chord is a chord of the key with its root present; a lane following it can play the root, not only two upper notes of some other triad. |
 | `harmony_chord_root_in_key` | Every chord root is a note of the key's scale: whatever the progression, scale and chord, the root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave. | progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor one; this is the promise that a chord never lands on a note outside the key. |
 | `arp_note_is_held` | Every note the arpeggiator starts is a note you are holding, raised by fewer than `octaves` octaves. | the arpeggiator can only play what you play; it never adds a note of its own, whichever mode and however it is set. |
 | `arp_make_valid` | A fresh arpeggiator is consistent, for any step. | the arpeggiator starts in a state the rest of the firmware can rely on, whatever the knobs say. |
@@ -275,7 +277,7 @@ reads its tables inside their bounds.
 
 </details>
 
-<details><summary><b>The mix and the effects</b>: 23 theorems</summary>
+<details><summary><b>The mix and the effects</b>: 25 theorems</summary>
 
 The mix cannot wrap, the reverb's and the delay's memory is read and written inside the lines, their gains are below one
 so tails die away, and their filters and interpolation cannot overshoot.
@@ -286,6 +288,8 @@ so tails die away, and their filters and interpolation cannot overshoot.
 | `mix_voice_sample_never_wraps` | A voice's sample for the mix is computed without any wrap, given a gain of at most 2048 (the most `tools/gen_presets.py` writes) and a level of at most 130048, and it is within 65024 either way; the share sent to the reverb bus (send at most 256) is within 130048. | the loudest voice at the loudest gain stays an exact scaled copy of what Braids rendered, never a wrapped burst, and six of each fit the stereo mix and the send bus with room to spare. |
 | `mix_bus_never_wraps` | The stereo mix of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives) plus the wet return is added up without any wrap: the dry sum is within 390144, the whole within 1077734144. | six loud voices and the reverb together can only clip at the deliberate clip in `platform.c`, never wrap in the mix to a burst of the opposite sign. |
 | `mix_limit_fits_master` | After the limiter the mix is within 524287, so `platform.c`'s product with the master gain (at most 4088) fits in 32 bits for any input; and a mix already within that range passes through unchanged. | the dry mix never reaches the limit (`mix_bus_never_wraps`), so the limiter only acts on an extreme wet return, where it keeps the master stage from wrapping to a burst of the opposite sign. |
+| `mix_in_never_wraps` | One effect's return into a mix that is already within the limit: the sum is exact (no wrap), and the result is the sum clipped to 524287, for a wet sample within 2^29 + 2^21 and a gain up to 65500 (twice the largest RETURN). | this is the step `app_audio` takes for the delay and then for the reverb; however loud a return, it can only clip, never wrap. |
+| `mix_machine_sample_bounded` | The sample the master stage sees, from the six voices through both sends: the dry sum of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives), then the delay's echo (a stored 16-bit sample), then the reverb's wet sample (within 2^29 + 2^21, as `reverb_wet_never_overflows` gives), each with a return gain up to 65500. | this joins the voice, delay, reverb and mix promises into one statement about the whole audio path of `app_audio`: whatever the lanes play and however the sends are set, the sample the master stage sees is the mix, clipped at the limit, and never a wrapped burst. |
 | `reverb_position_in_ring` | A sample position is always inside the shared delay memory, whatever the write position, line start and offset. | a read or write can never land outside the memory, so no setting of a knob can crash the reverb. |
 | `reverb_lines_fit_and_do_not_overlap` | At every scale up to 400 (353 is the shipped one), each delay line ends inside the memory, and each line starts one sample after the previous one ends. | the ten lines never overlap, so one line cannot overwrite another, and none runs off the end. |
 | `reverb_gains_below_one` | For every decay-time setting, the loop gain is positive and below 1.0 (at most 0.98), and for every brightness setting the low-pass amount is too (at most 0.97). | the tail always dies away; no knob position makes the reverb feed back on itself and grow. |
@@ -384,9 +388,10 @@ all accept. They do not cover:
   the per-block setup, the delay lines and the glue loops are C and unproved (`docs/LEAN-ENGINES.md`). `make audit`
   checks levels; nobody has listened to it on hardware.
 - `fx/delay_glue.c`: the two delay lines and their loop (the arithmetic is Lean, `Firmware/Delay.lean`); not heard.
-- `fx/reverb_glue.c`: the reverb network and its delay memory (the arithmetic is Lean; the order of operations is
-  C, copied from Clouds, and checked sample for sample against `Spec/Reverb.lean` by `make test-lean`, which also
-  checks it against Clouds' original); not heard (`docs/FX.md`).
+- `fx/reverb_glue.c`: the reverb's delay memory and the C that moves samples between it and the Lean steps. The
+  arithmetic and the order of the steps are Lean (`Reverb.diffuse`, `Reverb.loop` in `Firmware/Reverb.lean`);
+  `make test-lean` checks over 20000 samples that the C follows that order, and checks the whole against Clouds'
+  original; not heard (`docs/FX.md`).
 - `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
   Its mix loop (level glide, voice sample, reverb send and return) calls `Firmware/Mix.lean`, which
   `Proofs/Mix.lean` shows never wraps; the master gain and the clip in `fw/firmware/src/platform.c` stay C.

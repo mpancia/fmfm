@@ -47,6 +47,7 @@ uint32_t fm1_mix_voice_sample(uint16_t sample, uint16_t gain, uint32_t amp);   /
 uint32_t fm1_mix_send_sample(uint32_t s, uint16_t send);                      /* send 256 = all of it */
 uint32_t fm1_mix_wet_sample(uint32_t wet, uint32_t gain);                     /* gain is Q15 */
 uint32_t fm1_mix_limit(uint32_t mix);                                        /* within 524287: the master gain cannot wrap it */
+uint32_t fm1_mix_in(uint32_t mix, uint32_t wet, uint32_t gain);              /* mix + wet * gain, within the limit */
 
 /* each consumes the lane */
 uint32_t fm1_lane_on(lean_object *lane);            /* note the last tick started, 255 for none */

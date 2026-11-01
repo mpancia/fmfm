@@ -25,13 +25,13 @@ def Harmony.triad (mask root : Nat) : Nat :=
   if tones.isEmpty then mask
   else (List.range 3).foldl (fun acc d => acc ||| (1 <<< tones.getD ((d * 2) % tones.length) 0)) 0
 
-/-- The mask a lane plays in: scale number `scale`, in `key`, moved to the chord `chordRoot` semitones above it
-when `follow` is 1 (scale) or 2 (triad). -/
+/-- The mask a lane plays in: scale number `scale`, in `key`; with `follow` 1 (SCALE) the scale's shape moved
+to the chord, `chordRoot` semitones above the key; with `follow` 2 (TRIAD) the chord itself, the first, third
+and fifth note of the key's scale from the chord root, so its notes are always notes of the key. -/
 def Harmony.laneMask (scale key chordRoot follow : Nat) : Nat :=
   let mask := Harmony.scale scale
   let root := (key + (if follow = 0 then 0 else chordRoot)) % 12
-  let turned := Harmony.rotate mask root
-  if follow = 2 then Harmony.triad turned root else turned
+  if follow = 2 then Harmony.triad (Harmony.rotate mask (key % 12)) root else Harmony.rotate mask root
 
 /-- The chord progressions on GLO > HARMONY, as scale degrees (0 is the key's root, 4 the fifth note of the
 scale), four chords each, chord `s`: 0 is no progression, then 1-4-5-1, 1-5-6-4, 6-4-1-5, 2-5-1-1, 1-6-3-7,

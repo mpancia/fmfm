@@ -66,9 +66,11 @@ runs `tests/reverb_spec_diff.c`, which records what the glue reads before each o
 a settings change, the tail) and `tests/reverb_spec.lean` recomputes both outputs from the spec; they agree
 on every sample, and swapping two reads in the spec makes 18342 of them disagree.
 
-Not proved: that the whole network is stable. Each step is shown not to grow a sample on its own, but the allpasses
-add a delayed sample to a scaled one, and the two loops feed each other; the gain budget is Clouds' design and what
-the test shows is that the tail dies away.
+The network's order is Lean too (`Reverb.diffuse`, `Reverb.loop`), and the trip theorems are about it: a tail
+stays within the memory's range however many trips it makes and shrinks by the decay each trip. What remains C is
+the moving of samples between the memory and those steps, which `tests/reverb_spec_diff.c` checks against the Lean
+order over 20000 samples. With `mix_machine_sample_bounded` (`Proofs/Mix.lean`) the voices, both sends and the
+limiter join into one statement: the sample the master stage sees is the mix, clipped, never a wrapped burst.
 
 ### How it is tested
 

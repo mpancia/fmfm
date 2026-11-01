@@ -334,9 +334,17 @@ scale, key, chord and follow mode the firmware offers.
 Why it matters: `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for the
 chord-following lanes too, so a chord change can never leave a lane with nothing to play.
 
-**`harmony_triad_within_scale`**: A chord's notes are always notes of the scale it was taken from.
+**`harmony_triad_in_key`**: With TRIAD follow, every note a lane may play is a note of the key's scale, whatever chord
+it is on: the chord is the first, third and fifth of the key's scale from the chord root, not a shape moved to the root.
 
-Why it matters: TRIAD follow narrows a lane to the chord; it can never add a note that is outside the key.
+Why it matters: a chord progression played with TRIAD follow stays in the key. (The ii chord of C major is D F A, not D
+F# A; the second is what a transposed shape gave, and trying to prove this is what caught it.)
+
+**`harmony_progression_chord_has_root`**: With TRIAD follow on a chord of a progression, the chord's root is among the
+lane's notes, in every scale and key.
+
+Why it matters: joined with `harmony_chord_root_in_key`, a progression's chord is a chord of the key with its root
+present; a lane following it can play the root, not only two upper notes of some other triad.
 
 **`harmony_chord_root_in_key`**: Every chord root is a note of the key's scale: whatever the progression, scale and
 chord, the root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave.
@@ -495,6 +503,23 @@ in the mix to a burst of the opposite sign.
 
 Why it matters: the dry mix never reaches the limit (`mix_bus_never_wraps`), so the limiter only acts on an extreme wet
 return, where it keeps the master stage from wrapping to a burst of the opposite sign.
+
+**`mix_in_never_wraps`**: One effect's return into a mix that is already within the limit: the sum is exact (no wrap),
+and the result is the sum clipped to 524287, for a wet sample within 2^29 + 2^21 and a gain up to 65500 (twice the
+largest RETURN).
+
+Why it matters: this is the step `app_audio` takes for the delay and then for the reverb; however loud a return, it can
+only clip, never wrap.
+
+**`mix_machine_sample_bounded`**: The sample the master stage sees, from the six voices through both sends: the dry sum
+of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives), then the delay's echo (a stored
+16-bit sample), then the reverb's wet sample (within 2^29 + 2^21, as `reverb_wet_never_overflows` gives), each with a
+return gain up to 65500. Every addition on the way is exact, the delay's return never reaches the limit, and the result
+is within 524287, so `platform.c`'s product with the master gain (at most 4088) fits 32 bits.
+
+Why it matters: this joins the voice, delay, reverb and mix promises into one statement about the whole audio path of
+`app_audio`: whatever the lanes play and however the sends are set, the sample the master stage sees is the mix, clipped
+at the limit, and never a wrapped burst.
 
 ## Noise
 

@@ -38,6 +38,10 @@ and only by an extreme wet return. -/
 def Mix.limit (x : Int32) : Int32 :=
   if x > 524287 then 524287 else if x < -524287 then -524287 else x
 
+/-- An effect's return into the mix: the wet sample times its gain, added, and held within the limit. The
+delay goes in first, then the reverb, each through this. -/
+def Mix.mixIn (mix wet gain : Int32) : Int32 := Mix.limit (mix + Mix.wetSample wet gain)
+
 /-- C entry: the level one sample later. -/
 @[export fm1_mix_envelope_step]
 def mixEnvelopeStep (amp gate up down : Int32) : Int32 := Mix.envelopeStep amp gate up down
@@ -57,3 +61,7 @@ def mixWetSample (wet gain : Int32) : Int32 := Mix.wetSample wet gain
 /-- C entry: the mix held within what the master gain can scale. -/
 @[export fm1_mix_limit]
 def mixLimit (x : Int32) : Int32 := Mix.limit x
+
+/-- C entry: an effect's return added to the mix, within the limit. -/
+@[export fm1_mix_in]
+def mixIn (mix wet gain : Int32) : Int32 := Mix.mixIn mix wet gain
