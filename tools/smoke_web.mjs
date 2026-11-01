@@ -127,5 +127,7 @@ ok('the scales are real: minor in C is 0x5AD, major in D is major turned up two 
    scaleMask(1, 0, 0, 0) === 0x5AD && scaleMask(0, 2, 0, 0) === (((0xAB5 << 2) | (0xAB5 >> 10)) & 0xFFF) &&
    bits(scaleMask(0, 0, 0, 2)) === 3);
 ok('no Lean runtime reports', reports.length === 0);
+const leanPoolUsed = inst.exports.web_lean_pool_used();
+ok(`the Lean heap's high-water mark stays under half its 32 KiB pool (${leanPoolUsed} B)`, leanPoolUsed < 16384);
 console.log({ reports });
 if (process.env.PEAKS) console.log([...peaks].map(([h, p]) => `${h * 0.5}s:${p}`).join(' '));

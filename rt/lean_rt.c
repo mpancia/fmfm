@@ -14,7 +14,7 @@
 #include <lean/lean.h>
 
 #ifndef FM1_LEAN_POOL_BYTES
-#define FM1_LEAN_POOL_BYTES (64u * 1024u)
+#define FM1_LEAN_POOL_BYTES (32u * 1024u)       /* the smoke test (make test) checks the high-water mark stays under half */
 #endif
 #ifndef FM1_LEAN_POOL_ATTR
 #ifdef FM1_CHIP

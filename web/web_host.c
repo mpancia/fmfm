@@ -169,6 +169,8 @@ static void platform_poll(void)                 /* one call = one millisecond */
 }
 
 __attribute__((export_name("web_run"))) void web_run(void) { app_main(); }
+size_t fm1_lean_pool_used(void);
+__attribute__((export_name("web_lean_pool_used"))) uint32_t web_lean_pool_used(void) { return (uint32_t)fm1_lean_pool_used(); }
 /* the Lean scale table, for tools/smoke_web.mjs: an uninitialised table reads as chromatic and nothing else notices */
 __attribute__((export_name("web_harmony_mask"))) uint32_t web_harmony_mask(uint32_t scale, uint32_t key, uint32_t root, uint32_t follow)
 {

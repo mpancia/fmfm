@@ -19,7 +19,7 @@ dinghy.c (hand-written C) ---------------------┘
 | Ordinary | `Firmware/Lane.lean` | structures, `Option`, `Nat` below 2^31, closures | the main loop only (it allocates) |
 
 ## What the runtime (`rt/lean_rt.c`) provides
-A fixed pool (64 KiB by default, `FM1_LEAN_POOL_BYTES`), size-class free lists, reference-counted freeing, arrays,
+A fixed pool (32 KiB by default, `FM1_LEAN_POOL_BYTES`), size-class free lists, reference-counted freeing, arrays,
 byte arrays (`ByteArray`, which the patch slots use),
 panic reporting. It does **not** provide big numbers (any `Nat`/`Int` of 2^31 or more stops the firmware with
 "number too big"; a `UInt32` of 2^31 or more converted with `toNat` does this), threads, tasks, IO, or
@@ -53,4 +53,5 @@ link would fail loudly if firmware code needed anything from them.
 - Tested: `make test` runs the web build in node (sound, PLAY, screen) and the chip link builds. The lane code is
   proved in `Proofs/Lane.lean`.
 - Not tested: the chip build on a real FM-1. Not measured: time and RAM cost of Lean calls on the chip, or whether
-  the 64 KiB pool is enough for four lanes (the simulator reports no pool trouble).
+  the 32 KiB pool is enough for four lanes: the smoke test drives every page, patch load and save and every shape,
+  and its high-water mark is about 11 KiB; `make test` fails if it passes 16 KiB.

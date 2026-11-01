@@ -98,7 +98,7 @@ Measured with `tools/render_web.mjs` (the simulator's output as a WAV, with its 
 
 - Not heard: the numbers say the port follows Clouds and that nothing clips, not that it sounds good.
 - Not measured on the chip: about 720 chip instructions a sample (`docs/BUDGET.md`), the price of two INIT
-  patches' voices. The memory is 64 KiB of the pool (the pool use is 267 KiB of 344 KiB).
+  patches' voices. The memory is 64 KiB of the pool (the pool use is 300 KiB of 344 KiB).
 - No delay, no chorus, no other Clouds parts (granular, pitch shifter, diffuser). The diffuser inside the reverb is
   part of it.
 
@@ -130,4 +130,4 @@ round-trip proofs cover the four new bytes.
 Tested: `make test` plays with the delay at full feedback and return, stops, and checks that the echoes ring on and
 die away. Rendered with `tools/render_web.mjs` at 64 bpm and a dotted eighth, the peaks after a stop come every
 0.7 s, as they should (703 ms). Not heard. Cost: about 85 host instructions a sample (`make perf`), a seventh of the reverb. Memory:
-64 KiB of the pool, which is now 333 KiB of 344 KiB.
+64 KiB of the pool, which is 300 KiB of 344 KiB with the Lean heap at 32 KiB.
