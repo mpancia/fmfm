@@ -57,12 +57,12 @@ structure Patch where
 
 /-- The lane settings the knobs can produce: 1 to 32 steps with no more hits than steps, 8 speeds, 14 scales,
 199 sounds, lowest note 12 to 96, range 1 to 36, 11 algorithms, percentages at most 100, amount 1 to 16, chord
-follow 0 to 2, a 16-bit seed, and a rhythm source in range: 4 kinds, a rotation below the steps, no more
+follow 0 to 3, a 16-bit seed, and a rhythm source in range: 4 kinds, a rotation below the steps, no more
 accents than hits, a rule byte, a ratchet of 1 to 4 with 1 to `ratchet` sub-hits, and a pan of 0 to 100. -/
 def PatchLane.Fits (l : PatchLane) : Prop :=
   l.hits ≤ l.steps ∧ 1 ≤ l.steps ∧ l.steps ≤ 32 ∧ l.speed < 8 ∧ l.scale < 14 ∧ l.sound < 199 ∧
   12 ≤ l.low ∧ l.low ≤ 96 ∧ 1 ≤ l.span ∧ l.span ≤ 36 ∧ l.algo < 11 ∧ l.chance ≤ 100 ∧
-  1 ≤ l.amount ∧ l.amount ≤ 16 ∧ l.mutate ≤ 100 ∧ l.chord ≤ 2 ∧ l.level ≤ 100 ∧ l.send ≤ 100 ∧
+  1 ≤ l.amount ∧ l.amount ≤ 16 ∧ l.mutate ≤ 100 ∧ l.chord ≤ 3 ∧ l.level ≤ 100 ∧ l.send ≤ 100 ∧
   l.seed < 65536 ∧ l.feel < 4 ∧ l.rotate < l.steps ∧ l.accents ≤ l.hits ∧ l.rule < 256 ∧
   1 ≤ l.ratchet ∧ l.ratchet ≤ 4 ∧ 1 ≤ l.subHits ∧ l.subHits ≤ l.ratchet ∧ l.pan ≤ 100
 

@@ -34,11 +34,16 @@ def Harmony.seventh (mask root : Nat) : Nat := Harmony.stack mask root 4
 /-- The mask a lane plays in: scale number `scale`, in `key`, and with chord follow the chord on `chordRoot`
 semitones above the key, built from the key's own scale so its notes are always notes of the key: `follow` 1
 (7TH) is the seventh chord, the first, third, fifth and seventh note of the key's scale from the chord root;
-`follow` 2 (TRIAD) is the first, third and fifth. -/
+`follow` 2 (TRIAD) is the first, third and fifth. `follow` 3 (COMPL) is the complement: the notes outside the
+key's scale (the black keys to its white), which `harmony_complement_interval_content` shows carry the same
+intervals as the scale, each class `12 - 2 * size` times fewer; a chromatic scale has no complement and keeps
+every note. -/
 def Harmony.laneMask (scale key chordRoot follow : Nat) : Nat :=
   let inKey := Harmony.rotate (Harmony.scale scale) (key % 12)
   let root := (key + chordRoot) % 12
-  if follow = 2 then Harmony.triad inKey root else if follow = 1 then Harmony.seventh inKey root else inKey
+  if follow = 3 then (if inKey = 0xFFF then inKey else 0xFFF ^^^ inKey)
+  else if follow = 2 then Harmony.triad inKey root
+  else if follow = 1 then Harmony.seventh inKey root else inKey
 
 /-- The chord progressions on GLO > HARMONY, as scale degrees (0 is the key's root, 4 the fifth note of the
 scale), four chords each, chord `s`: 0 is no progression, then 1-4-5-1, 1-5-6-4, 6-4-1-5, 2-5-1-1, 1-6-3-7,
@@ -71,4 +76,4 @@ def harmonyChordRoot (scale progression step : UInt32) : UInt32 :=
 /-- C entry: the mask for a lane (see `Harmony.laneMask`). -/
 @[export fm1_harmony_mask]
 def harmonyMask (scale key chordRoot follow : UInt32) : UInt32 :=
-  (Harmony.laneMask (scale % 14).toNat (key % 12).toNat (chordRoot % 12).toNat (follow % 3).toNat).toUInt32
+  (Harmony.laneMask (scale % 14).toNat (key % 12).toNat (chordRoot % 12).toNat (follow % 4).toNat).toUInt32

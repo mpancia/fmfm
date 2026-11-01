@@ -263,17 +263,29 @@ theorem filters_setup_cutoff_in_range (pitch parameter : Int32) :
 theorem harmony_mask_never_empty (scale key root follow : UInt32) :
     (harmonyMask scale key root follow).toNat ≠ 0 ∧ (harmonyMask scale key root follow).toNat < 4096 := sorry
 
-theorem harmony_follow_in_key (scale key root follow : UInt32) :
+theorem harmony_follow_in_key (scale key root follow : UInt32) (chordal : follow.toNat % 4 < 3) :
     (harmonyMask scale key root follow).toNat &&& (harmonyMask scale key 0 0).toNat =
       (harmonyMask scale key root follow).toNat := sorry
 
-theorem harmony_progression_chord_has_root (scale key progression step follow : UInt32) :
+theorem harmony_progression_chord_has_root (scale key progression step follow : UInt32)
+    (chordal : follow.toNat % 4 < 3) :
     (harmonyMask scale key (harmonyChordRoot scale progression step) follow).toNat.testBit
       ((key.toNat % 12 + (harmonyChordRoot scale progression step).toNat) % 12) = true := sorry
 
 theorem harmony_chord_root_in_key (scale progression step : UInt32) :
     (Harmony.scale (scale.toNat % 14)).testBit (harmonyChordRoot scale progression step).toNat = true ∧
       (harmonyChordRoot scale progression step).toNat < 12 := sorry
+
+theorem harmony_complement_interval_content (n d : Nat) (positive : 0 < n) (S : Nat → Bool) :
+    Harmony.pairs n d (fun k => !S k) + 2 * Harmony.count n S = Harmony.pairs n d S + n := sorry
+
+theorem harmony_hexachord_theorem (mask : Nat) (small : mask < 4096) (six : Harmony.size mask = 6) :
+    Harmony.intervalVector mask = Harmony.intervalVector (0xFFF ^^^ mask) := sorry
+
+theorem harmony_complement_outside_key (scale key root follow : UInt32) (compl : follow.toNat % 4 = 3) :
+    let inKey := (harmonyMask scale key 0 0).toNat
+    let outside := (harmonyMask scale key root follow).toNat
+    (inKey = 0xFFF ∧ outside = 0xFFF) ∨ (outside &&& inKey = 0 ∧ outside ||| inKey = 0xFFF) := sorry
 
 -- Proofs/Lane.lean
 theorem lane_make_valid (hits steps div mask low span : Nat) (seed : UInt32) :

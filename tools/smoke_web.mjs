@@ -57,8 +57,10 @@ at(6000, press(BTN.PLAY));
 at(6200, press(BTN.SEQ)); at(6250, press(BTN.SEQ)); at(6300, turn(ENC.K1, -6));
 for (let i = 0; i < 6; i++) at(6500 + i * 1000, i === 0 ? () => {} : turn(ENC.K1, 1));
 for (let i = 0; i < 6; i++) at(6600 + i * 1000, turn(ENC.K2, 3));                // a longer loop or bigger walk each time
+// lane 1 on COMPL (SEQ: the RANGE page; knob 3 is the chord follow) for two seconds, then back to OFF
+at(12000, press(BTN.SEQ)); at(12050, turn(ENC.K3, 3)); at(12100, shot('compl')); at(14000, turn(ENC.K3, -3));
 // a chord progression and a key change (GLO: HARMONY; knob 1 key, 3 chords)
-at(12500, press(BTN.GLO)); at(12600, turn(ENC.K3, 2)); at(12700, turn(ENC.K1, 3));
+at(14100, press(BTN.GLO)); at(14200, turn(ENC.K3, 2)); at(14300, turn(ENC.K1, 3));
 at(17000, turn(ENC.K3, 2));
 // the FX, LFO and ENV buttons open their pages; an LFO on lane 1's chance keeps the music going
 at(19000, press(BTN.FX)); at(19100, shot('fx'));
@@ -126,6 +128,9 @@ const bits = (m) => m.toString(2).split('1').length - 1;
 ok('the scales are real: minor in C is 0x5AD, major in D is major turned up two semitones, a triad has three notes',
    scaleMask(1, 0, 0, 0) === 0x5AD && scaleMask(0, 2, 0, 0) === (((0xAB5 << 2) | (0xAB5 >> 10)) & 0xFFF) &&
    bits(scaleMask(0, 0, 0, 2)) === 3);
+ok('COMPL is the notes outside the key: C major gives the black keys, the chromatic scale stays whole',
+   scaleMask(0, 0, 0, 3) === (0xFFF ^ 0xAB5) && scaleMask(7, 0, 0, 3) === 0xFFF);
+ok('the RANGE page shows COMPL', changed(shots.compl, shots['home 2']) > 500);
 ok('no Lean runtime reports', reports.length === 0);
 // the proofs, watched (fw/firmware/src/watch.h): the theorems' statements checked on the running machine
 const watched = [];

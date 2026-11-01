@@ -15,3 +15,21 @@ import Firmware.Harmony
 -- a chord root is always a note of the scale
 #guard (List.range 14).all fun sc => (List.range 8).all fun p => (List.range 4).all fun s =>
   (Harmony.scale sc).testBit (Harmony.chordRoot sc p s)
+
+/-- How many pitch classes a 12-bit mask holds. -/
+def Harmony.size (mask : Nat) : Nat := ((List.range 12).filter (fun k => mask.testBit k)).length
+
+/-- The interval vector of a pitch-class set: for each interval class 1 to 6, the number of pairs of its notes
+that interval apart (a tritone pair counted once). -/
+def Harmony.intervalVector (mask : Nat) : List Nat :=
+  (List.range 6).map fun d =>
+    ((List.range (if d = 5 then 6 else 12)).filter
+      (fun k => mask.testBit k && mask.testBit ((k + d + 1) % 12))).length
+
+/-- The general setting, any cycle `Z_n` and any set `S` of its points: the size of `S`. -/
+def Harmony.count (n : Nat) (S : Nat → Bool) : Nat := ((List.range n).filter S).length
+
+/-- The number of points `k` of `S` whose `d`-th neighbour `k + d` is in `S` too (an ordered count: a pair at
+distance `d` and `n - d` is seen twice). -/
+def Harmony.pairs (n d : Nat) (S : Nat → Bool) : Nat :=
+  ((List.range n).filter (fun k => S k && S ((k + d) % n))).length

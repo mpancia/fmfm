@@ -183,7 +183,7 @@ static const char *const FEEL_NAME[] = {"EUCLID", "ROTATE", "AUTOMAT", "RATCHET"
 #define NFEEL (sizeof FEEL_NAME / sizeof FEEL_NAME[0])
 static const char *const FEEL_LABEL[NFEEL][3] = {{"", "", ""}, {"ROTATE", "ACCENTS", ""}, {"RULE", "", ""}, {"RATCHET", "SUBHITS", ""}};
 #define NALGO (sizeof ALGO_NAME / sizeof ALGO_NAME[0])
-static const char *const CHORD_NAME[] = {"OFF", "7TH", "TRIAD"};
+static const char *const CHORD_NAME[] = {"OFF", "7TH", "TRIAD", "COMPL"};
 static const char *const KEY_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 /* chord progressions as scale degrees, one chord a step: Harmony.degree in Firmware/Harmony.lean; 0 is no progression */
 static const char *const PROGRESSION_NAME[] = {"OFF", "1-4-5-1", "1-5-6-4", "6-4-1-5", "2-5-1-1", "1-6-3-7", "1-3-4-5",
@@ -235,13 +235,13 @@ static uint32_t chord_root(uint32_t scale) { return progression ? fm1_harmony_ch
 static uint32_t lane_mask(uint32_t i)           /* the scale, turned to the key and the current chord: Firmware/Harmony.lean */
 {
     uint32_t scale = lane_scale(i);
-    uint32_t follow = progression ? cfg[i].chord : 0u;
+    uint32_t follow = cfg[i].chord == 3u ? 3u : progression ? cfg[i].chord : 0u;   /* COMPL needs no progression */
     uint32_t mask = fm1_harmony_mask(scale, key, chord_root(scale), follow);
 #ifdef WATCHED
     {
         uint32_t root = chord_root(scale), in_key = fm1_harmony_mask(scale, key, 0, 0);
         WATCH(W_MASK_NONEMPTY, mask != 0 && mask < 4096u);
-        WATCH(W_FOLLOW_IN_KEY, (mask & in_key) == mask);
+        WATCH(W_FOLLOW_IN_KEY, follow == 3u ? (mask & in_key) == 0 || in_key == 0xFFFu : (mask & in_key) == mask);
         WATCH(W_CHORD_ROOT, root < 12u && ((fm1_harmony_mask(scale, 0, 0, 0) >> root) & 1u));
     }
 #endif
@@ -706,7 +706,7 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
     case P_RANGE:
         if (k == 0) { p = put_str(p, scale_lock ? "LOCKED" : SCALE_NAME[cfg[selected].scale]); CHOICE(cfg[selected].scale, NSCALE); }
         if (k == 1) { p = put_note(p, cfg[selected].low); *fill = frac(cfg[selected].low - 12, 84); }
-        if (k == 2) { p = put_str(p, CHORD_NAME[cfg[selected].chord]); CHOICE(cfg[selected].chord, 3); }
+        if (k == 2) { p = put_str(p, CHORD_NAME[cfg[selected].chord]); CHOICE(cfg[selected].chord, 4); }
         break;
     case P_SOUND:
         if (k == 0) { p = put_str(p, braids_shape_name(snd->shape)); *fill = frac(snd->shape, BRAIDS_SHAPES - 1u); }
@@ -828,7 +828,7 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
     case P_RANGE:
         if (k == 0) cfg[selected].scale = (uint8_t)clamp(cfg[selected].scale + d, 0, (int32_t)NSCALE - 1);
         if (k == 1) { cfg[selected].low = (uint8_t)clamp(cfg[selected].low + d, 12, 96); lane_remake(selected); return; }
-        if (k == 2) cfg[selected].chord = (uint8_t)clamp(cfg[selected].chord + d, 0, 2);
+        if (k == 2) cfg[selected].chord = (uint8_t)clamp(cfg[selected].chord + d, 0, 3);
         lane_apply(selected);
         break;
     case P_SOUND:

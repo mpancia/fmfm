@@ -397,6 +397,30 @@ chord, the root the lanes move to (and the screen names) is a semitone step that
 Why it matters: progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor one; this
 is the promise that a chord never lands on a note outside the key.
 
+**`harmony_complement_interval_content`**: Babbitt's hexachord theorem in its general form, any cycle `Z_n` and any set:
+the pairs at distance `d` in the complement are the pairs at that distance in the set, plus `n - 2 * size` (an ordered
+count, each unordered pair seen from both ends). With `size = n / 2`, a hexachord in `Z_12`, the two are equal: a
+six-note set and the six notes it leaves out have the same interval content.
+
+Why it matters: it is why COMPL sounds like the scale it was cut from: the black keys have the white keys' intervals,
+two fewer of each, and the whole-tone scale's complement has exactly its own. The theorem is the reason Babbitt could
+build twelve-tone rows from a hexachord and its complement and have both halves sound alike; here it is proved for every
+`n` and every set, by counting, with the twelve-note instance checked note by note as `harmony_hexachord_theorem`.
+
+**`harmony_hexachord_theorem`**: Babbitt's hexachord theorem on the firmware's own masks: every six-note set of the
+twelve pitch classes has the interval vector of the six it leaves out, checked for all 4096 masks.
+
+Why it matters: the instance the name comes from, on the 12-bit masks the lanes play from: a hexachord and its
+complement are indistinguishable by interval content, which is the general theorem above at `n = 12`, `size = 6`, where
+the difference `n - 2 * size` is zero.
+
+**`harmony_complement_outside_key`**: COMPL (chord follow 3) plays the notes outside the key's scale and nothing else,
+for every scale and key, whatever chord is on; the chromatic scale, which leaves nothing out, plays whole.
+
+Why it matters: COMPL is a second voice that never collides with a lane in the key, the black keys to its white; with
+`harmony_complement_interval_content` it has the key's intervals, so it belongs to the same music while sharing no note
+with it.
+
 ## Lane
 
 **`lane_make_valid`**: Whatever settings are asked for, `make` gives a consistent lane.

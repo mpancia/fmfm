@@ -44,7 +44,9 @@ LOOP (a memory of AMOUNT notes that replays, with MUTATE percent chance of repla
 Chord progressions (GLO > HARMONY, written as scale degrees so 1-4-5-1 is I IV V in a major key and i iv v in a
 minor one) change the chord every bar or more; a lane follows them in SEQ > RANGE: 7TH keeps the chord's seventh (the first, third, fifth and seventh note of the key's scale from the chord root),
 TRIAD its triad; both are built from the key's scale, so a lane following chords never leaves the key
-(`harmony_follow_in_key`).
+(`harmony_follow_in_key`). COMPL plays the notes outside the key's scale instead (the black keys to its white),
+which have the scale's own interval content, each interval the same number of times fewer
+(`harmony_complement_interval_content`, Babbitt's hexachord theorem in general form).
 
 Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
 snaps it to the scale. That logic is Lean, and so are the sound engines, the effects and the patch format; the
@@ -59,10 +61,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-230 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+233 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 69 theorems</summary>
+<details><summary><b>The sequencer</b>: 72 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -127,6 +129,9 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `harmony_follow_in_key` | With chord follow, 7TH or TRIAD, every note a lane may play is a note of the key's scale, whatever chord it is on: the chord is stacked from the key's scale at the chord root, not a shape moved to the root. | a chord progression played with chord follow stays in the key. |
 | `harmony_progression_chord_has_root` | With chord follow on a chord of a progression, the chord's root is among the lane's notes, in every scale and key (and without follow it is too, being a note of the key). | joined with `harmony_chord_root_in_key`, a progression's chord is a chord of the key with its root present; a lane following it can play the root, not only upper notes of some other chord. |
 | `harmony_chord_root_in_key` | Every chord root is a note of the key's scale: whatever the progression, scale and chord, the root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave. | progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor one; this is the promise that a chord never lands on a note outside the key. |
+| `harmony_complement_interval_content` | Babbitt's hexachord theorem in its general form, any cycle `Z_n` and any set: the pairs at distance `d` in the complement are the pairs at that distance in the set, plus `n - 2 * size` (an ordered count, each unordered pair seen from both ends). | it is why COMPL sounds like the scale it was cut from: the black keys have the white keys' intervals, two fewer of each, and the whole-tone scale's complement has exactly its own. |
+| `harmony_hexachord_theorem` | Babbitt's hexachord theorem on the firmware's own masks: every six-note set of the twelve pitch classes has the interval vector of the six it leaves out, checked for all 4096 masks. | the instance the name comes from, on the 12-bit masks the lanes play from: a hexachord and its complement are indistinguishable by interval content, which is the general theorem above at `n = 12`, `size = 6`, where the difference `n - 2 * size` is zero. |
+| `harmony_complement_outside_key` | COMPL (chord follow 3) plays the notes outside the key's scale and nothing else, for every scale and key, whatever chord is on; the chromatic scale, which leaves nothing out, plays whole. | COMPL is a second voice that never collides with a lane in the key, the black keys to its white; with `harmony_complement_interval_content` it has the key's intervals, so it belongs to the same music while sharing no note with it. |
 | `arp_note_is_held` | Every note the arpeggiator starts is a note you are holding, raised by fewer than `octaves` octaves. | the arpeggiator can only play what you play; it never adds a note of its own, whichever mode and however it is set. |
 | `arp_make_valid` | A fresh arpeggiator is consistent, for any step. | the arpeggiator starts in a state the rest of the firmware can rely on, whatever the knobs say. |
 | `arp_set_valid` | Changing the settings keeps a consistent arpeggiator consistent, whatever numbers are given. | turning the ARP knobs mid-phrase cannot leave a timer or counter out of range. |
