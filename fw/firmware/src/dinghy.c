@@ -642,17 +642,17 @@ static void demo_poll(void)
 /* ---- pages: four values on screen, four knobs under them */
 enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO, G_ARP, G_PUNCH };
 enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_PAN, P_REVERB, P_DELAY, P_HARMONY, P_SYSTEM,
-       P_MIDI, P_BANKS, P_LFO, P_ARP, P_PUNCH, NPAGES };
+       P_MIDI, P_BANKS, P_LFO, P_ARP, P_PUNCH, P_QUANT, NPAGES };
 #define NGROUPS 8u
 static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO", "ARP", "REC"};
 static const uint8_t GROUP_PAGE[NGROUPS][4] = {{P_HOME, 255, 255, 255}, {P_RHYTHM, P_FEEL, P_NOTES, P_RANGE},
                                                {P_SOUND, P_ENVELOPE, P_MIX, P_PAN}, {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS},
-                                               {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}, {P_ARP, 255, 255, 255},
-                                               {P_PUNCH, 255, 255, 255}};
+                                               {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}, {P_ARP, P_QUANT, 255, 255},
+                                               {P_PUNCH, 255, 255, 255}, {P_QUANT, 255, 255, 255}};
 static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_EDIT, G_FX, G_FX, G_GLO,
-                                           G_GLO, G_GLO, G_GLO, G_LFO, G_ARP, G_PUNCH};
+                                           G_GLO, G_GLO, G_GLO, G_LFO, G_ARP, G_PUNCH, G_ARP};
 static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "PAN", "REVERB",
-                                              "DELAY", "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS", "PUNCH"};
+                                              "DELAY", "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS", "PUNCH", "QUANT"};
 static const char *const PAGE_LABEL[NPAGES][4] = {
     {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"FEEL", "", "", ""}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
@@ -660,7 +660,9 @@ static const char *const PAGE_LABEL[NPAGES][4] = {
     {"TIME", "FEEDBK", "TONE", "RETURN"},
     {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", "SWING"},
     {"IN", "OUT", "CLOCK", ""}, {"PATCH", "SLOT", "DEMO", "AUTO"}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"},
-    {"STUTTER", "GATE", "CRUSH", "SHIFT"}};
+    {"STUTTER", "GATE", "CRUSH", "SHIFT"}, {"QUANT", "", "", ""}};
+static const char *const QUANT_NAME[3] = {"OFF", "SCALE", "CHORD"};   /* Firmware/Keys.lean: the white keys as degrees */
+static uint32_t quant;
 static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO, P_ARP, P_PUNCH};
 /* the PUNCH page's keys, in the lower octave from F3, then the four mutes (Firmware/Punch.lean) */
 static const char *const PUNCH_NAME[16] = {"HALF", "DOUBLE", "STUTTER", "ROLL", "OCT-", "OCT+", "SHIFT", "GATE",
@@ -829,6 +831,9 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         if (k == 1) { p = put_num(p, LFO_BARS[lfo[selected].rate]); p = put_str(p, " BAR"); *fill = frac(lfo[selected].rate, 4); }
         if (k == 2) { p = put_num(p, lfo[selected].depth); *p++ = '%'; *fill = frac(lfo[selected].depth, 100); }
         break;
+    case P_QUANT:
+        if (k == 0) { p = put_str(p, QUANT_NAME[quant % 3u]); CHOICE(quant, 3); }
+        break;
     case P_PUNCH:
         if (k == 0) { p = put_str(p, PUNCH_RATE[punch.stutter % 3u]); CHOICE(punch.stutter, 3); }
         if (k == 1) { p = put_str(p, PUNCH_RATE[punch.gate % 2u]); CHOICE(punch.gate, 2); }
@@ -955,6 +960,9 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
         if (k == 0) lfo[selected].target = (uint8_t)clamp(lfo[selected].target + d, 0, (int32_t)NLFO_TARGET - 1);
         if (k == 1) lfo[selected].rate = (uint8_t)clamp(lfo[selected].rate + d, 0, 4);
         if (k == 2) lfo[selected].depth = (uint8_t)clamp(lfo[selected].depth + 5 * d, 0, 100);
+        break;
+    case P_QUANT:
+        if (k == 0) quant = (uint32_t)clamp((int32_t)quant + d, 0, 2);
         break;
     case P_PUNCH:
         if (k == 0) punch.stutter = (uint8_t)clamp(punch.stutter + d, 0, 2);
@@ -1373,7 +1381,7 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
                     arp_cfg.mode | arp_cfg.rate << 8 | arp_cfg.octaves << 16 | arp_cfg.gate << 24, arp_cfg.latch,
                     browse_family, browse_by, browse_type, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
                     reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount, demo_auto, set.swing, set.clock, ext_bpm,
-                    punch_keys, punch.stutter | punch.gate << 8 | punch.crush << 16 | punch.shift << 24};
+                    punch_keys, punch.stutter | punch.gate << 8 | punch.crush << 16 | punch.shift << 24, quant};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
     for (i = 0; i < NL; i++) h = (h ^ (lfo[i].target | lfo[i].rate << 8 | lfo[i].depth << 16)) * 16777619u;
     for (i = 0; i < sizeof g / sizeof g[0]; i++) h = (h ^ g[i]) * 16777619u;
@@ -1514,7 +1522,8 @@ static void app_main(void)
                 continue;
             }
             if (down >> k & 1u) {
-                held[k] = (uint8_t)fm1_punch_note(punch_keys, punch.shift, base + k);
+                uint32_t mask = quant == 2u ? lane_mask(selected) : fm1_harmony_mask(lane_scale(selected), key, 0, 0, 0);
+                held[k] = (uint8_t)fm1_punch_note(punch_keys, punch.shift, fm1_keys_quantize(quant, mask, key, base + k));
                 if (arp_cfg.mode) {             /* the arpeggiator plays it; a latched set lets go when the next phrase starts */
                     if (arp_cfg.latch && !arp_cfg.physical) arp = fm1_arp_clear(arp);
                     arp_cfg.physical |= 1u << k;
@@ -1542,10 +1551,11 @@ static void app_main(void)
         if (b & (1u << BTN_FX)) goto_group(G_FX);
         if (b & (1u << BTN_LFO)) goto_group(G_LFO);
         if (b & (1u << BTN_ARP)) {
-            if (page == P_ARP) {                /* ARP again on its page: latch on or off (off lets the notes go) */
+            if (page == P_ARP && arp_cfg.mode && (arp_cfg.physical || arp_cfg.latch)) {   /* ARP again on its page with notes
+                                                 * held or latched: latch on or off (off lets the notes go) */
                 arp_cfg.latch ^= 1u;
                 if (!arp_cfg.latch && !arp_cfg.physical) arp = fm1_arp_clear(arp);
-            } else goto_group(G_ARP);
+            } else goto_group(G_ARP);           /* else the group's pages: ARP, then KEYS (QUANT) */
         }
         if (b & (1u << BTN_ENV)) { page = P_ENVELOPE; group_page[G_EDIT] = page; browse_mode = 0; }
         if (b & (1u << BTN_SEL)) cfg[selected].muted ^= 1u;

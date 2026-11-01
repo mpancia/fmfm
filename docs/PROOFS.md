@@ -628,6 +628,28 @@ Why it matters: the instance the name comes from, on the 12-bit masks the lanes 
 complement are indistinguishable by interval content, which is the general theorem above at `n = 12`, `size = 6`, where
 the difference `n - 2 * size` is zero.
 
+## Keys
+
+**`keys_off_is_itself`**: QUANT off plays the key as it is (held to the MIDI range).
+
+Why it matters: the setting's OFF is exactly the keyboard you had.
+
+**`keys_in_range`**: A quantized note is a MIDI note, whatever the mode, mask, key and note.
+
+Why it matters: a degree high in the scale from the top of the keyboard is held at 127, not wrapped.
+
+**`keys_in_scale`**: With QUANT on and a non-empty mask, every quantized note below the top is a note of the mask: the
+pitch class of what plays is in the scale or the chord.
+
+Why it matters: SCALE and CHORD keep you in: whatever key you press, the note that sounds is in the lane's scale (or on
+the chord of the moment); the keyboard cannot play a wrong note.
+
+**`keys_keep_order`**: Within an octave the keyboard stays in order: a higher key never plays a lower note, in any mode.
+
+Why it matters: a run up the white keys is a run up the scale; quantizing cannot turn a rising line into a falling one.
+(Across an octave it can, by design, for a scale of fewer than seven notes: the white keys past its last degree go round
+into the next octave.)
+
 ## Lane
 
 **`lane_make_valid`**: Whatever settings are asked for, `make` gives a consistent lane.

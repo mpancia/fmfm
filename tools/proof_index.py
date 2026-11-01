@@ -17,7 +17,7 @@ GROUPS = [
      "The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift "
      "apart, rhythms have exactly the hits asked for, and every note is in the scale and the range.",
      ["Lane", "Run", "Rhythm", "Swing", "Divider", "Euclid", "Notes", "Quantizer", "Random", "Harmony", "Tonnetz", "Arp", "Machine",
-      "Lfo", "Punch"]),
+      "Lfo", "Punch", "Keys"]),
     ("The voices",
      "Braids' engines, ported to Lean sample for sample, and the FM voice written in Lean from the first line "
      "(a polynomial sine with no table, bounded and continuous by a check over every input). Every table read stays "

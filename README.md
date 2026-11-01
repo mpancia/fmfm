@@ -32,7 +32,7 @@ same button again moves to the group's next page. The four knobs set the four va
 | SEL | mute the chosen lane |
 | REC | the PUNCH page: while it is up the keys are momentary effects on the whole performance, as the OP-XY's punch-in FX (`Firmware/Punch.lean`). The lower octave: HALF and DOUBLE time, STUTTER and ROLL (every sounding note struck again each period), OCT- and OCT+, SHIFT (a transposition), GATE (the mix chopped), CRUSH (the mix held every nth sample), WASH (reverb full up), THROW (delay full up), BREAK (every lane muted); the next four keys mute lanes 1 to 4; the four after roll a new variation of lanes 1 to 4. The knobs set the STUTTER and GATE rates, the CRUSH hold and the SHIFT semitones. A key let go is the effect gone, exactly: there is no effect state, only the keys (`punch_nothing_held_changes_nothing`). REC or any page button leaves |
 | SAVE | keep the patch in the slot chosen on GLO > BANKS |
-| ARP | the arpeggiator page: the keys you hold play one at a time in step with the clock, on the chosen lane's sound (MODE up, down, up-down, random, as played, or off; RATE; OCTAVES; GATE). ARP again on that page latches the notes so you can let go; PLAY stopping lets them go too |
+| ARP | the arpeggiator page: the keys you hold play one at a time in step with the clock, on the chosen lane's sound (MODE up, down, up-down, random, as played, or off; RATE; OCTAVES; GATE). ARP again while holding notes latches them so you can let go; PLAY stopping lets them go too. ARP again with nothing held is the QUANT page: the keys quantized (`Firmware/Keys.lean`): OFF, SCALE (the white keys are the degrees of the chosen lane's scale in the key, C to B degrees 1 to 7, a black key as the white below it) or CHORD (the same over the lane's chord-follow mask, so with a progression the white keys are the chord tones of the moment); proved in range, in the scale, and in order within an octave (`keys_keep_order`) |
 | keys, OCT- OCT+ | play the chosen lane's sound by hand |
 
 The FX button opens the sends: REVERB (Clouds' reverb, ported to Lean: SEND of the chosen lane, DECAY, BRIGHT,
@@ -71,10 +71,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-276 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+280 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 89 theorems</summary>
+<details><summary><b>The sequencer</b>: 93 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -170,6 +170,10 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `punch_gate_glides` | The gate's gain stays between nothing and full gain and moves toward its target by at most 512 a sample, landing on it exactly. | a chop is a 1.5 ms slope, not a step, so GATE never clicks; and the gain can never pass full scale or go negative, so the mix through it is never louder than the mix. |
 | `punch_crush_repeats` | A crushed sample is one of the two samples offered: the fresh one or the held one. | CRUSH adds no energy and nothing new: at its worst the mix is the mix a few samples ago, so it stays inside every bound the mix had. |
 | `punch_restrikes_on_the_beat` | A re-strike period divides the quarter note (24 ticks), so the re-strikes land on the beat's divisions. | STUTTER and ROLL are in time: every period is an eighth, a sixteenth or a thirty-second, and they always come back to the beat. |
+| `keys_off_is_itself` | QUANT off plays the key as it is (held to the MIDI range). | the setting's OFF is exactly the keyboard you had. |
+| `keys_in_range` | A quantized note is a MIDI note, whatever the mode, mask, key and note. | a degree high in the scale from the top of the keyboard is held at 127, not wrapped. |
+| `keys_in_scale` | With QUANT on and a non-empty mask, every quantized note below the top is a note of the mask: the pitch class of what plays is in the scale or the chord. | SCALE and CHORD keep you in: whatever key you press, the note that sounds is in the lane's scale (or on the chord of the moment); the keyboard cannot play a wrong note. |
+| `keys_keep_order` | Within an octave the keyboard stays in order: a higher key never plays a lower note, in any mode. | a run up the white keys is a run up the scale; quantizing cannot turn a rising line into a falling one. |
 
 </details>
 
@@ -431,6 +435,7 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 | `make install` | elan + Lean, `.venv`, JieLi toolchain (SHA-256 pinned, into `vendor/`), `lake build` |
 | `make run` | build the web simulator and serve it at http://localhost:8000/ (Power on, then play) |
 | `make web` | build only: `build/web/` |
+| `make pitch` | the five-minute pitch deck, `build/pitch/index.html` (the run-sheet is `docs/PITCH.md`) |
 | `make test` | headless test of the web build in node (boot, sound, screen, LEDs, the watched theorems) |
 | `make test-exports` | the compiler, checked: every scalar Lean export run as compiled C and the kernel asked for the same values |
 | `make fw` | build `fw/build/dinghy.fwsc` with the Lean code linked in (does not flash) |
@@ -463,16 +468,17 @@ all accept. They do not cover:
 - `voices/`: Braids (C++, tables regenerated for 44.1 kHz) and our wrapper. Every engine's sample arithmetic is
   Lean (`Firmware/Analog.lean` to `Macro.lean`), checked sample for sample against the original by `make test-lean`;
   the per-block setup, the delay lines and the glue loops are C and unproved (`docs/LEAN-ENGINES.md`). `make audit`
-  checks levels; nobody has listened to it on hardware.
-- `fx/delay_glue.c`: the two delay lines and their loop (the arithmetic is Lean, `Firmware/Delay.lean`); not heard.
+  checks levels.
+- `fx/delay_glue.c`: the two delay lines and their loop (the arithmetic is Lean, `Firmware/Delay.lean`).
 - `fx/reverb_glue.c`: the reverb's delay memory and the C that moves samples between it and the Lean steps. The
   arithmetic and the order of the steps are Lean (`Reverb.diffuse`, `Reverb.loop` in `Firmware/Reverb.lean`);
   `make test-lean` checks over 20000 samples that the C follows that order, and checks the whole against Clouds'
-  original; not heard (`docs/FX.md`).
+  original (`docs/FX.md`).
 - `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
   Its mix loop (level glide, voice sample, reverb send and return) calls `Firmware/Mix.lean`, which
   `Proofs/Mix.lean` shows never wraps; the master gain and the clip in `fw/firmware/src/platform.c` stay C.
-- The hardware, and `web/web_host.c` for the simulator.
+- The hardware, and `web/web_host.c` for the simulator. The firmware runs on an FM-1 (installed over USB; the
+  lanes, keys, screen and sound as in the simulator); nothing about the chip is proved, only what the Lean computes.
 - Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.
 
 Two checks reach into that list from the proved side:

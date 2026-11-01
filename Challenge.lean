@@ -532,6 +532,20 @@ theorem harmony_complement_interval_content (n d : Nat) (positive : 0 < n) (S : 
 theorem harmony_hexachord_theorem (mask : Nat) (small : mask < 4096) (six : Harmony.size mask = 6) :
     Harmony.intervalVector mask = Harmony.intervalVector (0xFFF ^^^ mask) := sorry
 
+-- Proofs/Keys.lean
+theorem keys_off_is_itself (mask key note : UInt32) (midi : note ≤ 127) :
+    Keys.quantize 0 mask key note = note := sorry
+
+theorem keys_in_range (mode mask key note : UInt32) : Keys.quantize mode mask key note ≤ 127 := sorry
+
+theorem keys_in_scale (mode mask key note : UInt32) (on : mode ≠ 0) (some : (mask % 4096).toNat ≠ 0)
+    (below : (Keys.quantize mode mask key note).toNat < 127) :
+    (mask % 4096).toNat.testBit ((Keys.quantize mode mask key note).toNat % 12) = true := sorry
+
+theorem keys_keep_order (mode mask key a b : UInt32) (order : a ≤ b) (midi : b ≤ 127)
+    (sameOctave : a / 12 = b / 12) :
+    Keys.quantize mode mask key a ≤ Keys.quantize mode mask key b := sorry
+
 -- Proofs/Lane.lean
 theorem lane_make_valid (hits steps div mask low span : Nat) (seed : UInt32) :
     Lane.Valid (Lane.make hits steps div mask low span seed) := sorry

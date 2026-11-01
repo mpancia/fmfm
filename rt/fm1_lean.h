@@ -46,6 +46,10 @@ uint32_t fm1_lfo_modulate(uint32_t base, uint32_t depth, uint32_t phase);   /* b
 /* Firmware/Swing.lean: scalar, safe in any context */
 uint32_t fm1_swing_tick_length(uint32_t phase, uint32_t swing);          /* ten-thousandths of a straight tick; swing 0..100 */
 
+/* Firmware/Keys.lean: a played note quantized (ARP > KEYS, QUANT 0 off, 1 the scale, 2 the chord): the white keys as
+ * the degrees of the 12-bit mask above the key's root, in the note's octave, held to 0..127 */
+uint32_t fm1_keys_quantize(uint32_t mode, uint32_t mask, uint32_t key, uint32_t note);
+
 /* Firmware/Punch.lean: the punch-in effects as pure functions of the keys held (bit k = key k) and the settings:
  * nothing to undo when the keys go up. Scalar, safe in any context. */
 uint32_t fm1_punch_tempo(uint32_t keys);                                  /* the clock's speed in percent */
