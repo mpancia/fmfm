@@ -1029,21 +1029,25 @@ static void draw_columns(void)                  /* the page's four values: a met
 
 static void draw_status(void)                   /* the patch on the left, the chosen lane's sound on the right */
 {
-    char s[44], *p = s;
+    char s[44], r[44], *p = s;
     const sound_t *snd = &cfg[selected].sound;
+    uint32_t room = 228;                        /* what the patch name may use: up to the sound's text, less a gap */
     cv_begin(240, 22, TH.dim);
+    if (!(page == P_HOME && !running)) {        /* when stopped on HOME, Alfred stands on the right instead */
+        p = r;
+        *p++ = (char)('1' + selected); *p++ = ' ';
+        p = put_str(p, SOUNDS[cfg[selected].preset].name);
+        if (snd->timbre != SOUNDS[cfg[selected].preset].timbre || snd->color != SOUNDS[cfg[selected].preset].color ||
+            snd->shape != SOUNDS[cfg[selected].preset].shape) *p++ = '*';
+        *p = 0;
+        cv_text(234 - text_w(&FONT_S, r), 3, &FONT_S, r, LANE_COLOUR(selected));
+        room = 234u - (uint32_t)text_w(&FONT_S, r) - 10u - 6u;
+    }
     p = put_str(s, patch_index >= NPATCHES ? "U" : "P");
     p = put_num(p, patch_index >= NPATCHES ? patch_index - NPATCHES + 1u : patch_index + 1u);
     *p++ = ' '; p = put_str(p, patch_name); *p = 0;
+    while (p > s + 4 && (uint32_t)text_w(&FONT_S, s) > room) *--p = 0;   /* a long name is cut, never run into the sound */
     cv_text(6, 3, &FONT_S, s, TH.hi);
-    if (page == P_HOME && !running) { cv_blit(0, 218); return; }   /* Alfred stands there */
-    p = s;
-    *p++ = (char)('1' + selected); *p++ = ' ';
-    p = put_str(p, SOUNDS[cfg[selected].preset].name);
-    if (snd->timbre != SOUNDS[cfg[selected].preset].timbre || snd->color != SOUNDS[cfg[selected].preset].color ||
-        snd->shape != SOUNDS[cfg[selected].preset].shape) *p++ = '*';
-    *p = 0;
-    cv_text(234 - text_w(&FONT_S, s), 3, &FONT_S, s, LANE_COLOUR(selected));
     cv_blit(0, 218);
 }
 
