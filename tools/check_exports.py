@@ -8,7 +8,9 @@ list; this is the evidence that, on this code, their output agrees with what was
 
 Writes build/export_check/check.c and tests/ExportCheck.lean (generated, not committed), and runs both. Exit 1
 on any disagreement or a function that could not be run. Functions with object arguments (lanes, patches) are
-not covered; the differential tests and the simulator cover those paths."""
+not covered; the differential tests and the simulator cover those paths. Functions that read a Braids table
+(`@[extern] opaque` in Lean, so the kernel cannot evaluate them at all) are left out too: their compiled code is
+what `make test-lean` runs sample for sample against Braids' original C++."""
 import os
 import re
 import subprocess
@@ -145,8 +147,8 @@ def main():
     bad = [l for l in result.stdout.splitlines() if "error" in l]
     for l in bad[:10]:
         print(l)
-    print(f"export check: {len(funcs)} scalar exports ({len(skipped)} table readers left out), {count} values from the "
-          f"compiled C, {len(bad)} the kernel disagrees with")
+    print(f"export check: {len(funcs)} scalar exports ({len(skipped)} table readers left out: opaque to the kernel, "
+          f"covered by make test-lean), {count} values from the compiled C, {len(bad)} the kernel disagrees with")
     sys.exit(1 if bad or result.returncode else 0)
 
 

@@ -554,9 +554,11 @@ static void clock_poll(void)                    /* 24 ticks a quarter note: bpm 
             lane_report(i);
 #ifdef WATCHED
             if (wlane[i].steps > 1u && before == wlane[i].steps - 1u && fm1_lane_step_of(lane[i]) == 0) {   /* a bar ended */
-                if (wlane[i].bar_ok && wlane[i].feel == 0 && wlane[i].chance >= 100u)
-                    WATCH(W_BAR_HITS, wlane[i].bar_ons == wlane[i].hits);
-                wlane[i].bar_ok = 1; wlane[i].bar_ons = 0;
+                uint32_t k, expect = 0;         /* run_bar_plays_the_rhythm: the hits of the row the bar started with */
+                if (wlane[i].bar_ok && wlane[i].feel < 3u && wlane[i].chance >= 100u)
+                    WATCH(W_BAR_HITS, wlane[i].bar_ons == wlane[i].bar_expect);
+                for (k = 0; k < wlane[i].steps; k++) expect += fm1_lane_hit_at_of(lane[i], k);   /* the next bar's row */
+                wlane[i].bar_ok = 1; wlane[i].bar_ons = 0; wlane[i].bar_expect = expect;
             }
 #endif
         }

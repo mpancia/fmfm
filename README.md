@@ -67,10 +67,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-241 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+243 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 80 theorems</summary>
+<details><summary><b>The sequencer</b>: 82 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -93,7 +93,9 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `lane_from_patch_keeps_feel` | A patch lane that fits gives a lane with exactly the rhythm source the patch holds: none of the clamps on the way (`Lane.make`, `Rhythm.make`) change a fitting value. | the FEEL settings a patch saves are the ones it plays back; what you hear after loading is what you heard before saving. |
 | `run_every_note_on_has_a_note_off` | Every note a lane starts during a run is stopped: after any sequence of ticks and setting changes, the number of note-ons equals the number of note-offs plus the one note still sounding, which stopping the clock then reports as stopped (`lane_silence_stops_note`) and leaves nothing sounding. | this is the no-stuck-notes promise for a whole performance, not one tick: however long you play and whatever you turn, pressing stop leaves nothing sounding and nothing unaccounted for. |
 | `run_clock_never_drifts` | After `n` ticks from a fresh lane, the clock stands at `(n / div) % steps`, whatever notes played. | the step position depends only on the tick count, so four lanes at different speeds stay in phase forever: nothing a note does can make a lane drift. |
+| `run_bar_plays_the_rhythm` | A lane with the Euclidean, turned or automaton rhythm (any kind but the ratchet) and a play chance of 100 plays, over the `steps * div` ticks of a bar from a fresh lane, exactly the hits its rhythm marks in that bar: for the automaton, the ones of its row at the start of the bar. | `run_bar_plays_every_hit` for every rhythm the knobs offer except ratchets: whatever the FEEL page is set to, the bar plays what the screen's row of hits shows, no note missing and none added; and for the automaton it says the row you see is the bar you hear, before it moves a generation on. |
 | `run_bar_plays_every_hit` | A plain lane (the Euclidean source, play chance 100) plays exactly `hits` notes in a bar: over the `steps * div` ticks of a bar from a fresh lane, the trace has `hits` note-ons, for any settings at all (`make` holds them to what the knobs can produce). | the safety theorems say a lane never plays on a rest; this one says it does play on every hit. |
+| `run_bar_plays_every_hit_turned` | A turned lane (the Euclidean source rotated by ROTATE, play chance 100) plays exactly `hits` notes in a bar too. | turning the pattern moves the hits round the bar without losing or doubling one; a lane with ROTATE set plays the density the HITS knob asks for. |
 | `rhythm_automaton_row_fits` | One generation of the automaton stays inside the bar: the new row has no bit at or beyond `steps` (a bar has at most 32 steps). | the row is a `steps`-bit pattern however long the automaton runs; a hit can never appear on a step that does not exist, and the row stays the size the circle draws. |
 | `rhythm_accent_only_on_hit` | An accent only falls on a hit. | accents shape the rhythm's hits; they can never add a note where the pattern has a rest. |
 | `rhythm_rotate_keeps_hits` | Turning the bar (ROTATE) keeps the number of hits: a turned bar has exactly `hits` hits, like the plain one (`euclid_hit_count`). | ROTATE moves the pattern round the circle without adding or losing a note. |
@@ -438,7 +440,9 @@ all accept. They do not cover:
 Two checks reach into that list from the proved side:
 
 - **The compiler, checked** (`make test-exports`, `tools/check_exports.py`): every scalar `@[export fm1_*]`
-  function (291 of 376; the rest read Braids' tables or take objects) is compiled to C and built for this computer,
+  function (291 of 376; the rest take objects, or read Braids' tables through `@[extern] opaque` accessors the
+  kernel cannot evaluate, and those are the engine steps `make test-lean` runs against Braids' own C++) is
+  compiled to C and built for this computer,
   run on random inputs, and Lean's kernel is then asked whether the definition gives the same value
   (`example : f a = c := by decide +kernel`): 1746 values a run, in step on every one. The kernel evaluates the
   definition itself, so this is the compiled code against the thing the theorems are about, with the Lean to C

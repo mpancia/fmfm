@@ -1269,6 +1269,14 @@ played.
 Why it matters: the step position depends only on the tick count, so four lanes at different speeds stay in phase
 forever: nothing a note does can make a lane drift.
 
+**`run_bar_plays_the_rhythm`**: A lane with the Euclidean, turned or automaton rhythm (any kind but the ratchet) and a
+play chance of 100 plays, over the `steps * div` ticks of a bar from a fresh lane, exactly the hits its rhythm marks in
+that bar: for the automaton, the ones of its row at the start of the bar.
+
+Why it matters: `run_bar_plays_every_hit` for every rhythm the knobs offer except ratchets: whatever the FEEL page is
+set to, the bar plays what the screen's row of hits shows, no note missing and none added; and for the automaton it says
+the row you see is the bar you hear, before it moves a generation on.
+
 **`run_bar_plays_every_hit`**: A plain lane (the Euclidean source, play chance 100) plays exactly `hits` notes in a bar:
 over the `steps * div` ticks of a bar from a fresh lane, the trace has `hits` note-ons, for any settings at all (`make`
 holds them to what the knobs can produce).
@@ -1276,6 +1284,12 @@ holds them to what the knobs can produce).
 Why it matters: the safety theorems say a lane never plays on a rest; this one says it does play on every hit. The bar
 has the density the HITS knob asks for, no note missing: the machine makes the music it promises, not merely nothing
 wrong.
+
+**`run_bar_plays_every_hit_turned`**: A turned lane (the Euclidean source rotated by ROTATE, play chance 100) plays
+exactly `hits` notes in a bar too.
+
+Why it matters: turning the pattern moves the hits round the bar without losing or doubling one; a lane with ROTATE set
+plays the density the HITS knob asks for.
 
 ## Smooth
 

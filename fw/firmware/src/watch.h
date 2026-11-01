@@ -15,7 +15,7 @@ enum {
 };
 static struct { const char *theorem; uint32_t checks, fails; } watch[W_COUNT] = {
     {"lane_note_in_scale", 0, 0},            {"run_every_note_on_has_a_note_off", 0, 0},
-    {"lane_note_only_on_hit", 0, 0},         {"run_bar_plays_every_hit", 0, 0},
+    {"lane_note_only_on_hit", 0, 0},         {"run_bar_plays_the_rhythm", 0, 0},
     {"mix_machine_sample_bounded", 0, 0},    {"mix_pan_never_amplifies", 0, 0},
     {"swing_tick_in_range", 0, 0},           {"swing_quarter_note_exact", 0, 0},
     {"harmony_chord_root_in_key", 0, 0},     {"harmony_mask_never_empty", 0, 0},
@@ -26,7 +26,7 @@ static struct { const char *theorem; uint32_t checks, fails; } watch[W_COUNT] = 
 static struct {
     uint32_t mask, hits, steps, feel, chance;
     uint32_t ons, offs;                     /* over the whole run */
-    uint32_t bar_ons, bar_ok;               /* note-ons since the last bar end; a whole bar has run unchanged */
+    uint32_t bar_ons, bar_ok, bar_expect;   /* note-ons since the last bar end; a whole bar has run unchanged; the hits it should play */
 } wlane[4];
 static void watch_lane_set(uint32_t i, uint32_t mask, uint32_t hits, uint32_t steps, uint32_t feel, uint32_t chance)
 {

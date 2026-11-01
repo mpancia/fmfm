@@ -951,8 +951,21 @@ theorem run_clock_never_drifts (hits steps div mask low span : Nat) (seed : UInt
     (l.run (List.replicate n .tick)).step = Lane.stepAfter l.div l.steps n ∧
       (l.run (List.replicate n .tick)).count = n % l.div := sorry
 
+theorem run_bar_plays_the_rhythm (hits steps div mask low span : Nat) (seed : UInt32)
+    (kind rotate accents rule ratchet subHits : Nat) (noRatchet : kind < 3) :
+    let l := ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).setRhythm
+      kind rotate accents rule ratchet subHits true
+    Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) =
+      Rhythm.count (Rhythm.hit l.rhythm l.hits l.steps) l.steps := sorry
+
 theorem run_bar_plays_every_hit (hits steps div mask low span : Nat) (seed : UInt32) :
     let l := (Lane.make hits steps div mask low span seed).setNotes 0 100 1 0
+    Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) = l.hits := sorry
+
+theorem run_bar_plays_every_hit_turned (hits steps div mask low span : Nat) (seed : UInt32)
+    (rotate accents rule ratchet subHits : Nat) :
+    let l := ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).setRhythm
+      1 rotate accents rule ratchet subHits true
     Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) = l.hits := sorry
 
 -- Proofs/Smooth.lean
