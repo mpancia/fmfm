@@ -30,5 +30,8 @@ static const theme_t THEMES[] = {
     {"SUNDAY BEST", RGB(26, 15, 28), RGB(247, 232, 238), RGB(168, 138, 160), RGB(67, 40, 74), RGB(255, 143, 177),
      {RGB(255, 143, 177), RGB(255, 198, 109), RGB(155, 227, 184), RGB(160, 168, 255)},
      RGB(52, 30, 62), RGB(104, 70, 122), RGB(10, 5, 12)},
+    {"CATALOGUE", RGB(246, 248, 247), RGB(0, 0, 0), RGB(111, 111, 111), RGB(229, 229, 229), RGB(255, 143, 177),
+     {RGB(224, 77, 120), RGB(15, 14, 18), RGB(111, 111, 111), RGB(160, 160, 168)},
+     RGB(15, 14, 18), RGB(58, 53, 66), RGB(0, 0, 0)},
 };
 #define NTHEMES (sizeof THEMES / sizeof THEMES[0])

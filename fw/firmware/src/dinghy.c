@@ -23,7 +23,7 @@ static void app_idle(void);
 #include "delay.h"
 #include "alfred.h"
 #ifndef ALFRED_LOOK
-#define ALFRED_LOOK 5                           /* the look a fresh unit starts with (index into THEMES) */
+#define ALFRED_LOOK 6                           /* the look a fresh unit starts with (index into THEMES): CATALOGUE, the site's */
 #endif
 
 /* ---- the sound (audio ISR: keep it short, no flash, no screen) */

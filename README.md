@@ -21,7 +21,7 @@ same button again moves to the group's next page. The four knobs set the four va
 | HOME | overview of the four lanes: hits, steps, speed, chance |
 | SEQ | RHYTHM: hits, steps, speed, chance, with the bar drawn as a circle (the hits joined, the current step bright). FEEL: the rhythm source (Euclid, rotate with accents, cellular automaton, ratchet) and its knobs. NOTES: the note source (random, walk, up, down, bounce, loop, turing, step, markov, grammar, chord) and its knobs, range. RANGE: scale, low note, chord follow. See `docs/SEQUENCERS.md` |
 | EDIT | SOUND: shape, timbre, colour, level. ENVELOPE: attack, release, envelope-to-timbre. MIX: the four lane levels |
-| GLO | HARMONY: key, scale lock, chord progression, bars per chord. SYSTEM: tempo, keys octave. MIDI: in and out channels. BANKS: patch, save slot |
+| GLO | HARMONY: key, scale lock, chord progression, bars per chord. SYSTEM: tempo, keys octave, LOOK (seven looks; CATALOGUE, the site's paper and ink, is the default). MIDI: in and out channels. BANKS: patch, save slot |
 
 | Control | Does |
 |---|---|
