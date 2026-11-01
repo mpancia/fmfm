@@ -195,13 +195,14 @@ theorem mix_voice_sample_never_wraps (sample : Int16) (gain send : UInt16) (amp 
       (Mix.sendSample (Mix.voiceSample sample gain amp) send).toInt.natAbs ≤ 130048 := sorry
 
 theorem mix_bus_never_wraps (voices : List Int32) (wet gain : Int32) (atMostSix : voices.length ≤ 6)
-    (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024) (wetBounded : wet.toInt.natAbs ≤ 2 ^ 20)
+    (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024)
+    (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21)
     (returnInRange : 0 ≤ gain.toInt ∧ gain.toInt ≤ 65500) :
     (voices.foldl (· + ·) 0).toInt = (voices.map Int32.toInt).sum ∧
       (voices.foldl (· + ·) 0).toInt.natAbs ≤ 390144 ∧
       (voices.foldl (· + ·) 0 + Mix.wetSample wet gain).toInt =
         (voices.map Int32.toInt).sum + wet.toInt * gain.toInt / 32768 ∧
-      (voices.foldl (· + ·) 0 + Mix.wetSample wet gain).toInt.natAbs ≤ 2486144 ∧
+      (voices.foldl (· + ·) 0 + Mix.wetSample wet gain).toInt.natAbs ≤ 1077734144 ∧
       (voices.foldl (· + ·) 0).toInt.natAbs * 4088 < 2 ^ 31 := sorry
 
 theorem mix_limit_fits_master (x : Int32) :
@@ -455,6 +456,11 @@ theorem physical_fluted_never_wraps (boreA boreB jetA jetB : Int32) (boreFractio
       max (-32767) (min 32767 ((Physical.mix boreA boreB boreFraction).toInt * 256)) := sorry
 
 theorem physical_jet_index_in_table (jetValue : Int32) : (Physical.jetIndex jetValue).toNat ≤ 255 := sorry
+
+theorem physical_bowed_body_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
+    (bridgeFraction neckFraction : UInt32) (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32) :
+    let step := Physical.bowed bridgeA bridgeB nutA nutB bridgeFraction neckFraction lp excitation bow y0 y1
+    step.biquad.toInt.natAbs ≤ 2 ^ 18 := sorry
 
 -- Proofs/Quantizer.lean
 theorem quantizer_snap_keeps_scale_notes (mask note : Nat) (inside : Quantizer.inScale mask note = true) :

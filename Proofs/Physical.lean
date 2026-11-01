@@ -393,7 +393,8 @@ theorem physical_half_rate_never_wraps (sum previous : Int32)
 
 /-- The bowed string's sample is exact: the body filter's arithmetic on the bridge sample (the blend of two
 8-bit line samples, scaled up by 256) and its two previous outputs, held between -32767 and 32767. The two
-previous outputs are assumed within 2^18; Braids keeps them as plain 32-bit numbers without a clip.
+previous outputs are within 2^18, which `physical_bowed_body_stays_bounded` keeps true from one sample to the
+next.
 Why it matters: the body filter runs on every sample of a bowed note; a wrap in it would be a click. -/
 theorem physical_bowed_never_wraps (bridgeA bridgeB nutA nutB : Int32) (bridgeFraction neckFraction : UInt32)
     (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32)
@@ -595,3 +596,30 @@ theorem physical_jet_index_in_table (jetValue : Int32) : (Physical.jetIndex jetV
   have e := physical_toUInt32_of_nonneg (lim >>> 8) (by rw [physical_shift_eight]; omega)
   rw [physical_shift_eight] at e
   omega
+
+/-- The body filter's state the bowed string carries to the next sample is within 2^18, whatever the inputs.
+Why it matters: with `physical_bowed_never_wraps` this closes the loop: the two states a sample needs are the
+two a previous sample left, so the body filter never wraps however long the note is bowed. -/
+theorem physical_bowed_body_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
+    (bridgeFraction neckFraction : UInt32) (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32) :
+    let step := Physical.bowed bridgeA bridgeB nutA nutB bridgeFraction neckFraction lp excitation bow y0 y1
+    step.biquad.toInt.natAbs ≤ 2 ^ 18 := by
+  intro step
+  have shape :
+      (Physical.bowed bridgeA bridgeB nutA nutB bridgeFraction neckFraction lp excitation bow y0 y1).biquad =
+      Physical.bodyState ((((Physical.mix bridgeA bridgeB bridgeFraction <<< 8) * 6553) >>> 15)
+        + ((y0 * 6948) >>> 12) + ((y1 * (-2959 : Int32)) >>> 12)) := rfl
+  rw [shape]
+  generalize (((Physical.mix bridgeA bridgeB bridgeFraction <<< 8) * 6553) >>> 15)
+        + ((y0 * 6948) >>> 12) + ((y1 * (-2959 : Int32)) >>> 12) = temp
+  have hi : (262144 : Int32).toInt = 262144 := by decide
+  have lo : (-262144 : Int32).toInt = -262144 := by decide
+  unfold Physical.bodyState
+  split
+  · rw [hi]; decide
+  · split
+    · rw [lo]; decide
+    · rename_i notHigh notLow
+      rw [Int32.not_lt, Int32.le_iff_toInt_le, hi] at notHigh
+      rw [Int32.not_lt, Int32.le_iff_toInt_le, lo] at notLow
+      omega

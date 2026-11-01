@@ -155,14 +155,14 @@ private theorem mix_dry_sum (voices : List Int32) (acc : Int32)
     simp only [List.length_cons]
     omega
 
-/-- The wet return is computed without any wrap and is within 2096000, given a wet sample within 2^20 and a
-return gain of at most 65500. -/
-private theorem mix_wet_return (wet gain : Int32) (wetBounded : wet.toInt.natAbs ≤ 2 ^ 20)
+/-- The wet return is computed without any wrap and is within 1077344000, given a wet sample within
+2^29 + 2^21 (what `reverb_wet_never_overflows` proves) and a return gain of at most 65500. -/
+private theorem mix_wet_return (wet gain : Int32) (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21)
     (returnInRange : 0 ≤ gain.toInt ∧ gain.toInt ≤ 65500) :
     (Mix.wetSample wet gain).toInt = wet.toInt * gain.toInt / 32768 ∧
-      (Mix.wetSample wet gain).toInt.natAbs ≤ 2096000 := by
+      (Mix.wetSample wet gain).toInt.natAbs ≤ 1077344000 := by
   unfold Mix.wetSample
-  have := mix_product_bound wet.toInt gain.toInt (2 ^ 20) 65500 wetBounded (by omega) (by omega)
+  have := mix_product_bound wet.toInt gain.toInt (2 ^ 29 + 2 ^ 21) 65500 wetBounded (by omega) (by omega)
   have product : (wet.toInt64 * gain.toInt64).toInt = wet.toInt * gain.toInt := by
     rw [Int64.toInt_mul, Int32.toInt_toInt64, Int32.toInt_toInt64]
     exact Int.bmod_eq_of_le (by omega) (by omega)
@@ -171,20 +171,22 @@ private theorem mix_wet_return (wet gain : Int32) (wetBounded : wet.toInt.natAbs
   omega
 
 /-- The stereo mix of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives)
-plus the wet return is added up without any wrap: the dry sum is within 390144, the whole within 2486144.
-The wet sample is taken to be within 2^20, four times the loudest value the reverb memory can hold.
-The last conjunct is for `platform.c`, which multiplies the mix by the master gain (at most 4088, Q12)
-before its clip to 16 bits: the dry mix cannot wrap in that product either.
-Why it matters: six loud voices together can only clip at the deliberate clip in `platform.c`, never wrap
-in the mix to a burst of the opposite sign. -/
+plus the wet return is added up without any wrap: the dry sum is within 390144, the whole within 1077734144.
+The wet sample is within 2^29 + 2^21, which is what `reverb_wet_never_overflows` proves of what the glue
+hands back, so the two promises join. The last conjunct is for `platform.c`, which multiplies the mix by the
+master gain (at most 4088, Q12) before its clip to 16 bits: the dry mix cannot wrap in that product; the
+whole mix is held within that reach by `Mix.limit` (`mix_limit_fits_master`).
+Why it matters: six loud voices and the reverb together can only clip at the deliberate clip in `platform.c`,
+never wrap in the mix to a burst of the opposite sign. -/
 theorem mix_bus_never_wraps (voices : List Int32) (wet gain : Int32) (atMostSix : voices.length ≤ 6)
-    (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024) (wetBounded : wet.toInt.natAbs ≤ 2 ^ 20)
+    (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024)
+    (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21)
     (returnInRange : 0 ≤ gain.toInt ∧ gain.toInt ≤ 65500) :
     (voices.foldl (· + ·) 0).toInt = (voices.map Int32.toInt).sum ∧
       (voices.foldl (· + ·) 0).toInt.natAbs ≤ 390144 ∧
       (voices.foldl (· + ·) 0 + Mix.wetSample wet gain).toInt =
         (voices.map Int32.toInt).sum + wet.toInt * gain.toInt / 32768 ∧
-      (voices.foldl (· + ·) 0 + Mix.wetSample wet gain).toInt.natAbs ≤ 2486144 ∧
+      (voices.foldl (· + ·) 0 + Mix.wetSample wet gain).toInt.natAbs ≤ 1077734144 ∧
       (voices.foldl (· + ·) 0).toInt.natAbs * 4088 < 2 ^ 31 := by
   have zero : (0 : Int32).toInt = 0 := by decide
   have dry := mix_dry_sum voices 0 eachBounded (by rw [zero]; simp; omega)

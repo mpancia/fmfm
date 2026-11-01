@@ -88,6 +88,7 @@
     "physical_blown_filter_stays_between",
     "physical_fluted_never_wraps",
     "physical_jet_index_in_table",
+    "physical_bowed_body_stays_bounded",
     "quantizer_snap_keeps_scale_notes",
     "quantizer_snap_in_scale",
     "quantizer_snap_is_near",

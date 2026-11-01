@@ -188,9 +188,9 @@ Why it matters: the glide that removes clicks cannot overshoot and bounce, and t
 
 Why it matters: the loudest voice at the loudest gain stays an exact scaled copy of what Braids rendered, never a wrapped burst, and six of each fit the stereo mix and the send bus with room to spare.
 
-**`mix_bus_never_wraps`**: The stereo mix of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives) plus the wet return is added up without any wrap: the dry sum is within 390144, the whole within 2486144. The wet sample is taken to be within 2^20, four times the loudest value the reverb memory can hold. The last conjunct is for `platform.c`, which multiplies the mix by the master gain (at most 4088, Q12) before its clip to 16 bits: the dry mix cannot wrap in that product either.
+**`mix_bus_never_wraps`**: The stereo mix of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives) plus the wet return is added up without any wrap: the dry sum is within 390144, the whole within 1077734144. The wet sample is within 2^29 + 2^21, which is what `reverb_wet_never_overflows` proves of what the glue hands back, so the two promises join. The last conjunct is for `platform.c`, which multiplies the mix by the master gain (at most 4088, Q12) before its clip to 16 bits: the dry mix cannot wrap in that product; the whole mix is held within that reach by `Mix.limit` (`mix_limit_fits_master`).
 
-Why it matters: six loud voices together can only clip at the deliberate clip in `platform.c`, never wrap in the mix to a burst of the opposite sign.
+Why it matters: six loud voices and the reverb together can only clip at the deliberate clip in `platform.c`, never wrap in the mix to a burst of the opposite sign.
 
 **`mix_limit_fits_master`**: After the limiter the mix is within 524287, so `platform.c`'s product with the master gain (at most 4088) fits in 32 bits for any input; and a mix already within that range passes through unchanged.
 
@@ -354,7 +354,7 @@ Why it matters: this read is the plucked string's sample; the overflow in the or
 
 Why it matters: the plucked string and the bowed string hand every other sample through here; the mean of two 16-bit values must not wrap on the way to the buffer.
 
-**`physical_bowed_never_wraps`**: The bowed string's sample is exact: the body filter's arithmetic on the bridge sample (the blend of two 8-bit line samples, scaled up by 256) and its two previous outputs, held between -32767 and 32767. The two previous outputs are assumed within 2^18; Braids keeps them as plain 32-bit numbers without a clip.
+**`physical_bowed_never_wraps`**: The bowed string's sample is exact: the body filter's arithmetic on the bridge sample (the blend of two 8-bit line samples, scaled up by 256) and its two previous outputs, held between -32767 and 32767. The two previous outputs are within 2^18, which `physical_bowed_body_stays_bounded` keeps true from one sample to the next.
 
 Why it matters: the body filter runs on every sample of a bowed note; a wrap in it would be a click.
 
@@ -377,6 +377,10 @@ Why it matters: the flute's sample is read straight off the bore; nothing on tha
 **`physical_jet_index_in_table`**: The flute reads its jet curve inside the curve's 257 entries, whatever the jet's value.
 
 Why it matters: the jet read is a plain C array access with no bounds check; the limit to 0 to 65535 before the top 8 bits are taken is what keeps it inside.
+
+**`physical_bowed_body_stays_bounded`**: The body filter's state the bowed string carries to the next sample is within 2^18, whatever the inputs.
+
+Why it matters: with `physical_bowed_never_wraps` this closes the loop: the two states a sample needs are the two a previous sample left, so the body filter never wraps however long the note is bowed.
 
 ## Quantizer
 

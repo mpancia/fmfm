@@ -111,7 +111,8 @@ all accept. They do not cover:
   the per-block setup, the delay lines and the glue loops are C and unproved (`docs/LEAN-ENGINES.md`). `make audit`
   checks levels; nobody has listened to it on hardware.
 - `fx/reverb_glue.c`: the reverb network and its delay memory (the arithmetic is Lean; the order of operations is C, copied
-  from Clouds). Checked against Clouds' original by `make test-lean`; not heard (`docs/FX.md`).
+  from Clouds, and checked sample for sample against `Spec/Reverb.lean` by `make test-lean`, which also checks it
+  against Clouds' original); not heard (`docs/FX.md`).
 - `fw/` (Dinghy: platform, drivers, update path) and `fw/firmware/src/dinghy.c`, the C that calls the Lean code.
   Its mix loop (level glide, voice sample, reverb send and return) calls `Firmware/Mix.lean`, which
   `Proofs/Mix.lean` shows never wraps; the master gain and the clip in `fw/firmware/src/platform.c` stay C.

@@ -3,6 +3,7 @@
 #   tests/analog_diff.cc  the analog oscillators, with random sync pulses
 #   tests/voice_diff.cc   the whole voice, all 48 shapes
 #   tests/reverb_diff.cc  the reverb send against Clouds' original, as an error in dB (it is fixed-point, so not exact)
+#   tests/reverb_spec_diff.c + tests/reverb_spec.lean  the glue's call order against Spec/Reverb.lean, sample for sample
 # tests/reference/ holds Braids unchanged; its namespaces are renamed at compile time so both versions can live in
 # one program.
 set -eu
@@ -38,6 +39,10 @@ g++ -o $T/analog_diff $T/analog_diff.o $T/analog_ref_adapter.o $T/analog_lean_ad
 g++ -o $T/voice_diff $T/voice_diff.o $T/voice_ref_adapter.o $T/voice_lean_adapter.o $SHARED
 $CXX -Dclouds=clouds_ref -Dstmlib=stmlib_ref -Itests/reference -Ifx -c tests/reverb_diff.cc -o $T/reverb_diff.o
 g++ -o $T/reverb_diff $T/reverb_diff.o $T/glue_reverb_glue.o
+gcc -O2 -w -I"$PREFIX/include" -I$T/gen -Ifx tests/reverb_spec_diff.c -o $T/reverb_spec_diff
+lake build Spec.Reverb
 $T/analog_diff
 $T/voice_diff
 $T/reverb_diff
+$T/reverb_spec_diff > $T/reverb_spec.txt
+lake env lean --run tests/reverb_spec.lean < $T/reverb_spec.txt

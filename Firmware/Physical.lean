@@ -95,10 +95,17 @@ friction curve. The size of the product is capped at 131071 before its top 8 bit
   let capped := if magnitude >= 131072 then 131071 else magnitude
   (capped >>> 9).toUInt32
 
+/-- The body filter's output kept within 2^18, sixteen times the loudest value the string can drive it to.
+Braids keeps the raw number; the hold is never reached (the differential test runs through every shape) and
+it makes the filter's state a proved invariant rather than an assumption. -/
+@[inline] def Physical.bodyState (temp : Int32) : Int32 :=
+  if temp > 262144 then 262144 else if temp < -262144 then -262144 else temp
+
 /-- Bowed string: a digital waveguide. The string is two delay lines (bridge side and neck side) with a bow that
 pushes the velocity toward its own through a friction curve; a low-pass at the bridge and a biquad stand in for the
 body. `excitation` walks the bowing envelope, `bow` (about 45 to 172) is the bow pressure, `y0` and `y1` are the
-biquad's last two outputs. The delay-line samples are 8 bits, so the stores are cut to 8. -/
+biquad's last two outputs (held within 2^18 by `bodyState`). The delay-line samples are 8 bits, so the stores
+are cut to 8. -/
 @[inline] def Physical.bowed (bridgeA bridgeB nutA nutB : Int32) (bridgeFraction neckFraction : UInt32)
     (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32) : BowedStep :=
   let bridgeValue := Physical.mix bridgeA bridgeB bridgeFraction <<< 8
@@ -116,7 +123,8 @@ biquad's last two outputs. The delay-line samples are 8 bits, so the stores are 
   let temp := ((bridgeValue * 6553) >>> 15) + ((y0 * 6948) >>> 12) + ((y1 * (-2959 : Int32)) >>> 12)
   let out := Digital.clip (temp - y1)
   { lp := lp', neck := ((bridgeReflection + velocity) >>> 8).toUInt32.toUInt8,
-    bridge := ((nutReflection + velocity) >>> 8).toUInt32.toUInt8, biquad := temp, out := out.toInt16 }
+    bridge := ((nutReflection + velocity) >>> 8).toUInt32.toUInt8, biquad := Physical.bodyState temp,
+    out := out.toInt16 }
 
 /-- The result of one blown pipe sample: the low-pass state, the sample written into the bore, and the output
 filter's state (which is also the output). -/

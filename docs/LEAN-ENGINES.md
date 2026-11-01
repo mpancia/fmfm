@@ -99,6 +99,9 @@ glue draws the numbers and passes them in, so the sequence is the one Braids pro
   cymbal, bell and drum partials, the drum mix, and the noise resonators, boost, burst and grains are the exact
   arithmetic clipped, not wrapped, under the ranges the glue hands over, and the friction, jet, overdrive and
   grain-envelope reads stay inside their tables (`Proofs/Physical.lean`, `Percussion.lean`, `Noise.lean`).
+  The bowed string's body filter is the one place the Lean differs from Braids: its state is held within 2^18
+  (`Physical.bodyState`, never reached in the test) so that the range its sample proof needs is a proved
+  invariant (`physical_bowed_body_stays_bounded`) and not an assumption about numbers Braids never clips.
   The guarantee that the engines sound like Braids is the differential test.
 - Samples that Braids itself can overflow are not proved: the kick's low-pass step, the blown pipe's reed
   product and the state-variable filter's cutoff times high-pass can pass 32 bits at the extremes of their
