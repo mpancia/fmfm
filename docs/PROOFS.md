@@ -242,8 +242,9 @@ Why it matters: pressing stop never leaves a note hanging.
 
 **`lane_reconfigure_self`**: Applying a lane's own settings back to it changes nothing, for a consistent lane whose
 settings are the ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 10, mutation up to 100
-percent, a rhythm source in range with a live automaton row, the step sequencer's cursor inside its loop) and whose gate
-is the one its speed gives. `make`, `reconfigure`, `setNotes` and `setRhythm` only ever produce such lanes.
+percent, a rhythm source in range with a live automaton row that fits the bar, the step sequencer's cursor inside its
+loop) and whose gate is the one its speed gives. `make`, `reconfigure`, `setNotes` and `setRhythm` only ever produce
+such lanes.
 
 Why it matters: saving a patch and loading it again, or redrawing a knob at its current value, cannot alter the music by
 a tick: the lane is exactly where it was.
@@ -734,7 +735,7 @@ the rounding pile up into audible noise or a tone that never ends.
 ## Rhythm
 
 **`rhythm_automaton_row_fits`**: One generation of the automaton stays inside the bar: the new row has no bit at or
-beyond `steps`.
+beyond `steps` (a bar has at most 32 steps).
 
 Why it matters: the row is a `steps`-bit pattern however long the automaton runs; a hit can never appear on a step that
 does not exist, and the row stays the size the circle draws.

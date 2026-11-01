@@ -193,7 +193,8 @@ theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.st
     (divMax : l.div ≤ 96) (algoMax : l.rule.algo ≤ 10) (mutateMax : l.rule.mutate ≤ 100) (gate : l.gate = Lane.gateFor l.div)
     (cursor : l.notes.cursor < l.rule.amount) (kind : l.rhythm.kind ≤ 3) (rotate : l.rhythm.rotate < l.steps)
     (accents : l.rhythm.accents ≤ l.hits) (rule : l.rhythm.rule < 256) (ratchet : 1 ≤ l.rhythm.ratchet ∧ l.rhythm.ratchet ≤ 4)
-    (subHits : l.rhythm.subHits ≤ l.rhythm.ratchet) (row : l.rhythm.row < 2 ^ l.steps) (live : l.rhythm.row ≠ 0) :
+    (subHits : l.rhythm.subHits ≤ l.rhythm.ratchet) (row : Rhythm.cut l.steps l.rhythm.row = l.rhythm.row)
+    (live : l.rhythm.row ≠ 0) :
     l.reconfigure l.hits l.steps l.div l.mask = l ∧
       l.setNotes l.rule.algo l.prob l.rule.amount l.rule.mutate = l := sorry
 
@@ -615,7 +616,8 @@ theorem reverb_tail_dies_away (tail decay bright diffusion : Int32) (read : Reve
       tail.toInt.natAbs * decay.toInt.natAbs ^ (2 * n) / 2 ^ (30 * n) + 16385 := sorry
 
 -- Proofs/Rhythm.lean
-theorem rhythm_automaton_row_fits (rule steps row : Nat) : Automaton.step rule steps row < 2 ^ steps := sorry
+theorem rhythm_automaton_row_fits (rule steps : Nat) (row : UInt32) (small : steps ≤ 32) :
+    (Automaton.step rule steps row).toNat < 2 ^ steps := sorry
 
 theorem rhythm_accent_only_on_hit (r : Rhythm) (hits steps step : Nat)
     (accented : Rhythm.accent r hits steps step = true) : Rhythm.hit r hits steps step = true := sorry
