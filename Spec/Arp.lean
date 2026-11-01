@@ -64,3 +64,10 @@ def Arp.example : Arp := (((Arp.make 1 7).press 64).press 60).press 67
 #guard (Arp.example.release 64).pattern == [60, 67]
 #guard Arp.example.tick.tick.on == some 64 && Arp.example.tick.tick.off == some 60   -- the new note stops the old
 #guard { Arp.example with mode := 0 }.tick.on == none                             -- off: silent
+
+/-- The notes `n` ticks start, oldest first. -/
+def Arp.played (a : Arp) : Nat → List Nat
+  | 0 => []
+  | n + 1 => (match a.tick.on with | some x => [x] | none => []) ++ a.tick.played n
+
+#guard Arp.example.played 4 == [60, 64, 67, 60]

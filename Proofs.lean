@@ -12,6 +12,7 @@ import Proofs.Lfo
 import Proofs.Harmony
 import Proofs.Run
 import Proofs.Tables
+import Proofs.BraidsData
 import Proofs.Filters
 import Proofs.Noise
 import Proofs.Percussion

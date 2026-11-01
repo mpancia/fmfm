@@ -1,3 +1,5 @@
+import Firmware.BraidsData
+
 set_option compiler.extract_closed false
 
 /-!
@@ -10,8 +12,11 @@ chip's audio interrupt cannot allocate.
 namespace Pitch
 
 /-- One entry of Braids' table of phase steps for the top octave (97 entries, in
-`voices/braids/resources.cc`), looked up by C. Trusted data, like the wave tables. -/
-@[extern "fm1_braids_oscillator_increment"] opaque incrementTable (index : UInt32) : UInt32
+`voices/braids/resources.cc`). The body is the data, generated from the C source
+(`BraidsData.oscillatorIncrement`); on the chip the C reads its own copy. Trusted: that the one-line C
+accessor reads the same table. -/
+@[extern "fm1_braids_oscillator_increment"] def incrementTable (index : UInt32) : UInt32 :=
+  (BraidsData.oscillatorIncrement index.toNat).toUInt32
 
 /-- The table's top, in pitch units: note 128. Pitches at or above it are held one unit below. -/
 @[inline] def tableStart : Int32 := 128 * 128

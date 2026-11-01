@@ -1,4 +1,5 @@
 import Spec.Notes
+import Firmware.Quantizer
 import Proofs.Random
 
 /-- Every list `Notes.fill` makes has its full length and only positions inside the range. -/
@@ -276,3 +277,46 @@ theorem notes_turing_locked_repeats (len span : Nat) (s : NoteState) (lenPos : 0
     (Notes.picks ⟨6, len, 0⟩ span len s).2.shift % 2 ^ len = s.shift % 2 ^ len := by
   rw [notes_turing_pick_is_shift]
   exact notes_turing_window_repeats len s.shift lenPos lenMax
+
+/-- Every grammar rewrites every symbol into at least one symbol. -/
+private theorem notes_rewrite_nonempty (g s : Nat) : Notes.rewrite g s ≠ [] := by
+  unfold Notes.rewrite
+  split <;> split <;> (try split) <;> (try split) <;> simp
+
+/-- Every grammar's axiom has a symbol. -/
+private theorem notes_axiom_nonempty (g : Nat) : Notes.axiom g ≠ [] := by
+  unfold Notes.axiom; split <;> simp
+
+/-- Rewriting a phrase with symbols keeps symbols. -/
+private theorem notes_expand_nonempty (g : Nat) : ∀ (d : Nat) (syms : List Nat), syms ≠ [] → Notes.expand g d syms ≠ [] := by
+  intro d
+  induction d with
+  | zero => intro syms h; simpa [Notes.expand] using h
+  | succ d ih =>
+    intro syms h
+    unfold Notes.expand
+    apply ih
+    cases syms with
+    | nil => exact absurd rfl h
+    | cons s rest =>
+      simp only [List.flatMap_cons, ne_eq, List.append_eq_nil_iff, not_and]
+      intro bad; exact absurd bad (notes_rewrite_nonempty g s)
+
+/-- A grammar always has a phrase: at every depth it holds at least one symbol.
+Why it matters: the GRAMMAR source never falls back to a default symbol; every note it plays comes from the
+phrase the grammar wrote. -/
+theorem notes_grammar_phrase_never_empty (g depth : Nat) : Notes.phraseOf g depth ≠ [] :=
+  notes_expand_nonempty g depth (Notes.axiom g) (notes_axiom_nonempty g)
+
+/-- CHORD's tones are notes of the scale: the `n`-th tone above `low` is in the scale whenever the scale has
+more than `n` notes in the five octaves above `low`.
+Why it matters: the CHORD source climbs real scale (or chord) tones, not positions that the snap then has to
+mend; with chord follow on, those are the chord's notes. -/
+theorem notes_scale_tone_in_scale (mask low n : Nat)
+    (enough : n < ((List.range 60).filter (fun k => Quantizer.inScale mask (low + k))).length) :
+    Quantizer.inScale mask (Notes.scaleTone mask low n) = true := by
+  unfold Notes.scaleTone
+  simp only
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem enough, Option.getD_some]
+  have mem := List.getElem_mem enough
+  exact (List.mem_filter.mp mem).2

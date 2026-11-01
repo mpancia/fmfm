@@ -1,4 +1,5 @@
 import Firmware.Filters
+import Firmware.BraidsData
 
 set_option compiler.extract_closed false
 
@@ -12,8 +13,11 @@ the exciter and the filter are here; the partial tables and the per-block setup 
 parenthesized.
 -/
 
-/-- One entry of Braids' filter cutoff table (257 entries), looked up by C. Trusted data. -/
-@[extern "fm1_braids_lut_svf_cutoff"] opaque Percussion.cutoffTable (index : UInt32) : UInt16
+/-- One entry of Braids' filter cutoff table (257 entries). The body is the data, generated from
+`resources.cc` (`BraidsData.svfCutoff`); on the chip the C reads its own copy. Trusted: that the one-line C
+accessor reads the same table. -/
+@[extern "fm1_braids_lut_svf_cutoff"] def Percussion.cutoffTable (index : UInt32) : UInt16 :=
+  (BraidsData.svfCutoff index.toNat).toUInt16
 
 /-- One entry of Braids' filter damping table (257 entries), looked up by C. Trusted data. -/
 @[extern "fm1_braids_lut_svf_damp"] opaque Percussion.dampTable (index : UInt32) : UInt16

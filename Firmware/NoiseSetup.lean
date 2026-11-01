@@ -1,6 +1,7 @@
 import Firmware.Noise
 import Firmware.Percussion
 import Firmware.Pitch
+import Firmware.BraidsData
 
 set_option compiler.extract_closed false
 
@@ -19,8 +20,11 @@ namespace NoiseSetup
 /-- One entry of Braids' filter scale table (257 entries), looked up by C. Trusted data. -/
 @[extern "fm1_braids_lut_svf_scale"] opaque scaleTable (index : UInt32) : UInt16
 
-/-- One entry of Braids' grain envelope rate table (257 entries), looked up by C. Trusted data. -/
-@[extern "fm1_braids_lut_granular_envelope_rate"] opaque rateTable (index : UInt32) : UInt16
+/-- One entry of Braids' grain envelope rate table (257 entries). The body is the data, generated from
+`resources.cc` (`BraidsData.granularEnvelopeRate`); on the chip the C reads its own copy. Trusted: that the
+one-line C accessor reads the same table. -/
+@[extern "fm1_braids_lut_granular_envelope_rate"] def rateTable (index : UInt32) : UInt16 :=
+  (BraidsData.granularEnvelopeRate index.toNat).toUInt16
 
 /-- A parameter with hysteresis: it moves to `parameter` only once that is more than `window` away from the
 value held so far. -/

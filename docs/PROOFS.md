@@ -92,6 +92,56 @@ wrap is a multiple of 2^16 and the cut to 16 bits cancels it exactly, so the res
 Why it matters: this is the blend inside every table read and every wave crossfade; the result can never exceed what it
 blends, and the overflow in the original is proved harmless rather than assumed.
 
+## BraidsData
+
+**`braids_data_increments_rising`**: The phase step table rises from one entry to the next, for every index the code
+reads (below 96: `pitch_table_reads_inside`); the index after the last entry is the copy's tail, so the table is not
+asked to rise there.
+
+Why it matters: `pitch_increment_bounded` blends two neighbouring entries and needs the second to be the larger; this
+checks that against the numbers Braids ships instead of assuming it.
+
+**`braids_data_increments_close`**: Two neighbouring phase step entries differ by less than 2^27, for every index the
+code reads (below 96).
+
+Why it matters: the blend multiplies that difference by a 4-bit fraction in signed 32-bit arithmetic, and 2^27 * 15 is
+the most that fits; a wider gap in the data would make the blend wrap.
+
+**`braids_data_increments_top`**: No phase step entry passes 2588618730, the table's last, at any index.
+
+Why it matters: the setup shifts the entry down at least one octave, and this top is what puts the result below half a
+cycle (`pitch_increment_bounded`); it is checked against the table, not assumed.
+
+**`braids_data_cutoff_rising`**: The filter cutoff table rises from one entry to the next, for every index a phase reads
+(below 256: `tables_phase_reads_inside_257`).
+
+Why it matters: `filters_setup_cutoff_in_range` blends two neighbouring entries and needs the second to be the larger;
+this checks that against the numbers Braids ships instead of assuming it.
+
+**`braids_data_cutoff_top`**: No filter cutoff entry passes 25078, the table's last, at any index.
+
+Why it matters: the swarm's high-pass coefficient is a blend of two entries, so this top is its range, and the filters'
+sample theorems take that range; it is checked against the table, not assumed.
+
+**`braids_data_rate_top`**: No grain envelope rate entry passes 32768, the table's last, at any index.
+
+Why it matters: `noise_setup_grain_rate_bounded` shifts the entry up three places and needs the result below 2^18 to
+keep the grain's envelope reads inside their table; this checks the top against the numbers Braids ships instead of
+assuming it.
+
+**`braids_data_vowel_amplitudes_are_nibbles`**: Every vowel formant amplitude is a nibble (at most 15), for any vowel
+and formant.
+
+Why it matters: the formant tables are indexed by the phase's top nibble or-ed with the amplitude
+(`tables_formant_reads_inside_256`), so an amplitude above 15 would read past them; this checks the data Braids ships
+instead of assuming it.
+
+**`braids_data_wavetable_steps_at_most_16`**: Every wavetable definition has at most 16 steps, for any table index.
+
+Why it matters: `wavetables_setup_table_in_table` multiplies the parameter by the step count and needs the pointer's
+step and the one after it inside the 17 steps of a definition; this checks the counts Braids ships (4, 8 or 16) instead
+of assuming them.
+
 ## Delay
 
 **`delay_gains_in_range`**: For every feedback setting the gain is between 0 and 0.95 (31129 in Q15), and for every tone
@@ -179,9 +229,8 @@ negative one would read 65535 entries past the table, which is why the limit is 
 Why it matters: the quantizer is C data read without a check, once per block for the three FM engines.
 
 **`digital_setup_increments_half_cycle`**: Every phase step the setup hands to the FM, ring modulator, toy and digital
-modulation sample code is below half a cycle per sample, given the facts about Braids' step table that
-`pitch_increment_bounded` needs. The detuned pitches are cut to 16 bits before the lookup, so no offset can escape the
-clamp.
+modulation sample code is below half a cycle per sample. The detuned pitches are cut to 16 bits before the lookup, so no
+offset can escape the clamp.
 
 Why it matters: the sample code's steps come from here, and a step at or above half a cycle would alias; the modulators'
 detunes can reach pitches far outside the carrier's range, and this says the clamp still holds them.
@@ -259,15 +308,14 @@ both inside it, for every pitch and parameter.
 Why it matters: the cutoff pitch is the oscillator's pitch moved by the parameter, which can run far past the table; the
 clamp in `swarmHpCutoff` is what keeps the read inside, and this shows it does.
 
-**`filters_setup_table_blend_le_top`**: A table of 16-bit entries that rise from one to the next and never pass `top`
-(at most 32767) blends to a value at most `top` at any phase (`Digital.lutAt`).
+**`filters_setup_table_blend_le_top`**: A table of 16-bit entries that rise from one to the next across its 257 entries
+and never pass `top` (at most 32767) blends to a value at most `top` at any phase (`Digital.lutAt`).
 
 Why it matters: a cutoff or damping coefficient read this way is a positive value no larger than the table's top entry,
 which is the range the filters' sample theorems take for it; the cut to 16 bits inside the blend changes nothing.
 
-**`filters_setup_cutoff_in_range`**: The swarm's high-pass coefficient is between 0 and 25078, given the cutoff table
-Braids ships: its entries rise from one to the next and the top one is 25078. Both are facts about `resources.cc`, so
-they are hypotheses here.
+**`filters_setup_cutoff_in_range`**: The swarm's high-pass coefficient is between 0 and 25078. The cutoff table's
+entries rise from one to the next and the top one is 25078 (`Proofs/BraidsData.lean`, checked against `resources.cc`).
 
 Why it matters: the coefficient multiplies the filter's band-pass state on every sample; a positive 15-bit coefficient
 is the range that keeps that product in step with the original's.
@@ -349,6 +397,12 @@ memory and the sounding note stay as they were.
 **`lane_learn_valid`**: A key the player presses keeps a consistent lane consistent.
 
 Why it matters: playing along, or programming the step sequencer, can never break the lane.
+
+**`lane_from_patch_keeps_feel`**: A patch lane that fits gives a lane with exactly the rhythm source the patch holds:
+none of the clamps on the way (`Lane.make`, `Rhythm.make`) change a fitting value.
+
+Why it matters: the FEEL settings a patch saves are the ones it plays back; what you hear after loading is what you
+heard before saving.
 
 ## Lfo
 
@@ -499,15 +553,14 @@ Why it matters: the correction multiplies every sample; above 32767 the product 
 
 Why it matters: the table is C data read without a check; the index is the parameter's top eight bits.
 
-**`noise_setup_grain_rate_bounded`**: A grain's rate is at most 2^18 per sample, given that the rate table's entries are
-at most 32768 (a fact about `resources.cc`, so a hypothesis here).
+**`noise_setup_grain_rate_bounded`**: A grain's rate is at most 2^18 per sample. The rate table's entries are at most
+32768 (`braids_data_rate_top`, checked against `resources.cc`).
 
 Why it matters: `noise_grain_envelope_index_in_table` needs the rate below 2^18 to keep a block's envelope reads inside
 the envelope table.
 
 **`noise_setup_grain_reset`**: After the setup, a grain's rate is at most 2^18 and its envelope will not pass 2^24 +
-2^22 within the block's 16 samples, given a block that started that way (the first block starts at 0) and the rate
-table's top of 32768.
+2^22 within the block's 16 samples, given a block that started that way (the first block starts at 0).
 
 Why it matters: these are the two hypotheses `noise_grain_envelope_index_in_table` takes, so with this the grain's
 envelope reads stay inside their table from the first block on. A grain that has ended but does not restart keeps its
@@ -868,9 +921,8 @@ it.
 Why it matters: the table is C data read without a check; the clamp to note 128 and the fold into one octave are what
 keep the read inside it, for any 16-bit pitch, including the negative ones a detuned FM operator can ask for.
 
-**`pitch_increment_bounded`**: The step is below half a cycle per sample, given the table that Braids ships: its entries
-rise from one to the next by less than 2^27 and the top one is 2588618730. Both are facts about `resources.cc`, so they
-are hypotheses here, not something the code can show.
+**`pitch_increment_bounded`**: The step is below half a cycle per sample. The table's entries rise from one to the next
+by less than 2^27 and the top one is 2588618730 (`Proofs/BraidsData.lean`, checked against `resources.cc`).
 
 Why it matters: the table's top entry is above half a cycle, so this bound comes from the clamp, which makes every pitch
 at least one octave below the table, and a step below half a cycle means the oscillators never run past Nyquist by
@@ -1001,6 +1053,25 @@ does not exist, and the row stays the size the circle draws.
 **`rhythm_accent_only_on_hit`**: An accent only falls on a hit.
 
 Why it matters: accents shape the rhythm's hits; they can never add a note where the pattern has a rest.
+
+**`rhythm_rotate_keeps_hits`**: Turning the bar (ROTATE) keeps the number of hits: a turned bar has exactly `hits` hits,
+like the plain one (`euclid_hit_count`).
+
+Why it matters: ROTATE moves the pattern round the circle without adding or losing a note.
+
+**`rhythm_rule_zero_dies`**: Rule 0 kills the row: after one generation nothing plays.
+
+Why it matters: the automaton has a rule that is silence, and the reseed on a dead row is what brings the bar back.
+
+**`rhythm_rule_full_fills`**: Rule 255 fills the bar: after one generation every step plays.
+
+Why it matters: the other end of the rule knob is a wall of hits, so the circle shows the whole range from silence (rule
+0) to everything (rule 255).
+
+**`rhythm_rule_204_freezes`**: Rule 204 freezes the bar: a row that fits the bar comes back unchanged every generation.
+
+Why it matters: there is a rule on which the automaton is exactly the Euclidean bar it was seeded with, so turning RULE
+from 204 is the way to make it move.
 
 ## Run
 
@@ -1139,8 +1210,8 @@ bits is what keeps it inside.
 Why it matters: `fofBlend` reads the corner past the selected row and column; the top two bits of a parameter can never
 select the last row, so that corner exists.
 
-**`vowels_setup_formant_amplitude_in_range`**: The amplitude the vowel hands each formant is at most 15, given that
-every amplitude in `vowels_data` is at most 15 (a fact about the data, so a hypothesis here).
+**`vowels_setup_formant_amplitude_in_range`**: The amplitude the vowel hands each formant is at most 15. Every amplitude
+in `vowels_data` is at most 15 (`braids_data_vowel_amplitudes_are_nibbles`, checked against `digital_oscillator.cc`).
 
 Why it matters: the formant tables are indexed by the phase's top nibble or-ed with the amplitude, and
 `tables_formant_reads_inside_256` needs the amplitude to be a nibble; this closes that hypothesis for every parameter
@@ -1193,8 +1264,7 @@ an overflow at any chord, phase or morph position.
 
 **`wavetables_setup_table_in_table`**: The wavetable engine reads its wavetable's definition inside the table of 20
 definitions, and the pointer's step and the one after it inside the 17 steps of a definition, for a held parameter from
-0 to 32767 and a definition of at most 16 steps (every definition in `digital_oscillator.cc` has 4, 8 or 16; a
-hypothesis here).
+0 to 32767. Every definition in `digital_oscillator.cc` has 4, 8 or 16 steps (`braids_data_wavetable_steps_at_most_16`).
 
 Why it matters: both are C arrays read without a check; the 17th entry of each definition exists so that the step after
 the last can be read.
@@ -1229,7 +1299,7 @@ Why it matters: the bank is read without a check through `Wavetables.waveByte`, 
 byte's index; 256 waves of 129 bytes is exactly the bank, so a wave number past 255 would read past it.
 
 **`wavetables_setup_increments_half_cycle`**: Every detuned voice of the paraphonic engine steps below half a cycle per
-sample, given the phase step table's shape (`pitch_increment_bounded`).
+sample (`pitch_increment_bounded`).
 
 Why it matters: the detune is added to the pitch before the table's clamp, so the clamp applies to each voice and none
 of the four runs past Nyquist.

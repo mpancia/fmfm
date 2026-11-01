@@ -1,5 +1,6 @@
 import Firmware.Wavetables
 import Firmware.Pitch
+import Firmware.BraidsData
 
 set_option compiler.extract_closed false
 
@@ -15,9 +16,11 @@ are parenthesized.
 
 namespace WavetablesSetup
 
-/-- How many steps one of Braids' 20 wavetables has (`wavetable_definitions` in `digital_oscillator.cc`),
-looked up by C. Trusted data. -/
-@[extern "fm1_braids_wavetable_steps"] opaque tableSteps (table : UInt32) : UInt32
+/-- How many steps one of Braids' 20 wavetables has (`wavetable_definitions` in `digital_oscillator.cc`).
+The body is the data, generated from the C source (`BraidsData.wavetableSteps`); on the chip the C reads its
+own copy. Trusted: that the one-line C accessor reads the same table. -/
+@[extern "fm1_braids_wavetable_steps"] def tableSteps (table : UInt32) : UInt32 :=
+  (BraidsData.wavetableSteps table.toNat).toUInt32
 
 /-- The wave at a step of one of Braids' 20 wavetables (17 steps each), looked up by C. Trusted data. -/
 @[extern "fm1_braids_wavetable_wave"] opaque tableWave (table step : UInt32) : UInt32

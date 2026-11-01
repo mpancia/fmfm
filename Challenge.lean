@@ -70,6 +70,28 @@ theorem blend_sixteen_between (a b : Int32) (frac : UInt32)
     min a.toInt b.toInt ≤ (a + (((b - a) * (frac &&& 0xFFFF).toInt32) >>> 16)).toInt16.toInt32.toInt ∧
       (a + (((b - a) * (frac &&& 0xFFFF).toInt32) >>> 16)).toInt16.toInt32.toInt ≤ max a.toInt b.toInt := sorry
 
+-- Proofs/BraidsData.lean
+theorem braids_data_increments_rising (i : UInt32) (inside : i.toNat < 96) :
+    Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1) := sorry
+
+theorem braids_data_increments_close (i : UInt32) (inside : i.toNat < 96) :
+    (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27 := sorry
+
+theorem braids_data_increments_top (i : UInt32) : (Pitch.incrementTable i).toNat ≤ 2588618730 := sorry
+
+theorem braids_data_cutoff_rising (i : UInt32) (inside : i.toNat < 256) :
+    Percussion.cutoffTable i ≤ Percussion.cutoffTable (i + 1) := sorry
+
+theorem braids_data_cutoff_top (i : UInt32) : (Percussion.cutoffTable i).toNat ≤ 25078 := sorry
+
+theorem braids_data_rate_top (i : UInt32) : (NoiseSetup.rateTable i).toNat ≤ 32768 := sorry
+
+theorem braids_data_vowel_amplitudes_are_nibbles (vowel formant : UInt32) :
+    (VowelsSetup.vowelAmplitudeAt vowel formant).toNat ≤ 15 := sorry
+
+theorem braids_data_wavetable_steps_at_most_16 (table : UInt32) :
+    (WavetablesSetup.tableSteps table).toNat ≤ 16 := sorry
+
 -- Proofs/Delay.lean
 theorem delay_gains_in_range (setting : UInt32) :
     0 ≤ (Delay.feedbackGain setting).toInt ∧ (Delay.feedbackGain setting).toInt ≤ 31129 ∧
@@ -139,10 +161,7 @@ theorem digital_setup_fm_quantizer_in_table (param : Int16) (nonneg : 0 ≤ para
     (DigitalSetup.fmQuantizerIndex param).toNat < 129 ∧
       (DigitalSetup.fmQuantizerIndex param + 1).toNat < 129 := sorry
 
-theorem digital_setup_increments_half_cycle (pitch param : Int16) (increment : UInt32)
-    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
-    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
-    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
+theorem digital_setup_increments_half_cycle (pitch param : Int16) (increment : UInt32) :
     (DigitalSetup.fmModulatorIncrement pitch param).toNat < 2 ^ 31 ∧
       (DigitalSetup.ringIncrement pitch param).toNat < 2 ^ 31 ∧
       (DigitalSetup.modulationSymbolIncrement pitch param).toNat < 2 ^ 31 ∧
@@ -208,12 +227,11 @@ theorem filters_setup_cutoff_in_table (pitch parameter : Int32) :
       (Analog.tableIndex ((FiltersSetup.swarmHpCutoff pitch parameter).toUInt32 <<< 17) + 1).toNat ≤ 256 := sorry
 
 theorem filters_setup_table_blend_le_top (table : UInt32 → UInt16) (phase : UInt32) (top : Nat)
-    (rising : ∀ i, table i ≤ table (i + 1)) (bounded : ∀ i, (table i).toNat ≤ top) (small : top ≤ 32767) :
+    (rising : ∀ i : UInt32, i.toNat < 256 → table i ≤ table (i + 1)) (bounded : ∀ i, (table i).toNat ≤ top)
+    (small : top ≤ 32767) :
     (Digital.lutAt table phase).toNat ≤ top := sorry
 
-theorem filters_setup_cutoff_in_range (pitch parameter : Int32)
-    (rising : ∀ i, Percussion.cutoffTable i ≤ Percussion.cutoffTable (i + 1))
-    (top : ∀ i, (Percussion.cutoffTable i).toNat ≤ 25078) :
+theorem filters_setup_cutoff_in_range (pitch parameter : Int32) :
     0 ≤ (FiltersSetup.swarmCutoff pitch parameter).toInt ∧
       (FiltersSetup.swarmCutoff pitch parameter).toInt ≤ 25078 := sorry
 
@@ -266,6 +284,13 @@ theorem lane_set_rhythm_valid (l : Lane) (valid : Lane.Valid l) (kind rotate acc
     (reseed : Bool) : Lane.Valid (Lane.setRhythm l kind rotate accents rule ratchet subHits reseed) := sorry
 
 theorem lane_learn_valid (l : Lane) (valid : Lane.Valid l) (note : Nat) : Lane.Valid (Lane.learn l note) := sorry
+
+theorem lane_from_patch_keeps_feel (p : PatchLane) (fits : p.Fits) (div mask : Nat) (seed : UInt32) :
+    let l := (Lane.make p.hits p.steps div mask p.low p.span seed).setRhythm p.feel p.rotate p.accents p.rule
+      p.ratchet p.subHits true
+    l.rhythm.kind = p.feel ∧ l.rhythm.rotate = p.rotate ∧ l.rhythm.accents = p.accents ∧
+      l.rhythm.rule = p.rule ∧ l.rhythm.ratchet = p.ratchet ∧ l.rhythm.subHits = p.subHits ∧
+      l.hits = p.hits ∧ l.steps = p.steps := sorry
 
 -- Proofs/Lfo.lean
 theorem lfo_modulate_in_range (base depth phase : UInt32) : (lfoModulate base depth phase).toNat ≤ 100 := sorry
@@ -384,12 +409,10 @@ theorem noise_setup_gain_correction_in_range (pitch param0 : Int16) :
 theorem noise_setup_grain_rate_in_table (param0 : Int16) (nonneg : 0 ≤ param0.toInt) :
     (param0.toInt32 >>> 7).toUInt32.toNat ≤ 256 := sorry
 
-theorem noise_setup_grain_rate_bounded (param0 : Int16)
-    (top : ∀ i, (NoiseSetup.rateTable i).toNat ≤ 32768) :
+theorem noise_setup_grain_rate_bounded (param0 : Int16) :
     (NoiseSetup.grainRate param0).toNat ≤ 2 ^ 18 := sorry
 
 theorem noise_setup_grain_reset (envelope envInc word : UInt32) (param0 : Int16)
-    (top : ∀ i, (NoiseSetup.rateTable i).toNat ≤ 32768)
     (settled : envelope.toNat ≤ 2 ^ 24 + 2 ^ 22) (slow : envInc.toNat ≤ 2 ^ 18) :
     (NoiseSetup.grainRateStart envelope envInc word param0).toNat ≤ 2 ^ 18 ∧
       (NoiseSetup.grainEnvelopeStart envelope envInc word).toNat
@@ -701,11 +724,7 @@ theorem physical_setup_flute_body_in_table (pitch param1 : Int32) :
 theorem pitch_table_reads_inside (pitch : Int16) :
     (Pitch.tableIndex pitch).toNat < 97 ∧ (Pitch.tableIndex pitch + 1).toNat < 97 := sorry
 
-theorem pitch_increment_bounded (pitch : Int16)
-    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
-    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
-    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
-    (Pitch.phaseIncrement pitch).toNat < 2 ^ 31 := sorry
+theorem pitch_increment_bounded (pitch : Int16) : (Pitch.phaseIncrement pitch).toNat < 2 ^ 31 := sorry
 
 -- Proofs/Quantizer.lean
 theorem quantizer_snap_keeps_scale_notes (mask note : Nat) (inside : Quantizer.inScale mask note = true) :
@@ -806,6 +825,17 @@ theorem rhythm_automaton_row_fits (rule steps : Nat) (row : UInt32) (small : ste
 theorem rhythm_accent_only_on_hit (r : Rhythm) (hits steps step : Nat)
     (accented : Rhythm.accent r hits steps step = true) : Rhythm.hit r hits steps step = true := sorry
 
+theorem rhythm_rotate_keeps_hits (r : Rhythm) (hits steps : Nat) (kind : r.kind = 1) (positive : 0 < steps) :
+    Rhythm.count (Rhythm.hit r hits steps) steps = Rhythm.count (Euclid.hit hits steps) steps := sorry
+
+theorem rhythm_rule_zero_dies (steps : Nat) (row : UInt32) (small : steps ≤ 32) : Automaton.step 0 steps row = 0 := sorry
+
+theorem rhythm_rule_full_fills (steps : Nat) (row : UInt32) (small : steps ≤ 32) :
+    (Automaton.step 255 steps row).toNat = 2 ^ steps - 1 := sorry
+
+theorem rhythm_rule_204_freezes (steps : Nat) (row : UInt32) (small : steps ≤ 32) :
+    Automaton.step 204 steps row = Rhythm.cut steps row := sorry
+
 -- Proofs/Run.lean
 theorem run_every_note_on_has_a_note_off (l : Lane) (fresh : l.playing = none) (ops : List Lane.Op) :
     Lane.noteOns (l.trace ops) = Lane.noteOffs (l.trace ops) + (l.run ops).soundingCount ∧
@@ -905,8 +935,7 @@ theorem vowels_setup_fof_reads_in_table (parameter : Int32)
     (shaped : 0 ≤ parameter.toInt ∧ parameter.toInt ≤ 32767) :
     (VowelsSetup.fofRow parameter).toNat ≤ 3 ∧ (VowelsSetup.fofRow parameter + 1).toNat ≤ 4 := sorry
 
-theorem vowels_setup_formant_amplitude_in_range (parameter : Int32) (formant : UInt32)
-    (nibble : ∀ vowel formant, (VowelsSetup.vowelAmplitudeAt vowel formant).toNat ≤ 15) :
+theorem vowels_setup_formant_amplitude_in_range (parameter : Int32) (formant : UInt32) :
     (VowelsSetup.vowelAmplitude parameter formant).toNat ≤ 15 := sorry
 
 theorem vowels_setup_fof_amplitude_16bit (parameter0 parameter1 : Int32) (formant : UInt32) :
@@ -960,8 +989,7 @@ theorem wavetables_paraphonic_never_wraps (p0 p1 p2 p3 inc0 inc1 inc2 inc3 waveA
 
 -- Proofs/WavetablesSetup.lean
 theorem wavetables_setup_table_in_table (param0 prev1 : Int16) (nonneg0 : 0 ≤ param0.toInt)
-    (nonneg1 : 0 ≤ prev1.toInt)
-    (steps : (WavetablesSetup.tableSteps (WavetablesSetup.tableIndex prev1)).toNat ≤ 16) :
+    (nonneg1 : 0 ≤ prev1.toInt) :
     (WavetablesSetup.tableIndex prev1).toNat ≤ 19 ∧
       (WavetablesSetup.tableStep param0 prev1 + 1).toNat ≤ 16 := sorry
 
@@ -987,8 +1015,5 @@ theorem wavetables_setup_paraphonic_in_table (param0 param1 : Int16) (nonneg0 : 
 theorem wavetables_setup_wave_in_bank (wave phase : UInt32) (selected : wave.toNat ≤ 255) :
     wave.toNat * 129 + (Analog.tableIndex (phase >>> 1) + 1).toNat ≤ 33023 := sorry
 
-theorem wavetables_setup_increments_half_cycle (pitch param1 : Int16) (voice : UInt32)
-    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
-    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
-    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
+theorem wavetables_setup_increments_half_cycle (pitch param1 : Int16) (voice : UInt32) :
     (WavetablesSetup.voiceIncrement pitch param1 voice).toNat < 2 ^ 31 := sorry

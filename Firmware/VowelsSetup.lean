@@ -1,4 +1,5 @@
 import Firmware.Percussion
+import Firmware.BraidsData
 
 set_option compiler.extract_closed false
 
@@ -18,8 +19,11 @@ namespace VowelsSetup
 looked up by C. Trusted data. -/
 @[extern "fm1_braids_vowel_frequency"] opaque vowelFrequencyAt (vowel formant : UInt32) : UInt8
 
-/-- The amplitude (0 to 15) of formant `formant` of vowel `vowel` of `vowels_data`, looked up by C. -/
-@[extern "fm1_braids_vowel_amplitude"] opaque vowelAmplitudeAt (vowel formant : UInt32) : UInt8
+/-- The amplitude (0 to 15) of formant `formant` of vowel `vowel` of `vowels_data`. The body is the data,
+generated from `digital_oscillator.cc` (`BraidsData.vowelAmplitude`); on the chip the C reads its own copy.
+Trusted: that the one-line C accessor reads the same table. -/
+@[extern "fm1_braids_vowel_amplitude"] def vowelAmplitudeAt (vowel formant : UInt32) : UInt8 :=
+  (BraidsData.vowelAmplitude vowel.toNat formant.toNat).toUInt8
 
 /-- Formant `formant` of consonant `consonant` (0 to 7) of Braids' `consonant_data`, as a byte of frequency,
 looked up by C. Trusted data. -/

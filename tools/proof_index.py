@@ -20,8 +20,8 @@ GROUPS = [
     ("The voices",
      "Braids' engines, ported to Lean sample for sample. Each engine's arithmetic stays inside a 16-bit sample and "
      "reads its tables inside their bounds, so no shape, timbre or pitch can wrap, overflow or read past a table.",
-     ["Pitch", "Tables", "Analog", "Digital", "Blend", "Filters", "Noise", "Percussion", "Physical", "Vowels",
-      "Wavetables"]),
+     ["Pitch", "Tables", "BraidsData", "Analog", "Digital", "Blend", "Filters", "Noise", "Percussion", "Physical",
+      "Vowels", "Wavetables"]),
     ("Setting a voice up",
      "The per-note and per-block work: a sound's parameters land in range, the smoothing never overshoots, and "
      "the setup code reads its tables inside their bounds.",

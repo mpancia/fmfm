@@ -1,4 +1,5 @@
 import Firmware.FiltersSetup
+import Proofs.BraidsData
 
 /-!
 The per-block setup of the swarm hands a cutoff pitch to the cutoff table. These theorems say the pitch is
@@ -85,19 +86,29 @@ private theorem filters_setup_blend_le (a b frac : UInt32) (rising : a ≤ b) (s
   rw [UInt32.toNat_add, shifted, Nat.mod_eq_of_lt (by omega)]
   omega
 
-/-- A table of 16-bit entries that rise from one to the next and never pass `top` (at most 32767) blends to
-a value at most `top` at any phase (`Digital.lutAt`).
+/-- The top byte of a phase is below 256. -/
+private theorem filters_setup_index_lt (phase : UInt32) : (Analog.tableIndex phase).toNat < 256 := by
+  unfold Analog.tableIndex
+  rw [UInt32.toNat_shiftRight]
+  have : (UInt32.toNat 24 % 32) = 24 := by decide
+  rw [this, Nat.shiftRight_eq_div_pow]
+  have := phase.toNat_lt
+  omega
+
+/-- A table of 16-bit entries that rise from one to the next across its 257 entries and never pass `top` (at
+most 32767) blends to a value at most `top` at any phase (`Digital.lutAt`).
 Why it matters: a cutoff or damping coefficient read this way is a positive value no larger than the table's
 top entry, which is the range the filters' sample theorems take for it; the cut to 16 bits inside the blend
 changes nothing. -/
 theorem filters_setup_table_blend_le_top (table : UInt32 → UInt16) (phase : UInt32) (top : Nat)
-    (rising : ∀ i, table i ≤ table (i + 1)) (bounded : ∀ i, (table i).toNat ≤ top) (small : top ≤ 32767) :
+    (rising : ∀ i : UInt32, i.toNat < 256 → table i ≤ table (i + 1)) (bounded : ∀ i, (table i).toNat ≤ top)
+    (small : top ≤ 32767) :
     (Digital.lutAt table phase).toNat ≤ top := by
   unfold Digital.lutAt
   dsimp only
   have r : (table (Analog.tableIndex phase)).toUInt32 ≤ (table (Analog.tableIndex phase + 1)).toUInt32 := by
     rw [UInt32.le_iff_toNat_le, UInt16.toNat_toUInt32, UInt16.toNat_toUInt32]
-    exact UInt16.le_iff_toNat_le.mp (rising _)
+    exact UInt16.le_iff_toNat_le.mp (rising _ (filters_setup_index_lt phase))
   have b : (table (Analog.tableIndex phase + 1)).toUInt32.toNat ≤ top := by
     rw [UInt16.toNat_toUInt32]; exact bounded _
   have frac : ((phase >>> 8) &&& 0xFFFF).toNat ≤ 65535 := by
@@ -109,19 +120,17 @@ theorem filters_setup_table_blend_le_top (table : UInt32 → UInt16) (phase : UI
   rw [UInt16.toNat_toUInt32, UInt32.toNat_toUInt16, Nat.mod_eq_of_lt (by omega)]
   omega
 
-/-- The swarm's high-pass coefficient is between 0 and 25078, given the cutoff table Braids ships: its entries
-rise from one to the next and the top one is 25078. Both are facts about `resources.cc`, so they are
-hypotheses here.
+/-- The swarm's high-pass coefficient is between 0 and 25078. The cutoff table's entries rise from one to the
+next and the top one is 25078 (`Proofs/BraidsData.lean`, checked against `resources.cc`).
 Why it matters: the coefficient multiplies the filter's band-pass state on every sample; a positive 15-bit
 coefficient is the range that keeps that product in step with the original's. -/
-theorem filters_setup_cutoff_in_range (pitch parameter : Int32)
-    (rising : ∀ i, Percussion.cutoffTable i ≤ Percussion.cutoffTable (i + 1))
-    (top : ∀ i, (Percussion.cutoffTable i).toNat ≤ 25078) :
+theorem filters_setup_cutoff_in_range (pitch parameter : Int32) :
     0 ≤ (FiltersSetup.swarmCutoff pitch parameter).toInt ∧
       (FiltersSetup.swarmCutoff pitch parameter).toInt ≤ 25078 := by
   unfold FiltersSetup.swarmCutoff Percussion.svfCutoff
   generalize (FiltersSetup.swarmHpCutoff pitch parameter).toUInt32 <<< 17 = phase
-  have := filters_setup_table_blend_le_top Percussion.cutoffTable phase 25078 rising top (by decide)
+  have := filters_setup_table_blend_le_top Percussion.cutoffTable phase 25078 braids_data_cutoff_rising
+    braids_data_cutoff_top (by decide)
   generalize Digital.lutAt Percussion.cutoffTable phase = v at *
   have e : v.toInt32.toInt = (v.toNat : Int) := by
     show v.toBitVec.toInt = _

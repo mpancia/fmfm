@@ -257,3 +257,63 @@ theorem arp_every_note_on_has_a_note_off (a : Arp) (fresh : a.playing = none) (o
   have balance := arp_balance ops a
   have start : a.soundingCount = 0 := by simp [Arp.soundingCount, fresh]
   exact ⟨by omega, rfl⟩
+
+/-- One UP tick with a step a tick: the note at the position, and the position moves on; nothing that shapes
+the pattern changes. -/
+private theorem arp_up_tick (a : Arp) (mode : a.mode = 1) (div : a.div = 1) (held : a.held ≠ []) :
+    a.tick.on = some (a.pattern.getD (a.pos % a.pattern.length) 0) ∧
+      a.tick.pos = (a.pos % a.pattern.length + 1) % a.pattern.length ∧ a.tick.held = a.held ∧
+      a.tick.mode = a.mode ∧ a.tick.octaves = a.octaves ∧ a.tick.div = a.div := by
+  have step : a.atStep = true := by unfold Arp.atStep Divider.tick; simp [div]
+  have nonempty : a.pattern.isEmpty = false := by
+    have := arp_pattern_empty a
+    cases h : a.pattern.isEmpty
+    · rfl
+    · exact absurd (this.mp h) held
+  unfold Arp.tick
+  dsimp only
+  rw [step, nonempty]
+  simp only [mode, Bool.true_and, ne_eq, Nat.one_ne_zero, decide_true, Bool.not_false, ite_true]
+  unfold Arp.step
+  simp only [mode]
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- The pattern does not change across UP ticks. -/
+private theorem arp_up_pattern (a : Arp) (mode : a.mode = 1) (div : a.div = 1) (held : a.held ≠ []) :
+    a.tick.pattern = a.pattern := by
+  have ⟨_, _, h, m, o, _⟩ := arp_up_tick a mode div held
+  unfold Arp.pattern
+  rw [h, m, o]
+
+/-- After `n` UP ticks from position `p`, the notes played are the pattern read from `p` on, round and round. -/
+private theorem arp_up_played (n : Nat) : ∀ (a : Arp), a.mode = 1 → a.div = 1 → a.held ≠ [] →
+    a.played n = (List.range n).map (fun k => a.pattern.getD ((a.pos + k) % a.pattern.length) 0) := by
+  induction n with
+  | zero => intro a _ _ _; rfl
+  | succ n ih =>
+    intro a mode div held
+    have ⟨on, pos, h, m, o, d⟩ := arp_up_tick a mode div held
+    have pat := arp_up_pattern a mode div held
+    have next := ih a.tick (by rw [m, mode]) (by rw [d, div]) (by rw [h]; exact held)
+    simp only [Arp.played, on, List.range_succ_eq_map, List.map_cons, List.map_map, next, pat, pos]
+    rw [List.singleton_append, Nat.add_zero]
+    congr 1
+    apply List.map_congr_left
+    intro k _
+    simp only [Function.comp, Nat.succ_eq_add_one]
+    congr 1
+    rw [Nat.mod_add_mod, Nat.add_assoc, Nat.mod_add_mod, Nat.add_comm 1 k]
+
+/-- UP with a step a tick, from the start of the pattern, plays the pattern through note for note: as many
+ticks as the pattern has notes start exactly the pattern, in order.
+Why it matters: UP is a rising run over exactly what you hold, each note once, in order, before it comes round;
+the same reading gives every later lap, since the position comes back to the start. -/
+theorem arp_up_plays_pattern (a : Arp) (mode : a.mode = 1) (div : a.div = 1) (start : a.pos = 0)
+    (held : a.held ≠ []) : a.played a.pattern.length = a.pattern := by
+  rw [arp_up_played a.pattern.length a mode div held, start]
+  apply List.ext_getElem
+  · simp
+  · intro i lt _
+    simp only [List.getElem_map, List.getElem_range, Nat.zero_add]
+    rw [List.length_map, List.length_range] at lt
+    rw [Nat.mod_eq_of_lt lt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem lt, Option.getD_some]

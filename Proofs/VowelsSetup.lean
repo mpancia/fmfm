@@ -1,4 +1,5 @@
 import Firmware.VowelsSetup
+import Proofs.BraidsData
 
 /-!
 The per-block setup of the vowels reads phoneme and formant data by indexes it computes from the parameters,
@@ -94,19 +95,18 @@ private theorem vowels_setup_weighted_le (a b balance : Nat) (ha : a ≤ 15) (hb
   have := Nat.mul_le_mul_right balance hb
   omega
 
-/-- The amplitude the vowel hands each formant is at most 15, given that every amplitude in `vowels_data` is
-at most 15 (a fact about the data, so a hypothesis here).
+/-- The amplitude the vowel hands each formant is at most 15. Every amplitude in `vowels_data` is at most 15
+(`braids_data_vowel_amplitudes_are_nibbles`, checked against `digital_oscillator.cc`).
 Why it matters: the formant tables are indexed by the phase's top nibble or-ed with the amplitude, and
 `tables_formant_reads_inside_256` needs the amplitude to be a nibble; this closes that hypothesis for every
 parameter and formant. -/
-theorem vowels_setup_formant_amplitude_in_range (parameter : Int32) (formant : UInt32)
-    (nibble : ∀ vowel formant, (VowelsSetup.vowelAmplitudeAt vowel formant).toNat ≤ 15) :
+theorem vowels_setup_formant_amplitude_in_range (parameter : Int32) (formant : UInt32) :
     (VowelsSetup.vowelAmplitude parameter formant).toNat ≤ 15 := by
   unfold VowelsSetup.vowelAmplitude
   dsimp only
   have bal := vowels_setup_balance_le parameter
-  have ha := nibble (VowelsSetup.vowelIndex parameter) formant
-  have hb := nibble (VowelsSetup.vowelIndex parameter + 1) formant
+  have ha := braids_data_vowel_amplitudes_are_nibbles (VowelsSetup.vowelIndex parameter) formant
+  have hb := braids_data_vowel_amplitudes_are_nibbles (VowelsSetup.vowelIndex parameter + 1) formant
   generalize VowelsSetup.vowelBalance parameter = balance at *
   generalize VowelsSetup.vowelAmplitudeAt (VowelsSetup.vowelIndex parameter) formant = a at *
   generalize VowelsSetup.vowelAmplitudeAt (VowelsSetup.vowelIndex parameter + 1) formant = b at *

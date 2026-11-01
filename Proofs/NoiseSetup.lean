@@ -1,5 +1,6 @@
 import Firmware.NoiseSetup
 import Proofs.Tables
+import Proofs.BraidsData
 
 /-!
 The noise engines' setup reads tables of C data and hands the loops the numbers their sample theorems
@@ -98,33 +99,30 @@ theorem noise_setup_grain_rate_in_table (param0 : Int16) (nonneg : 0 ≤ param0.
   have := noise_setup_rate_index_lt param0 nonneg
   omega
 
-/-- A grain's rate is at most 2^18 per sample, given that the rate table's entries are at most 32768 (a fact
-about `resources.cc`, so a hypothesis here).
+/-- A grain's rate is at most 2^18 per sample. The rate table's entries are at most 32768
+(`braids_data_rate_top`, checked against `resources.cc`).
 Why it matters: `noise_grain_envelope_index_in_table` needs the rate below 2^18 to keep a block's envelope
 reads inside the envelope table. -/
-theorem noise_setup_grain_rate_bounded (param0 : Int16)
-    (top : ∀ i, (NoiseSetup.rateTable i).toNat ≤ 32768) :
+theorem noise_setup_grain_rate_bounded (param0 : Int16) :
     (NoiseSetup.grainRate param0).toNat ≤ 2 ^ 18 := by
   unfold NoiseSetup.grainRate
   rw [UInt32.toNat_shiftLeft, UInt16.toNat_toUInt32]
-  have := top (param0.toInt32 >>> 7).toUInt32
+  have := braids_data_rate_top (param0.toInt32 >>> 7).toUInt32
   have three : (UInt32.toNat 3 % 32) = 3 := by decide
   rw [three, Nat.shiftLeft_eq, Nat.mod_eq_of_lt (by omega)]
   omega
 
 /-- After the setup, a grain's rate is at most 2^18 and its envelope will not pass 2^24 + 2^22 within the
-block's 16 samples, given a block that started that way (the first block starts at 0) and the rate table's
-top of 32768.
+block's 16 samples, given a block that started that way (the first block starts at 0).
 Why it matters: these are the two hypotheses `noise_grain_envelope_index_in_table` takes, so with this the
 grain's envelope reads stay inside their table from the first block on. A grain that has ended but does not
 restart keeps its envelope, which is why the bound carries the whole block's advance. -/
 theorem noise_setup_grain_reset (envelope envInc word : UInt32) (param0 : Int16)
-    (top : ∀ i, (NoiseSetup.rateTable i).toNat ≤ 32768)
     (settled : envelope.toNat ≤ 2 ^ 24 + 2 ^ 22) (slow : envInc.toNat ≤ 2 ^ 18) :
     (NoiseSetup.grainRateStart envelope envInc word param0).toNat ≤ 2 ^ 18 ∧
       (NoiseSetup.grainEnvelopeStart envelope envInc word).toNat
         + 16 * (NoiseSetup.grainRateStart envelope envInc word param0).toNat ≤ 2 ^ 24 + 2 ^ 22 := by
-  have rate := noise_setup_grain_rate_bounded param0 top
+  have rate := noise_setup_grain_rate_bounded param0
   unfold NoiseSetup.grainRateStart NoiseSetup.grainEnvelopeStart
   by_cases done : NoiseSetup.grainDone envelope envInc = true
   · simp only [done, Bool.true_and, ite_true]

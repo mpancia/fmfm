@@ -54,7 +54,8 @@ every position and every value, `Proofs/Physical.lean` shows each position insid
 the numbers and passes them in, so the sequence is the one Braids produces). The per-block setup (pitch to
 phase step, filter coefficients, which waves or partials a block uses, the hysteresis on parameters) is Lean
 in the `*Setup.lean` modules, so the ranges the sample theorems take are themselves theorems
-(`Proofs/*Setup.lean`), with the facts about table data stated as hypotheses.
+(`Proofs/*Setup.lean`); the facts about table data they rest on are theorems about the generated copies in
+`Firmware/BraidsData.lean` (`Proofs/BraidsData.lean`).
 
 ## How a port is checked
 
@@ -72,9 +73,15 @@ in the `*Setup.lean` modules, so the ranges the sample theorems take are themsel
 
 ## What is trusted
 
-- The tables (every `@[extern "fm1_braids_*"]` in `Firmware/`): Braids' data, read by C accessors in
-  `voices/braids/analog_oscillator.cc`, `digital_oscillator.cc`, `macro_oscillator.cc` and `lean_*_tables.cc`. The Lean code blends neighbouring entries; the differential test shows
-  the blend matches the original over the real tables.
+- The tables (every `@[extern "fm1_braids_*"]` in `Firmware/`): Braids' data, read by one-line C accessors in
+  `voices/braids/analog_oscillator.cc`, `digital_oscillator.cc`, `macro_oscillator.cc` and `lean_*_tables.cc`.
+  The Lean code blends neighbouring entries; the differential test shows the blend matches the original over
+  the real tables. Five tables whose shape the proofs need (the phase steps, the filter cutoff, the grain
+  envelope rate, the vowel amplitudes, the wavetable step counts) also have a copy in Lean,
+  `Firmware/BraidsData.lean`, generated from the C sources by `tools/gen_tables.py` and kept in step by `make
+  lint`; their accessors' bodies are those copies and `Proofs/BraidsData.lean` checks the facts (rising, top
+  entry, nibbles, at most 16 steps) against them. What is trusted there is only that the C accessor reads the
+  same table.
 - Division by zero: Lean gives 0, C++ would trap. The step is above 65536 for any audible pitch, so the engine never
   divides by zero; the proofs do not cover a step below that.
 - Lean's compiler, JieLi's and Lean's clang, and the C glue.
@@ -127,13 +134,12 @@ in the `*Setup.lean` modules, so the ranges the sample theorems take are themsel
   stop symbol in the data). The bowing and blowing envelope reads are proved from the clamp after each block
   (`physical_setup_envelope_pointer_in_table`), a new plucked string's size, mask and fill from its setup
   (`physical_setup_pluck_size_valid`), and the drum's cutoff read and the gains and decays the percussion mixes
-  assume from theirs (`Proofs/PercussionSetup.lean`). The grain
-  envelope read is proved from the block's setup given the rate table's top value
-  (`noise_setup_grain_reset`), the wave line's wave after the scan's reads one past Braids' 64-entry line at
-  the top of the parameter's range (Braids' own overrun, kept so the output matches), the wave numbers the
-  selection tables hold are data (`wavetables_setup_wave_in_bank` takes a number up to 255), the vowel's
-  formant amplitude (0 to 15) is proved only given that the phoneme data holds nibbles, and the swarm's cutoff
-  coefficient's range only given the cutoff table's top entry (`Proofs/VowelsSetup.lean`,
-  `Proofs/FiltersSetup.lean`).
+  assume from theirs (`Proofs/PercussionSetup.lean`). The grain envelope read is proved from the block's setup
+  and the rate table's top value (`noise_setup_grain_reset`, `braids_data_rate_top`), the wave line's wave
+  after the scan's reads one past Braids' 64-entry line at the top of the parameter's range (Braids' own
+  overrun, kept so the output matches), the wave numbers the selection tables hold are data
+  (`wavetables_setup_wave_in_bank` takes a number up to 255), and the vowel's formant amplitude (0 to 15) and
+  the swarm's cutoff coefficient's range are proved from the phoneme data's nibbles and the cutoff table's top
+  entry (`Proofs/VowelsSetup.lean`, `Proofs/FiltersSetup.lean`, both checked in `Proofs/BraidsData.lean`).
 - The chip's CPU cost of the Lean path is unmeasured; on x86 the analog oscillators run at about 1.3 times the
   original's time per sample.

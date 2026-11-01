@@ -41,6 +41,7 @@ import Firmware.Smooth
 import Firmware.SmoothApi
 import Firmware.Patch
 import Firmware.PatchApi
+import Firmware.BraidsData
 import Firmware.Pitch
 import Firmware.PitchApi
 import Firmware.DigitalSetup

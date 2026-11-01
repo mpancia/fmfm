@@ -60,22 +60,19 @@ theorem digital_setup_fm_quantizer_in_table (param : Int16) (nonneg : 0 ≤ para
   omega
 
 /-- Every phase step the setup hands to the FM, ring modulator, toy and digital modulation sample code is
-below half a cycle per sample, given the facts about Braids' step table that `pitch_increment_bounded`
-needs. The detuned pitches are cut to 16 bits before the lookup, so no offset can escape the clamp.
+below half a cycle per sample. The detuned pitches are cut to 16 bits before the lookup, so no offset can
+escape the clamp.
 Why it matters: the sample code's steps come from here, and a step at or above half a cycle would alias;
 the modulators' detunes can reach pitches far outside the carrier's range, and this says the clamp still
 holds them. -/
-theorem digital_setup_increments_half_cycle (pitch param : Int16) (increment : UInt32)
-    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
-    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
-    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
+theorem digital_setup_increments_half_cycle (pitch param : Int16) (increment : UInt32) :
     (DigitalSetup.fmModulatorIncrement pitch param).toNat < 2 ^ 31 ∧
       (DigitalSetup.ringIncrement pitch param).toNat < 2 ^ 31 ∧
       (DigitalSetup.modulationSymbolIncrement pitch param).toNat < 2 ^ 31 ∧
       (DigitalSetup.toyIncrement increment).toNat < 2 ^ 31 := by
-  have modulator := pitch_increment_bounded (DigitalSetup.fmModulatorPitch pitch param) rising close top
-  have ring := pitch_increment_bounded (DigitalSetup.ringPitch pitch param) rising close top
-  have symbol := pitch_increment_bounded (DigitalSetup.modulationSymbolPitch pitch param) rising close top
+  have modulator := pitch_increment_bounded (DigitalSetup.fmModulatorPitch pitch param)
+  have ring := pitch_increment_bounded (DigitalSetup.ringPitch pitch param)
+  have symbol := pitch_increment_bounded (DigitalSetup.modulationSymbolPitch pitch param)
   have quarter := increment.toNat_lt
   unfold DigitalSetup.fmModulatorIncrement DigitalSetup.ringIncrement DigitalSetup.modulationSymbolIncrement
     DigitalSetup.toyIncrement

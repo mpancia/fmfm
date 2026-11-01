@@ -1,6 +1,7 @@
 import Firmware.WavetablesSetup
 import Proofs.Pitch
 import Proofs.Tables
+import Proofs.BraidsData
 
 /-!
 The wavetable engines' setup picks waves out of small C tables (a wavetable's steps, the wave map, the two
@@ -84,11 +85,11 @@ private theorem wavetables_setup_table_index_le (prev1 : Int16) (nonneg : 0 ≤ 
   simp
   omega
 
-/-- The wave pointer is at most 2 * 32767 * 16 for a parameter from 0 to 32767 and a table of at most 16
-steps. -/
-private theorem wavetables_setup_pointer_le (param0 prev1 : Int16) (nonneg : 0 ≤ param0.toInt)
-    (steps : (WavetablesSetup.tableSteps (WavetablesSetup.tableIndex prev1)).toNat ≤ 16) :
+/-- The wave pointer is at most 2 * 32767 * 16 for a parameter from 0 to 32767 (every table has at most 16
+steps). -/
+private theorem wavetables_setup_pointer_le (param0 prev1 : Int16) (nonneg : 0 ≤ param0.toInt) :
     (WavetablesSetup.wavePointer param0 prev1).toNat ≤ 1048544 := by
+  have steps := braids_data_wavetable_steps_at_most_16 (WavetablesSetup.tableIndex prev1)
   have hi := Int16.toInt_le param0
   have top : Int16.maxValue.toInt = 32767 := by decide
   have p := wavetables_setup_param param0
@@ -109,18 +110,16 @@ private theorem wavetables_setup_pointer_le (param0 prev1 : Int16) (nonneg : 0 �
   omega
 
 /-- The wavetable engine reads its wavetable's definition inside the table of 20 definitions, and the
-pointer's step and the one after it inside the 17 steps of a definition, for a held parameter from 0 to 32767
-and a definition of at most 16 steps (every definition in `digital_oscillator.cc` has 4, 8 or 16; a
-hypothesis here).
+pointer's step and the one after it inside the 17 steps of a definition, for a held parameter from 0 to 32767.
+Every definition in `digital_oscillator.cc` has 4, 8 or 16 steps (`braids_data_wavetable_steps_at_most_16`).
 Why it matters: both are C arrays read without a check; the 17th entry of each definition exists so that the
 step after the last can be read. -/
 theorem wavetables_setup_table_in_table (param0 prev1 : Int16) (nonneg0 : 0 ≤ param0.toInt)
-    (nonneg1 : 0 ≤ prev1.toInt)
-    (steps : (WavetablesSetup.tableSteps (WavetablesSetup.tableIndex prev1)).toNat ≤ 16) :
+    (nonneg1 : 0 ≤ prev1.toInt) :
     (WavetablesSetup.tableIndex prev1).toNat ≤ 19 ∧
       (WavetablesSetup.tableStep param0 prev1 + 1).toNat ≤ 16 := by
   refine ⟨wavetables_setup_table_index_le prev1 nonneg1, ?_⟩
-  have := wavetables_setup_pointer_le param0 prev1 nonneg0 steps
+  have := wavetables_setup_pointer_le param0 prev1 nonneg0
   unfold WavetablesSetup.tableStep
   rw [wavetables_setup_succ _ (by rw [wavetables_setup_ushift _ _ (by decide)]; simp; omega),
     wavetables_setup_ushift _ _ (by decide)]
@@ -264,13 +263,10 @@ theorem wavetables_setup_wave_in_bank (wave phase : UInt32) (selected : wave.toN
   have := tables_wave_reads_inside_129 phase
   omega
 
-/-- Every detuned voice of the paraphonic engine steps below half a cycle per sample, given the phase step
-table's shape (`pitch_increment_bounded`).
+/-- Every detuned voice of the paraphonic engine steps below half a cycle per sample
+(`pitch_increment_bounded`).
 Why it matters: the detune is added to the pitch before the table's clamp, so the clamp applies to each voice
 and none of the four runs past Nyquist. -/
-theorem wavetables_setup_increments_half_cycle (pitch param1 : Int16) (voice : UInt32)
-    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
-    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
-    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
+theorem wavetables_setup_increments_half_cycle (pitch param1 : Int16) (voice : UInt32) :
     (WavetablesSetup.voiceIncrement pitch param1 voice).toNat < 2 ^ 31 :=
-  pitch_increment_bounded _ rising close top
+  pitch_increment_bounded _

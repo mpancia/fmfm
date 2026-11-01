@@ -1,4 +1,5 @@
 import Firmware.Pitch
+import Proofs.BraidsData
 
 /-!
 The pitch to phase step reads a 97-entry table of C data without a bounds check and shifts the result down by
@@ -150,18 +151,14 @@ private theorem pitch_halved (step shifts : Nat) (one : 1 ≤ shifts) (small : s
   have := Nat.div_le_div_left two (by decide : 0 < 2) (a := step)
   omega
 
-/-- The step is below half a cycle per sample, given the table that Braids ships: its entries rise from one to
-the next by less than 2^27 and the top one is 2588618730. Both are facts about `resources.cc`, so they are
-hypotheses here, not something the code can show.
+/-- The step is below half a cycle per sample. The table's entries rise from one to the next by less than
+2^27 and the top one is 2588618730 (`Proofs/BraidsData.lean`, checked against `resources.cc`).
 Why it matters: the table's top entry is above half a cycle, so this bound comes from the clamp, which makes
 every pitch at least one octave below the table, and a step below half a cycle means the oscillators never run
 past Nyquist by construction. -/
-theorem pitch_increment_bounded (pitch : Int16)
-    (rising : ∀ i, Pitch.incrementTable i ≤ Pitch.incrementTable (i + 1))
-    (close : ∀ i, (Pitch.incrementTable (i + 1)).toNat - (Pitch.incrementTable i).toNat < 2 ^ 27)
-    (top : ∀ i, (Pitch.incrementTable i).toNat ≤ 2588618730) :
-    (Pitch.phaseIncrement pitch).toNat < 2 ^ 31 := by
+theorem pitch_increment_bounded (pitch : Int16) : (Pitch.phaseIncrement pitch).toNat < 2 ^ 31 := by
   have ⟨one, _, _⟩ := pitch_shifts_and_folded pitch
+  have inside := pitch_index_lt pitch
   unfold Pitch.phaseIncrement
   dsimp only
   split
@@ -169,9 +166,9 @@ theorem pitch_increment_bounded (pitch : Int16)
   · rename_i under
     have thirtyTwo : (32 : UInt32).toNat = 32 := by decide
     rw [UInt32.not_le, UInt32.lt_iff_toNat_lt, thirtyTwo] at under
-    have blended := pitch_blend_le _ _ _ (rising (Pitch.tableIndex pitch)) (close (Pitch.tableIndex pitch))
-      (pitch_low_bits (Pitch.folded pitch))
-    have := top (Pitch.tableIndex pitch + 1)
+    have blended := pitch_blend_le _ _ _ (braids_data_increments_rising _ inside)
+      (braids_data_increments_close _ inside) (pitch_low_bits (Pitch.folded pitch))
+    have := braids_data_increments_top (Pitch.tableIndex pitch + 1)
     unfold Pitch.topOctaveStep
     dsimp only
     rw [UInt32.toNat_shiftRight, Nat.shiftRight_eq_div_pow, Nat.mod_eq_of_lt (by omega)]
