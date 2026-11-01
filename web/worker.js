@@ -3,7 +3,7 @@
  * sleeps until the AudioWorklet has drained some. Audio is the clock. Layout of `ctl`: see sim.js. */
 'use strict';
 const RING = 16384, TARGET = 2048;          // frames; ring must be a power of two
-let ctl, ring, frame, mem, inp, wrote = 0;
+let ctl, ring, frame, mem, inp, exports, wrote = 0;
 
 const imports = { env: {
   js_sync(ms) {
@@ -28,6 +28,8 @@ const imports = { env: {
     }
     Atomics.store(ctl, 12, mr);
     dv.setUint32(44, n, true);
+    dv.setUint32(112, Atomics.exchange(ctl, 20, 0), true);     // a patch to load (index + 1)
+    Atomics.store(ctl, 21, exports.web_patch_index());
     Atomics.store(ctl, 19, ms);
   },
   js_audio(ptr, frames) {
@@ -52,8 +54,14 @@ onmessage = async (e) => {
   ctl = new Int32Array(e.data.ctl); ring = new Int16Array(e.data.ring); frame = new Uint16Array(e.data.frame);
   try {
     const { instance } = await WebAssembly.instantiateStreaming(fetch(new URL('dinghy.wasm', e.data.base)), imports);
-    mem = instance.exports.memory; inp = instance.exports.web_in_ptr();
-    postMessage({ ready: true });
+    exports = instance.exports;
+    mem = exports.memory; inp = exports.web_in_ptr();
+    const patches = [];                      // the patch names, read before the firmware starts
+    for (let i = 0; i < exports.web_patch_count(); i++) {
+      const b = new Uint8Array(mem.buffer, exports.web_patch_name(i)); let n = 0; while (b[n]) n++;
+      patches.push(new TextDecoder().decode(b.subarray(0, n)));
+    }
+    postMessage({ ready: true, patches });
     instance.exports.web_run();
   } catch (err) { postMessage({ error: String(err && err.message || err) }); }
 };

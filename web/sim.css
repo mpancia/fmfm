@@ -11,9 +11,10 @@ a { color: var(--led); }
 h1 small { color: var(--muted); font-weight: 400; margin-left: 8px; }
 main { max-width: 820px; margin: 0 auto; padding: 24px 16px 40px; }
 h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.01em; }
-.bar { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; margin-bottom: 20px; }
+.bar { display: grid; gap: 10px 16px; margin-bottom: 20px; }
+.bar h1 { align-self: center; }
 .bar-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-#status { grid-column: 1 / -1; margin: 0; color: var(--muted); min-height: 1.45em; }
+#status { margin: 0; color: var(--muted); min-height: 1.45em; }
 button { font: inherit; color: var(--ink); background: var(--button); border: 1px solid var(--plate-edge); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
 button:hover { background: var(--button-hover); }
 button.primary { background: var(--led); border-color: var(--led); color: var(--led-ink); font-weight: 600; }
@@ -21,6 +22,8 @@ button.primary:hover { background: #ffa9c3; }
 button:disabled { opacity: .5; cursor: default; }
 .vol { display: flex; gap: 8px; align-items: center; color: var(--muted); }
 .vol input { accent-color: var(--led); }
+select { font: inherit; color: var(--ink); background: var(--button); border: 1px solid var(--plate-edge); border-radius: 6px; padding: 5px 8px; max-width: 220px; }
+select:disabled { opacity: .5; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 ::selection { background: var(--led); color: var(--led-ink); }
 kbd { font: 0.85em ui-monospace, monospace; background: var(--button); border: 1px solid var(--plate-edge); border-radius: 4px; padding: 0 5px; }

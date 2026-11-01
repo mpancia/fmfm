@@ -4,7 +4,8 @@
  *   ctl (Int32Array):  0 notes held   1 buttons held   2 button press edges   3 button release edges
  *                      4..10 encoder detents   11 MIDI write index   12 MIDI read index   13 audio frames written
  *                      14 audio frames read   15,16 LEDs (lo, hi)   17 screen frame counter   18 audio underruns
- *                      19 simulated ms   32..95 MIDI queue (status | d1 << 8 | d2 << 16 | source << 24)
+ *                      19 simulated ms   20 a patch to load (index + 1)   21 the patch playing
+ *                      32..95 MIDI queue (status | d1 << 8 | d2 << 16 | source << 24)
  *   ring: 16-bit stereo audio.   frame: 240x240 RGB565. */
 const RING = 16384;
 const BUTTONS = ['OCT-', 'OCT+', 'FX', 'SEL', 'ENV', 'LFO', 'EDIT', 'GLO', 'HOME', 'SAVE', 'ARP', 'SEQ', 'PLAY', 'REC'];
@@ -137,6 +138,8 @@ function draw() {
     }
     const under = Atomics.load(ctl, 18);
     status(`Running: ${(Atomics.load(ctl, 19) / 1000).toFixed(1)} s of firmware time` + (under ? `, ${under} audio dropouts (browser too busy)` : ''));
+    const playing = Atomics.load(ctl, 21);                     // the device's own browser may have changed the patch
+    if (document.activeElement !== $('patch') && String(playing) !== $('patch').value) $('patch').value = String(playing);
   }
 }
 
@@ -158,7 +161,12 @@ async function powerOn() {
   worker.onmessage = (e) => {
     if (e.data.error) powerOff('Firmware stopped: ' + e.data.error);
     else if (e.data.report !== undefined) { if (e.data.fatal) powerOff('Lean runtime stopped the firmware: ' + e.data.report); else status('Lean: ' + e.data.report); }
-    else if (e.data.ready) { running = true; $('off').hidden = true; $('power').textContent = 'Power off'; $('power').disabled = false; status('Booting...'); }
+    else if (e.data.ready) {
+      running = true; $('off').hidden = true; $('power').textContent = 'Power off'; $('power').disabled = false; status('Booting...');
+      const sel = $('patch');
+      sel.replaceChildren(...e.data.patches.map((name, i) => new Option(`${i + 1}  ${name}`, i)));
+      sel.disabled = false;
+    }
   };
   worker.postMessage({ ctl: ctl.buffer, ring: ring.buffer, frame: frame.buffer, base: location.href });
 }
@@ -171,10 +179,12 @@ function powerOff(why) {
   keyEls.forEach((el) => el.classList.remove('down'));
   [...ledBtn, ...ledKey].forEach((l) => l.classList.remove('lit'));
   $('off').hidden = false; $('power').textContent = 'Power on'; $('power').disabled = false;
+  $('patch').disabled = true;
   status(why || 'Off. Power on to boot the firmware (the firmware\'s saved settings are lost when it powers off).');
 }
 $('power').addEventListener('click', () => (running ? powerOff() : powerOn()));
 $('vol').addEventListener('input', () => { if (gain) gain.gain.value = $('vol').value / 100; });
+$('patch').addEventListener('change', () => { if (running) Atomics.store(ctl, 20, Number($('patch').value) + 1); $('patch').blur(); });
 
 $('midi').addEventListener('click', async () => {
   if (!navigator.requestMIDIAccess) { status('This browser has no Web MIDI. Use Chrome or Edge.'); return; }

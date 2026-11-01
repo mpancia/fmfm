@@ -1229,6 +1229,12 @@ static void app_main(void)
         int32_t oct = (int8_t)set.oct, e;
         uint32_t base = (uint32_t)((int32_t)KEY0 + 12 * oct);
         platform_poll();
+#ifdef DINGHY_WEB
+        if (web_patch_request) {                /* the simulator page's patch list */
+            patch_load(web_patch_request - 1u); web_patch_request = 0;
+            browse_mode = 0; t_change = fm1_ms;
+        }
+#endif
         clock_poll();
         if (delay_bpm != bpm) delay_apply();    /* the echo follows the tempo */
         { static uint32_t lfo_ms; if (fm1_ms != lfo_ms) { lfo_tick(fm1_ms - lfo_ms); lfo_ms = fm1_ms; } }
@@ -1350,3 +1356,15 @@ static void app_main(void)
         }
     }
 }
+
+#ifdef DINGHY_WEB                               /* the simulator page's patch list: names before boot, the current one after */
+__attribute__((export_name("web_patch_count"))) uint32_t web_patch_count(void) { return NBROWSE; }
+__attribute__((export_name("web_patch_name"))) const char *web_patch_name(uint32_t i)
+{
+    static char user[7];
+    if (i < NPATCHES) return PATCHES[i].name;
+    if (i < NBROWSE) { user_name(user, i - NPATCHES); return user; }
+    return "";
+}
+__attribute__((export_name("web_patch_index"))) uint32_t web_patch_index(void) { return patch_index; }
+#endif
