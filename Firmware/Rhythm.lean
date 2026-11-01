@@ -52,15 +52,10 @@ starts at tick `k * div / ratchet`. `none` when the tick starts no sub-hit. -/
 def Rhythm.subIndex (div ratchet count : Nat) : Option Nat :=
   (List.range ratchet).find? (fun k => k * div / ratchet = count)
 
-/-- Does tick `count` of a hit step play, for kind 3: it must start a sub-hit, and that sub-hit must be one of
-the `subHits` the Euclidean pattern over the sub-hits keeps (turned so that the first sub-hit, the step itself,
-always plays). Other kinds play on tick 0 only. -/
-def Rhythm.tickPlays (r : Rhythm) (div count : Nat) : Bool :=
-  if r.kind = 3 then
-    match Rhythm.subIndex div r.ratchet count with
-    | some k => Euclid.hit r.subHits r.ratchet ((k + r.ratchet - 1) % r.ratchet)
-    | none => false
-  else count = 0
+/-- Does sub-hit `k` of a hit play? The first (the hit itself) always; the others as the Euclidean pattern of
+`subHits` over the `ratchet` sub-hits says, turned so that it counts from the hit. -/
+def Rhythm.subPlays (r : Rhythm) (k : Nat) : Bool :=
+  k = 0 || Euclid.hit r.subHits r.ratchet ((k + r.ratchet - 1) % r.ratchet)
 
 /-- The rhythm at the end of a bar: the automaton's row moves one generation on; nothing else changes. -/
 def Rhythm.endBar (r : Rhythm) (steps : Nat) : Rhythm :=

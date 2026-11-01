@@ -91,6 +91,9 @@ theorem divider_count_bounded (div ticks count : Nat) (below : count < div) :
 theorem euclid_hit_count (hits steps : Nat) (positive : 0 < steps) (fits : hits ≤ steps) :
     Euclid.countHits hits steps steps = hits := sorry
 
+theorem euclid_last_step_hits (hits steps : Nat) (positive : 0 < hits) (fits : hits ≤ steps) :
+    Euclid.hit hits steps (steps - 1) = true := sorry
+
 -- Proofs/Filters.lean
 theorem filters_swarm_sum_range (p0 p1 p2 p3 p4 p5 p6 : UInt32) :
     -28672 ≤ (Filters.swarmSum p0 p1 p2 p3 p4 p5 p6).toInt ∧
@@ -155,7 +158,7 @@ theorem lane_new_note_stops_old (l : Lane) (note : Nat) (starts : (Lane.tick l).
     (Lane.tick l).off = l.playing := sorry
 
 theorem lane_note_only_on_hit (l : Lane) (note : Nat) (starts : (Lane.tick l).on = some note) :
-    Euclid.hit l.hits l.steps l.step = true := sorry
+    Rhythm.hit l.rhythm l.hits l.steps l.hitStep = true := sorry
 
 theorem lane_note_in_scale (l : Lane) (valid : Lane.Valid l) (note : Nat)
     (starts : (Lane.tick l).on = some note) : note ≤ 127 ∧ Quantizer.inScale l.mask note = true := sorry
@@ -165,9 +168,17 @@ theorem lane_silence_valid (l : Lane) (valid : Lane.Valid l) : Lane.Valid l.sile
 theorem lane_silence_stops_note (l : Lane) : l.silence.off = l.playing ∧ l.silence.playing = none := sorry
 
 theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.steps ≤ 32)
-    (divMax : l.div ≤ 96) (algoMax : l.rule.algo ≤ 5) (mutateMax : l.rule.mutate ≤ 100) (gate : l.gate = Lane.gateFor l.div) :
+    (divMax : l.div ≤ 96) (algoMax : l.rule.algo ≤ 10) (mutateMax : l.rule.mutate ≤ 100) (gate : l.gate = Lane.gateFor l.div)
+    (cursor : l.notes.cursor < l.rule.amount) (kind : l.rhythm.kind ≤ 3) (rotate : l.rhythm.rotate < l.steps)
+    (accents : l.rhythm.accents ≤ l.hits) (rule : l.rhythm.rule < 256) (ratchet : 1 ≤ l.rhythm.ratchet ∧ l.rhythm.ratchet ≤ 4)
+    (subHits : l.rhythm.subHits ≤ l.rhythm.ratchet) (row : l.rhythm.row < 2 ^ l.steps) (live : l.rhythm.row ≠ 0) :
     l.reconfigure l.hits l.steps l.div l.mask = l ∧
       l.setNotes l.rule.algo l.prob l.rule.amount l.rule.mutate = l := sorry
+
+theorem lane_set_rhythm_valid (l : Lane) (valid : Lane.Valid l) (kind rotate accents rule ratchet subHits : Nat)
+    (reseed : Bool) : Lane.Valid (Lane.setRhythm l kind rotate accents rule ratchet subHits reseed) := sorry
+
+theorem lane_learn_valid (l : Lane) (valid : Lane.Valid l) (note : Nat) : Lane.Valid (Lane.learn l note) := sorry
 
 -- Proofs/Lfo.lean
 theorem lfo_modulate_in_range (base depth phase : UInt32) : (lfoModulate base depth phase).toNat ≤ 100 := sorry
@@ -262,11 +273,11 @@ theorem noise_grain_envelope_index_in_table (phase inc envelope envInc : UInt32)
 theorem notes_start_valid (span amount : Nat) (seed : UInt32) (positive : 0 < span) (small : span ≤ 65535)
     (loopLength : 0 < amount) : NoteState.Valid span amount (Notes.start span seed) := sorry
 
-theorem notes_choose_stays_in_range (rule : NoteRule) (span : Nat) (s : NoteState) (any step chance : Nat)
+theorem notes_choose_stays_in_range (rule : NoteRule) (span mask low : Nat) (s : NoteState) (any step chance : Nat)
     (positive : 0 < span) (loopLength : 0 < rule.amount) (fits : rule.amount ≤ Notes.regLen)
     (valid : NoteState.Valid span rule.amount s) (anyBelow : any < span) :
-    (Notes.choose rule span s any step chance).offset < span ∧
-      NoteState.Valid span rule.amount (Notes.choose rule span s any step chance).state := sorry
+    (Notes.choose rule span mask low s any step chance).offset < span ∧
+      NoteState.Valid span rule.amount (Notes.choose rule span mask low s any step chance).state := sorry
 
 theorem notes_up_visits_every_position (span p : Nat) (positive : 0 < span) (start : p < span) (s : NoteState)
     (atStart : s.pos = p) (n : Nat) :
@@ -277,21 +288,35 @@ theorem notes_down_visits_every_position (span p : Nat) (positive : 0 < span) (s
     (atStart : s.pos = p) (n : Nat) :
     (Notes.picks ⟨3, 1, 0⟩ span n s).1 = (List.range n).map (fun i => (p + (span - 1) * (i + 1)) % span) := sorry
 
-theorem notes_bounce_moves_one (span : Nat) (s : NoteState) (wide : 2 ≤ span) (inside : s.pos < span)
+theorem notes_bounce_moves_one (span mask low : Nat) (s : NoteState) (wide : 2 ≤ span) (inside : s.pos < span)
     (any step chance : Nat) :
-    (Notes.choose ⟨4, 1, 0⟩ span s any step chance).offset + 1 = s.pos ∨
-      (Notes.choose ⟨4, 1, 0⟩ span s any step chance).offset = s.pos + 1 := sorry
+    (Notes.choose ⟨4, 1, 0⟩ span mask low s any step chance).offset + 1 = s.pos ∨
+      (Notes.choose ⟨4, 1, 0⟩ span mask low s any step chance).offset = s.pos + 1 := sorry
 
-theorem notes_walk_bounded (amount span : Nat) (s : NoteState) (step any chance : Nat) (inside : s.pos < span)
+theorem notes_walk_bounded (amount span mask low : Nat) (s : NoteState) (step any chance : Nat) (inside : s.pos < span)
     (drawn : step ≤ 2 * amount) :
-    (Notes.choose ⟨1, amount, 0⟩ span s any step chance).offset ≤ s.pos + amount ∧
-      s.pos ≤ (Notes.choose ⟨1, amount, 0⟩ span s any step chance).offset + amount := sorry
+    (Notes.choose ⟨1, amount, 0⟩ span mask low s any step chance).offset ≤ s.pos + amount ∧
+      s.pos ≤ (Notes.choose ⟨1, amount, 0⟩ span mask low s any step chance).offset + amount := sorry
 
-theorem notes_loop_repeats (amount span : Nat) (s : NoteState)
+theorem notes_loop_repeats (amount span mask low : Nat) (s : NoteState)
     (fits : amount ≤ s.reg.length) (slot : s.slot < amount) (any step chance : Nat) :
-    (Notes.choose ⟨5, amount, 0⟩ span s any step chance).state.reg = s.reg ∧
-      (Notes.choose ⟨5, amount, 0⟩ span s any step chance).state.slot = (s.slot + 1) % amount ∧
-      (Notes.choose ⟨5, amount, 0⟩ span s any step chance).offset = s.reg.getD s.slot 0 := sorry
+    (Notes.choose ⟨5, amount, 0⟩ span mask low s any step chance).state.reg = s.reg ∧
+      (Notes.choose ⟨5, amount, 0⟩ span mask low s any step chance).state.slot = (s.slot + 1) % amount ∧
+      (Notes.choose ⟨5, amount, 0⟩ span mask low s any step chance).offset = s.reg.getD s.slot 0 := sorry
+
+theorem notes_markov_moves_at_most_three (amount mutate span mask low : Nat) (s : NoteState)
+    (any step chance : Nat) (inside : s.pos < span) :
+    (Notes.choose ⟨8, amount, mutate⟩ span mask low s any step chance).offset ≤ s.pos + 3 ∧
+      s.pos ≤ (Notes.choose ⟨8, amount, mutate⟩ span mask low s any step chance).offset + 3 := sorry
+
+theorem notes_grammar_moves_at_most_two (amount mutate span mask low : Nat) (s : NoteState)
+    (any step chance : Nat) (inside : s.pos < span) :
+    (Notes.choose ⟨9, amount, mutate⟩ span mask low s any step chance).offset ≤ s.pos + 2 ∧
+      s.pos ≤ (Notes.choose ⟨9, amount, mutate⟩ span mask low s any step chance).offset + 2 := sorry
+
+theorem notes_learn_keeps_valid (rule : NoteRule) (span : Nat) (s : NoteState) (offset : Nat)
+    (positive : 0 < span) (valid : NoteState.Valid span rule.amount s) :
+    NoteState.Valid span rule.amount (Notes.learn rule span s offset) := sorry
 
 -- Proofs/Patch.lean
 theorem patch_decode_encode_round_trip (p : Patch) (fits : p.Fits) :
@@ -544,6 +569,12 @@ theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state 
     wet.toInt = 2 * stored.toInt ∧ wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21 ∧
       (Reverb.loopSmooth input tail state decay bright).toInt.natAbs ≤ 2 ^ 28 ∧
       (Mix.wetSample wet returnGain).toInt = wet.toInt * returnGain.toInt / 32768 := sorry
+
+-- Proofs/Rhythm.lean
+theorem rhythm_automaton_row_fits (rule steps row : Nat) : Automaton.step rule steps row < 2 ^ steps := sorry
+
+theorem rhythm_accent_only_on_hit (r : Rhythm) (hits steps step : Nat)
+    (accented : Rhythm.accent r hits steps step = true) : Rhythm.hit r hits steps step = true := sorry
 
 -- Proofs/Run.lean
 theorem run_every_note_on_has_a_note_off (l : Lane) (fresh : l.playing = none) (ops : List Lane.Op) :

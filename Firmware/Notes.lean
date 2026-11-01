@@ -8,7 +8,7 @@ structure NoteRule where
   /-- 0 random, 1 walk, 2 up, 3 down, 4 bounce, 5 loop, 6 turing, 7 step, 8 markov, 9 grammar, 10 chord.
   Anything else behaves like random. -/
   algo : Nat
-  /-- Walk: the biggest step. Loop, step and turing: the length. Markov: the style. Grammar: the grammar.
+  /-- Walk: the biggest step. Loop, step and turing: the length. Markov: the style (1 to 4). Grammar: the grammar (1 to 4).
   Chord: how many chord tones the cycle climbs. -/
   amount : Nat
   /-- Loop and step: chance in percent that a slot is replaced by a new random note each time it plays. Turing:
@@ -90,14 +90,21 @@ def Notes.chainWeights (style : Nat) (chain : List Nat) : List Nat :=
 def Notes.rowTotal (weights : List Nat) (base : Nat) : Nat :=
   (List.range Notes.moves).foldl (fun acc m => acc + weights.getD (base + m) 0) 0
 
-/-- The grammars (L-systems): an axiom and a rule for each of four symbols, as lists of symbols. Symbol `s`
-moves the melody by `Notes.grammarMove s`. -/
-def Notes.grammar (g : Nat) : List Nat × (Nat → List Nat) :=
+/-- The grammars (L-systems): the axiom of grammar `g`. -/
+def Notes.axiom (g : Nat) : List Nat :=
   match g % 4 with
-  | 0 => ([0], fun s => if s = 0 then [0, 1] else [0])                    -- fibonacci: A -> AB, B -> A
-  | 1 => ([0, 2], fun s => if s = 0 then [0, 1, 0] else if s = 1 then [2] else [1, 2])
-  | 2 => ([3], fun s => if s = 3 then [3, 0, 1] else if s = 0 then [1] else [3])
-  | _ => ([0, 1], fun s => if s = 0 then [1, 2] else if s = 1 then [2, 3] else if s = 2 then [3, 0] else [0])
+  | 0 => [0]
+  | 1 => [0, 2]
+  | 2 => [3]
+  | _ => [0, 1]
+
+/-- The grammars: what grammar `g` rewrites symbol `s` into. Symbol `s` moves the melody by `Notes.grammarMove s`. -/
+def Notes.rewrite (g s : Nat) : List Nat :=
+  match g % 4 with
+  | 0 => if s = 0 then [0, 1] else [0]                                    -- fibonacci: A -> AB, B -> A
+  | 1 => if s = 0 then [0, 1, 0] else if s = 1 then [2] else [1, 2]
+  | 2 => if s = 3 then [3, 0, 1] else if s = 0 then [1] else [3]
+  | _ => if s = 0 then [1, 2] else if s = 1 then [2, 3] else if s = 2 then [3, 0] else [0]
 
 /-- The move a grammar symbol makes: up a step, up a third, down a step, down a third (as move classes). -/
 def Notes.grammarMove (s : Nat) : Nat :=
@@ -107,14 +114,14 @@ def Notes.grammarMove (s : Nat) : Nat :=
   | 2 => 2
   | _ => 1
 
-/-- Every symbol of `syms` rewritten by `rule`, `depth` times over. -/
-def Notes.expand (rule : Nat → List Nat) : Nat → List Nat → List Nat
+/-- Every symbol of `syms` rewritten by grammar `g`, `depth` times over. -/
+def Notes.expand (g : Nat) : Nat → List Nat → List Nat
   | 0, syms => syms
-  | d + 1, syms => Notes.expand rule d (syms.flatMap rule)
+  | d + 1, syms => Notes.expand g d (syms.flatMap (Notes.rewrite g))
 
 /-- The phrase a grammar writes at `depth`: the axiom with every symbol rewritten `depth` times. -/
 def Notes.phraseOf (g depth : Nat) : List Nat :=
-  Notes.expand (Notes.grammar g).2 depth (Notes.grammar g).1
+  Notes.expand g depth (Notes.axiom g)
 
 /-- The `n`-th note of the scale `mask` at or above `low` (the 0th is the first such note), looking up to 60
 semitones; `low + 60` if there are not enough. -/
@@ -165,7 +172,7 @@ def Notes.choose (rule : NoteRule) (span mask low : Nat) (s : NoteState) (any st
     { offset, state := { s with shift, pos := offset } }
   | 7 => Notes.replay rule span s any chance
   | 8 =>
-    let weights := Notes.chainWeights rule.amount s.chain
+    let weights := Notes.chainWeights (rule.amount - 1) s.chain
     let base := (s.last % Notes.moves) * Notes.moves
     let total := Notes.rowTotal weights base
     let move := Notes.pickMove weights base (if total = 0 then 0 else any * total / span)
@@ -173,7 +180,7 @@ def Notes.choose (rule : NoteRule) (span mask low : Nat) (s : NoteState) (any st
     let pos := Notes.moveBy span s.pos far
     { offset := pos, state := { s with pos, last := move } }
   | 9 =>
-    let phrase := Notes.phraseOf rule.amount (rule.mutate / 25)
+    let phrase := Notes.phraseOf (rule.amount - 1) (rule.mutate / 25)
     let sym := phrase.getD s.phrase 0
     let pos := Notes.moveBy span s.pos (Notes.grammarMove sym)
     { offset := pos, state := { s with pos, phrase := (s.phrase + 1) % max 1 phrase.length } }

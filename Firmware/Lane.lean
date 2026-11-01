@@ -102,11 +102,24 @@ def Lane.draw (r : UInt32) (limit : Nat) : Nat := (Random.below r limit.toUInt32
 /-- Is this tick the start of a new step? -/
 def Lane.atStep (l : Lane) : Bool := (Divider.tick l.div l.count).2
 
-/-- Does the rhythm mark the current step as a hit? -/
-def Lane.stepHit (l : Lane) : Bool := Rhythm.hit l.rhythm l.hits l.steps l.step
+/-- Which sub-hit this tick starts, if any: 0 on the clock's pulse (the step itself); for the ratchet, sub-hit
+`k` of the step that pulsed last comes `k * div / ratchet` ticks after it. -/
+def Lane.subHit (l : Lane) : Option Nat :=
+  if l.rhythm.kind = 3 then Rhythm.subIndex l.div l.rhythm.ratchet ((l.count + 1) % l.div)
+  else if l.atStep then some 0 else none
 
-/-- Is this tick one that plays on a hit step: its first tick, or one of the ratchet's sub-hits? -/
-def Lane.isHit (l : Lane) : Bool := l.stepHit && Rhythm.tickPlays l.rhythm l.div l.count
+/-- The step a note this tick would belong to: the current step on the pulse, the step before for a sub-hit
+after it (the step counter moved on at the pulse). -/
+def Lane.hitStep (l : Lane) : Nat :=
+  match l.subHit with
+  | some (_ + 1) => (l.step + l.steps - 1) % l.steps
+  | _ => l.step
+
+/-- Is this tick one that plays: a sub-hit (or the pulse) of a step the rhythm marks as a hit? -/
+def Lane.isHit (l : Lane) : Bool :=
+  match l.subHit with
+  | none => false
+  | some k => Rhythm.hit l.rhythm l.hits l.steps l.hitStep && Rhythm.subPlays l.rhythm k
 
 /-- The gate of a note this tick starts: a sub-hit's gate is cut to the time before the next one. -/
 def Lane.gateNow (l : Lane) : Nat :=
@@ -142,7 +155,7 @@ def Lane.tick (l : Lane) : Lane :=
     let note := Quantizer.snap l.mask (l.low + choice.offset)
     { l.moved with
         notes := choice.state, playing := some note, gateLeft := l.gateNow, off := l.playing, on := some note,
-        loud := Rhythm.accent l.rhythm l.hits l.steps l.step }
+        loud := Rhythm.accent l.rhythm l.hits l.steps l.hitStep }
   else if l.gateLeft ≤ 1 then
     { l.moved with playing := none, gateLeft := 0, off := l.playing, on := none, loud := false }
   else

@@ -82,6 +82,10 @@ Why it matters: the counter is a small number for good, so it can never grow int
 
 Why it matters: the pattern has the density you asked for, with no missing or extra notes.
 
+**`euclid_last_step_hits`**: The last step of a bar is a hit whenever the bar has any hits.
+
+Why it matters: the pattern always ends on a note, so the bar's last step (just before the circle comes round) is where every Euclidean rhythm lands; the ratchet's first sub-hit relies on it too.
+
 ## Filters
 
 **`filters_swarm_sum_range`**: The sum of the swarm's seven saws lies between -28672 and 28665, whatever the phases.
@@ -144,9 +148,9 @@ Why it matters: no note stays on after its gate, so no stuck notes.
 
 Why it matters: a lane never has two notes on at once, so every note-on has exactly one note-off.
 
-**`lane_note_only_on_hit`**: A note starts only on a step the rhythm marks as a hit.
+**`lane_note_only_on_hit`**: A note starts only on a step the rhythm marks as a hit (the step the note belongs to: for a ratchet's sub-hit, the step that just pulsed).
 
-Why it matters: the Euclidean pattern is respected; a rest never plays, whatever the note algorithm or the play chance say.
+Why it matters: the rhythm's pattern is respected, whichever rhythm source makes it; a rest never plays, whatever the note algorithm or the play chance say.
 
 **`lane_note_in_scale`**: A note a tick starts is a valid MIDI note and is in the lane's scale.
 
@@ -160,9 +164,17 @@ Why it matters: stopping the clock cannot leave the lane with a timer and no not
 
 Why it matters: pressing stop never leaves a note hanging.
 
-**`lane_reconfigure_self`**: Applying a lane's own settings back to it changes nothing, for a consistent lane whose settings are the ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 5, mutation up to 100 percent) and whose gate is the one its speed gives. `make`, `reconfigure` and `setNotes` only ever produce such lanes.
+**`lane_reconfigure_self`**: Applying a lane's own settings back to it changes nothing, for a consistent lane whose settings are the ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 10, mutation up to 100 percent, a rhythm source in range with a live automaton row, the step sequencer's cursor inside its loop) and whose gate is the one its speed gives. `make`, `reconfigure`, `setNotes` and `setRhythm` only ever produce such lanes.
 
 Why it matters: saving a patch and loading it again, or redrawing a knob at its current value, cannot alter the music by a tick: the lane is exactly where it was.
+
+**`lane_set_rhythm_valid`**: Changing the rhythm source keeps a consistent lane consistent, whatever numbers are given.
+
+Why it matters: switching from Euclid to the automaton or the ratchet mid-song touches nothing but the rhythm; counters, memory and the sounding note stay as they were.
+
+**`lane_learn_valid`**: A key the player presses keeps a consistent lane consistent.
+
+Why it matters: playing along, or programming the step sequencer, can never break the lane.
 
 ## Lfo
 
@@ -267,6 +279,18 @@ Why it matters: the AMOUNT knob is a real limit on how far a WALK lane can jump 
 **`notes_loop_repeats`**: LOOP with no mutation plays the same note again every `amount` picks: the memory never changes, and the slot goes round.
 
 Why it matters: MUTATE at zero is an exact loop, the hook a listener can hold on to.
+
+**`notes_markov_moves_at_most_three`**: MARKOV moves at most three positions a note, jump or no jump (the move classes are -3 to +3, and a doubled move is cut to that range).
+
+Why it matters: a markov lane walks; whatever it learnt from the keys or the style says, it never leaps across its range.
+
+**`notes_grammar_moves_at_most_two`**: GRAMMAR moves at most two positions a note: its symbols step or skip, up or down.
+
+Why it matters: the grammar shapes a line of steps and thirds, never a leap, whatever grammar and depth.
+
+**`notes_learn_keeps_valid`**: A key the player presses leaves the memory consistent, for any note: the step sequencer writes it into the range, the markov chain counts it.
+
+Why it matters: nothing you play can corrupt the memory the lane plays from.
 
 ## Patch
 
@@ -447,6 +471,16 @@ Why it matters: with nothing fed in, the tail gets quieter on every trip round t
 **`reverb_wet_never_overflows`**: The wet sample a loop hands to the mixer is exactly twice the sum the loop stores (no wrap in the doubling or in any addition before it), it is at most 16448.0 in size (2^29 + 2^21, a quarter of the 32-bit range), the low-pass's new state stays within 8192.0 (2^28), and the mixer's return gain of up to 2.0 (`Mix.wetSample`) then scales it with no wrap either. This holds for a send of at most 4096.0 (2^27; six voices put far less on the bus), a low-pass state of at most 8192.0 (which the third claim keeps true from one sample to the next, starting from a cleared state), gains of at most 1.0 in size, and samples read from the memory (at most 8.0 each, by its 16-bit format).
 
 Why it matters: the reverb's output can never wrap round to the opposite sign on its way into the mix, which would turn a loud tail into full-scale noise.
+
+## Rhythm
+
+**`rhythm_automaton_row_fits`**: One generation of the automaton stays inside the bar: the new row has no bit at or beyond `steps`.
+
+Why it matters: the row is a `steps`-bit pattern however long the automaton runs; a hit can never appear on a step that does not exist, and the row stays the size the circle draws.
+
+**`rhythm_accent_only_on_hit`**: An accent only falls on a hit.
+
+Why it matters: accents shape the rhythm's hits; they can never add a note where the pattern has a rest.
 
 ## Run
 

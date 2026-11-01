@@ -27,6 +27,23 @@ def NoteState.example : NoteState :=
 #guard (Notes.choose ⟨5, 2, 100⟩ 10 4095 48 NoteState.example 6 6 50).offset == 6
 #guard (Notes.choose ⟨0, 1, 0⟩ 10 4095 48 NoteState.example 6 0 0).offset == 6  -- random: the drawn note
 
+-- turing: the register shifts and the low byte sets the pitch (register 0x00FF, length 8: the top bit 1 recycles)
+#guard (Notes.choose ⟨6, 8, 0⟩ 10 4095 48 { NoteState.example with shift := 0x00FF } 0 0 50).state.shift == 0x01FF
+#guard (Notes.choose ⟨6, 8, 100⟩ 10 4095 48 { NoteState.example with shift := 0x00FF } 0 0 50).state.shift == 0x01FE
+-- markov: from a repeat (move 3) in the REPEATS style the pick of 0 lands on a move down, three positions at most
+#guard (Notes.choose ⟨8, 3, 0⟩ 10 4095 48 NoteState.example 0 0 50).offset == 0
+#guard (Notes.choose ⟨8, 3, 0⟩ 10 4095 48 NoteState.example 5 0 50).offset == 3
+-- grammar: the fibonacci phrase at depth 2 is A B A; its symbols step up, skip up, step up
+#guard Notes.phraseOf 0 2 == [0, 1, 0]
+#guard (Notes.choose ⟨9, 1, 50⟩ 10 4095 48 NoteState.example 0 0 0).offset == 4
+-- chord: the next tone of C major above C3 (48), then the one after
+#guard (Notes.choose ⟨10, 3, 0⟩ 12 0xAB5 48 NoteState.example 0 0 50).offset == 2
+#guard (Notes.choose ⟨10, 3, 0⟩ 12 0xAB5 48 { NoteState.example with slot := 1 } 0 0 50).offset == 4
+-- the keys teach: the step sequencer writes slot 0 and moves on; the markov chain counts a move up by two
+#guard (Notes.learn ⟨7, 4, 0⟩ 10 NoteState.example 5).reg == [5, 2, 0, 0]
+#guard (Notes.learn ⟨7, 4, 0⟩ 10 NoteState.example 5).cursor == 1
+#guard (Notes.learn ⟨8, 1, 0⟩ 10 { NoteState.example with chain := List.replicate 49 0 } 5).chain.getD (3 * 7 + 5) 0 == 1
+
 /-- The memory after `n` picks of an algorithm whose random inputs do not matter (up, down, bounce), and the
 pitches those picks gave, oldest first. -/
 def Notes.picks (rule : NoteRule) (span : Nat) : Nat → NoteState → List Nat × NoteState

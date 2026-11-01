@@ -3,6 +3,7 @@ import Firmware.Divider
 import Firmware.Euclid
 import Firmware.Quantizer
 import Firmware.Notes
+import Firmware.Rhythm
 import Firmware.Lane
 import Firmware.LaneApi
 import Firmware.Lfo

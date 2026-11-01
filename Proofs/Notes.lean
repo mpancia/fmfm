@@ -171,9 +171,9 @@ theorem notes_markov_moves_at_most_three (amount mutate span mask low : Nat) (s 
     (Notes.choose ⟨8, amount, mutate⟩ span mask low s any step chance).offset ≤ s.pos + 3 ∧
       s.pos ≤ (Notes.choose ⟨8, amount, mutate⟩ span mask low s any step chance).offset + 3 := by
   simp only [Notes.choose]
-  have bound := notes_pick_move_bounded (Notes.chainWeights amount s.chain) (s.last % Notes.moves * Notes.moves)
-    (if Notes.rowTotal (Notes.chainWeights amount s.chain) (s.last % Notes.moves * Notes.moves) = 0 then 0
-      else any * Notes.rowTotal (Notes.chainWeights amount s.chain) (s.last % Notes.moves * Notes.moves) / span)
+  have bound := notes_pick_move_bounded (Notes.chainWeights (amount - 1) s.chain) (s.last % Notes.moves * Notes.moves)
+    (if Notes.rowTotal (Notes.chainWeights (amount - 1) s.chain) (s.last % Notes.moves * Notes.moves) = 0 then 0
+      else any * Notes.rowTotal (Notes.chainWeights (amount - 1) s.chain) (s.last % Notes.moves * Notes.moves) / span)
   generalize Notes.pickMove _ _ _ = move at *
   unfold Notes.moves at bound
   unfold Notes.moveBy
@@ -186,7 +186,7 @@ theorem notes_grammar_moves_at_most_two (amount mutate span mask low : Nat) (s :
     (Notes.choose ⟨9, amount, mutate⟩ span mask low s any step chance).offset ≤ s.pos + 2 ∧
       s.pos ≤ (Notes.choose ⟨9, amount, mutate⟩ span mask low s any step chance).offset + 2 := by
   simp only [Notes.choose]
-  generalize (Notes.phraseOf amount (mutate / 25)).getD s.phrase 0 = sym
+  generalize (Notes.phraseOf (amount - 1) (mutate / 25)).getD s.phrase 0 = sym
   unfold Notes.moveBy Notes.grammarMove
   split <;> split <;> omega
 

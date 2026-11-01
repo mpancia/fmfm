@@ -31,3 +31,18 @@ Why it matters: the pattern has the density you asked for, with no missing or ex
 theorem euclid_hit_count (hits steps : Nat) (positive : 0 < steps) (fits : hits ≤ steps) :
     Euclid.countHits hits steps steps = hits := by
   rw [euclid_count_is_total hits steps positive fits, Nat.mul_comm, Nat.mul_div_cancel _ positive]
+
+/-- The last step of a bar is a hit whenever the bar has any hits.
+Why it matters: the pattern always ends on a note, so the bar's last step (just before the circle comes round)
+is where every Euclidean rhythm lands; the ratchet's first sub-hit relies on it too. -/
+theorem euclid_last_step_hits (hits steps : Nat) (positive : 0 < hits) (fits : hits ≤ steps) :
+    Euclid.hit hits steps (steps - 1) = true := by
+  unfold Euclid.hit
+  have stepsPos : 0 < steps := by omega
+  have e : (steps - 1 + 1) * hits / steps = hits := by
+    rw [Nat.sub_add_cancel stepsPos, Nat.mul_comm, Nat.mul_div_cancel _ stepsPos]
+  have lt : (steps - 1) * hits / steps < hits := by
+    rw [Nat.div_lt_iff_lt_mul stepsPos, Nat.mul_comm hits steps]
+    exact Nat.mul_lt_mul_of_pos_right (by omega) positive
+  simp only [bne_iff_ne, ne_eq, e]
+  omega

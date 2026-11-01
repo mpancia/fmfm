@@ -278,6 +278,7 @@ static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint
         cfg[i].low = src[i].low; cfg[i].span = src[i].span; cfg[i].seed = src[i].seed; cfg[i].algo = src[i].algo;
         cfg[i].chance = src[i].chance; cfg[i].amount = src[i].amount; cfg[i].mutate = src[i].mutate;
         cfg[i].chord = src[i].chord; cfg[i].level = src[i].level; cfg[i].send = src[i].send; cfg[i].muted = 0;
+        cfg[i].feel = 0; cfg[i].rotate = 0; cfg[i].accents = 0; cfg[i].rule = 90; cfg[i].ratchet = 1; cfg[i].subhits = 1;   /* a plain Euclid bar */
         set_sound(i, src[i].sound);
         lean_dec(lane[i]);
         lane[i] = fm1_lane_make(cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i), cfg[i].low, cfg[i].span,
@@ -599,7 +600,7 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
     case P_NOTES:
         if (k == 0) cfg[selected].algo = (uint8_t)clamp(cfg[selected].algo + d, 0, (int32_t)NALGO - 1);
         if (k == 1) cfg[selected].amount = (uint8_t)clamp(cfg[selected].amount + d, 1, 16);
-        if (k == 2) cfg[selected].mutate = (uint8_t)clamp(cfg[selected].mutate + 5 * d, 0, 100);
+        if (k == 2) cfg[selected].mutate = (uint8_t)clamp(cfg[selected].mutate + (cfg[selected].algo == 9u ? 25 : 5) * d, 0, 100);   /* GRAMMAR: a depth a click */
         if (k == 3) { cfg[selected].span = (uint8_t)clamp(cfg[selected].span + d, 1, 36); lane_remake(selected); }
         else lane_apply(selected);
         break;

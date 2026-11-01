@@ -109,16 +109,20 @@ theorem lane_new_note_stops_old (l : Lane) (note : Nat) (starts : (Lane.tick l).
   unfold Lane.tick at *
   split at starts <;> split <;> first | rfl | (split at starts <;> simp_all)
 
-/-- A note starts only on a step the rhythm marks as a hit.
+/-- A note starts only on a step the rhythm marks as a hit (the step the note belongs to: for a ratchet's
+sub-hit, the step that just pulsed).
 Why it matters: the rhythm's pattern is respected, whichever rhythm source makes it; a rest never plays,
 whatever the note algorithm or the play chance say. -/
 theorem lane_note_only_on_hit (l : Lane) (note : Nat) (starts : (Lane.tick l).on = some note) :
-    Rhythm.hit l.rhythm l.hits l.steps l.step = true := by
-  have plays : l.plays = true → Rhythm.hit l.rhythm l.hits l.steps l.step = true := by
+    Rhythm.hit l.rhythm l.hits l.steps l.hitStep = true := by
+  have plays : l.plays = true → Rhythm.hit l.rhythm l.hits l.steps l.hitStep = true := by
     intro h
-    unfold Lane.plays Lane.isHit Lane.stepHit at h
+    unfold Lane.plays Lane.isHit at h
     simp only [Bool.and_eq_true] at h
-    exact h.1.1
+    split at h
+    · simp at h
+    · simp only [Bool.and_eq_true] at h
+      exact h.1.1
   unfold Lane.tick at starts
   split at starts
   · exact plays (by assumption)

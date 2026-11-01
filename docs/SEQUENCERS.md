@@ -1,0 +1,54 @@
+# The sequencers
+
+Each lane is one `Lane` (`Firmware/Lane.lean`): a clock divider drives a rhythm source, each hit may play a
+note, and a note source picks the pitch, which the scale then adjusts. The two sources are chosen on the SEQ
+pages and combine freely: four rhythms by eleven note sources.
+
+## Rhythm sources (SEQ > FEEL)
+
+| FEEL | Knobs | What it does |
+|---|---|---|
+| EUCLID | (HITS, STEPS on RHYTHM) | `hits` spread as evenly as whole steps allow (`Euclid.hit`) |
+| ROTATE | ROTATE, ACCENTS | the Euclidean bar turned by `rotate` steps; `accents` of the hits spread by a second Euclidean pattern over the hits are played louder, the rest softer |
+| AUTOMAT | RULE | an elementary cellular automaton (rule 0 to 255) on a ring of `steps` cells, seeded from the Euclidean bar, one generation a bar; a dead row is reseeded. Rule 90 is the Sierpinski triangle, 30 is chaos, 204 freezes |
+| RATCHET | RATCHET, SUBHITS | each hit split into `ratchet` (1 to 4) sub-hits, of which `subhits` play (the hit itself always); each sub-hit's gate is cut to its share of the step |
+
+The circle on RHYTHM and FEEL shows the live bar: hits in the lane colour, accents bigger, the current step
+white; the automaton's row changes every bar.
+
+## Note sources (SEQ > NOTES)
+
+| ALGO | Knobs | What it does |
+|---|---|---|
+| RANDOM | | a random position in the range |
+| WALK | STEP | a random step of up to `step` positions, stopping at the ends |
+| UP, DOWN | | climb or fall through the range and wrap |
+| BOUNCE | | up and down |
+| LOOP | LENGTH, MUTATE | replay a memory of `length` notes; each slot has `mutate` percent chance to be replaced when it plays |
+| TURING | LENGTH, FLIP | a shift register of `length` bits; the recycled bit flips with `flip` percent chance; the low byte sets the pitch. FLIP 0 is a locked loop |
+| STEP | LENGTH, MUTATE | LOOP whose memory you play in: with the lane chosen and STEP on, each key writes the next slot |
+| MARKOV | STYLE, JUMP | a move of -3 to +3 positions chosen from the last move's row of weights: a style (STEPS, LEAPS, REPEATS, ARCS) until you play keys, which it learns from (REC forgets); JUMP doubles a move sometimes |
+| GRAMMAR | GRAMMAR, DEPTH | an L-system (FIBO, CANTOR, THUE, ROUND) expanded `depth` levels; each symbol moves the line by a step or a third |
+| CHORD | TONES, OCTAVE | climbs `tones` notes of the lane's scale from its bottom note (with chord follow, the chord); OCTAVE is the chance of an octave jump |
+
+The keys teach only the chosen lane, and only STEP and MARKOV listen. REC gives a lane a new seed: a new random
+loop, register and automaton row, and an unlearnt chain.
+
+## What is proved (`docs/PROOFS.md`)
+
+- Every source keeps the lane consistent (`lane_tick_valid`, `lane_set_rhythm_valid`, `lane_learn_valid`,
+  `notes_choose_stays_in_range`, `notes_learn_keeps_valid`), so the whole-run promises hold for all of them:
+  every note-on has a note-off, the clock never drifts, every note is in the scale.
+- A note starts only on a step the rhythm marks as a hit (`lane_note_only_on_hit`); an accent only falls on a
+  hit (`rhythm_accent_only_on_hit`); the automaton's row stays the size of the bar
+  (`rhythm_automaton_row_fits`); the last step of a Euclidean bar always hits (`euclid_last_step_hits`).
+- MARKOV never moves more than three positions, GRAMMAR more than two, WALK more than its STEP
+  (`notes_markov_moves_at_most_three`, `notes_grammar_moves_at_most_two`, `notes_walk_bounded`); LOOP with no
+  mutation repeats exactly (`notes_loop_repeats`), which STEP shares.
+- Not proved: the turing register's loop period (FLIP 0 repeats every LENGTH notes by construction), rotation
+  keeping the hit count, and anything about which rules of the automaton live or die.
+
+## Not yet in patches
+
+The FEEL settings (source, rotation, accents, rule, ratchet, sub-hits) live in RAM only; a saved patch loads
+with a plain Euclidean bar. The NOTES settings are saved as before.
