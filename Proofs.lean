@@ -9,6 +9,7 @@ import Proofs.Analog
 import Proofs.Reverb
 import Proofs.Delay
 import Proofs.Swing
+import Proofs.Clock
 import Proofs.Lfo
 import Proofs.Harmony
 import Proofs.Run
@@ -46,5 +47,8 @@ import Proofs.FmSymmetry
 import Proofs.FmEnvelope
 import Proofs.FmAlgorithms
 import Proofs.FmDeviation
+import Proofs.FmRange
 import Proofs.Punch
 import Proofs.Keys
+import Proofs.KeysChord
+import Proofs.PunchMix

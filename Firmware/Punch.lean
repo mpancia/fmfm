@@ -63,9 +63,10 @@ a millisecond and a half, and never clicks. -/
   if gain < target then min target (gain + 512) else if target < gain then gain - min (gain - target) 512
 else gain
 
-/-- A mix sample through the gate: the sample (within the mix's limit of 2^19) times the gain (Q15). -/
+/-- A mix sample through the gate: the sample (within the mix's limit of 2^19) times the gain (Q15), with
+divisions that round toward zero, so the gate can only ever make a sample smaller, never one count larger. -/
 @[inline] def Punch.gateSample (sample : Int32) (gain : UInt32) : Int32 :=
-  ((sample >>> 4) * gain.toInt32) >>> 11
+  (sample / 16 * gain.toInt32) / 2048
 
 /-- CRUSH (key 8): the mix held for `factor` samples at a time, from the knob (2 to 8); 1 (every sample its
 own)

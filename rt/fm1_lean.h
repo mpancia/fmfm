@@ -46,6 +46,10 @@ uint32_t fm1_lfo_modulate(uint32_t base, uint32_t depth, uint32_t phase);   /* b
 /* Firmware/Swing.lean: scalar, safe in any context */
 uint32_t fm1_swing_tick_length(uint32_t phase, uint32_t swing);          /* ten-thousandths of a straight tick; swing 0..100 */
 
+/* Firmware/Clock.lean: the clock accumulator (ten-thousandths of a tick): advanced by dt ms at bpm and the punch-in
+ * tempo in percent; never wraps for a gap under 20 s, and HALF and DOUBLE are half and double to within a tick. */
+uint32_t fm1_clock_advance(uint32_t acc, uint32_t dt, uint32_t bpm, uint32_t tempo);
+
 /* Firmware/Keys.lean: a played note quantized (ARP > KEYS, QUANT 0 off, 1 the scale, 2 the chord): the white keys as
  * the degrees of the 12-bit mask above the key's root, in the note's octave, held to 0..127 */
 uint32_t fm1_keys_quantize(uint32_t mode, uint32_t mask, uint32_t key, uint32_t note);

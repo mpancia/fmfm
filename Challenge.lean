@@ -95,6 +95,29 @@ theorem braids_data_vowel_amplitudes_are_nibbles (vowel formant : UInt32) :
 theorem braids_data_wavetable_steps_at_most_16 (table : UInt32) :
     (WavetablesSetup.tableSteps table).toNat ≤ 16 := sorry
 
+-- Proofs/Clock.lean
+theorem clock_advance_never_wraps (acc dt bpm tempo : UInt32) (accSmall : acc.toNat < 16666 + 1)
+    (gap : dt.toNat ≤ 20000) (bpmIn : bpm.toNat ≤ 240) (tempoIn : tempo.toNat ≤ 200) :
+    (Clock.advance acc dt bpm tempo).toNat = acc.toNat + dt.toNat * bpm.toNat * 4 * tempo.toNat / 100 := sorry
+
+theorem clock_division_is_the_loop (acc len : UInt32) (pos : 0 < len.toNat) :
+    (Clock.ticksDue acc len).toNat * len.toNat + (Clock.remainder acc len).toNat = acc.toNat ∧
+      (Clock.remainder acc len).toNat < len.toNat := sorry
+
+theorem clock_half_time_is_half (acc dt bpm : UInt32) (accSmall : acc.toNat < 16666 + 1)
+    (gap : dt.toNat ≤ 20000) (bpmIn : bpm.toNat ≤ 240) :
+    (Clock.ticksDue (Clock.advance acc dt bpm 50) 10000).toNat * 2 ≤
+        (Clock.ticksDue (Clock.advance acc dt bpm 100) 10000).toNat + 2 ∧
+      (Clock.ticksDue (Clock.advance acc dt bpm 100) 10000).toNat ≤
+        (Clock.ticksDue (Clock.advance acc dt bpm 50) 10000).toNat * 2 + 1 := sorry
+
+theorem clock_double_time_is_double (acc dt bpm : UInt32) (accSmall : acc.toNat < 16666 + 1)
+    (gap : dt.toNat ≤ 20000) (bpmIn : bpm.toNat ≤ 240) :
+    (Clock.ticksDue (Clock.advance acc dt bpm 200) 10000).toNat ≤
+        (Clock.ticksDue (Clock.advance acc dt bpm 100) 10000).toNat * 2 + 1 ∧
+      (Clock.ticksDue (Clock.advance acc dt bpm 100) 10000).toNat * 2 ≤
+        (Clock.ticksDue (Clock.advance acc dt bpm 200) 10000).toNat + 2 := sorry
+
 -- Proofs/Delay.lean
 theorem delay_gains_in_range (setting : UInt32) :
     0 ≤ (Delay.feedbackGain setting).toInt ∧ (Delay.feedbackGain setting).toInt ≤ 31129 ∧
@@ -478,6 +501,18 @@ theorem fm_organ_and_bass_lock :
     (∀ op : Fin 4, (Fm.ratio 50 (op.val + 1).toUInt32) % 256 = 0) ∧
     ¬ (∀ op : Fin 4, (Fm.ratio 49 (op.val + 1).toUInt32) % 256 = 0) := sorry
 
+-- Proofs/FmRange.lean
+theorem fm_cap_is_a_hold (voiceInc ratio : UInt32) :
+    (Fm.increment voiceInc ratio).toNat = min (voiceInc.toNat * ratio.toNat / 256) (2 ^ 31) := sorry
+
+theorem fm_increment_exact_below_cap (voiceInc ratio : UInt32)
+    (small : voiceInc.toNat * ratio.toNat < 2 ^ 39) :
+    (Fm.increment voiceInc ratio).toNat = voiceInc.toNat * ratio.toNat / 256 := sorry
+
+theorem fm_no_cap_on_the_keyboard (note : Nat) (shape op : UInt32) (low : note ≤ 88) :
+    (Fm.increment (Pitch.phaseIncrement (note * 128 : Nat).toInt16) (Fm.ratio shape op)).toNat =
+      (Pitch.phaseIncrement (note * 128 : Nat).toInt16).toNat * (Fm.ratio shape op).toNat / 256 := sorry
+
 -- Proofs/FmSymmetry.lean
 theorem fm_sine_half_wave (phase : UInt32) : Fm.sineAt (phase + 0x80000000) = -Fm.sineAt phase := sorry
 
@@ -545,6 +580,23 @@ theorem keys_in_scale (mode mask key note : UInt32) (on : mode ≠ 0) (some : (m
 theorem keys_keep_order (mode mask key a b : UInt32) (order : a ≤ b) (midi : b ≤ 127)
     (sameOctave : a / 12 = b / 12) :
     Keys.quantize mode mask key a ≤ Keys.quantize mode mask key b := sorry
+
+-- Proofs/KeysChord.lean
+theorem keys_triad_three_an_octave (t key : UInt32) (triad : t < 24) (k12 : key < 12) :
+    let mask := (Harmony.rotate (Tonnetz.mask t.toNat) key.toNat).toUInt32
+    ∀ w : Fin 7, Keys.degree mask.toNat key.toNat (w.val + 3) =
+      Keys.degree mask.toNat key.toNat w.val + 12 := sorry
+
+theorem keys_triad_is_the_chord (t key : UInt32) (triad : t < 24) (k12 : key < 12) :
+    ∀ w : Fin 3, (Harmony.rotate (Tonnetz.mask t.toNat) key.toNat).testBit
+      ((key.toNat + Keys.degree (Harmony.rotate (Tonnetz.mask t.toNat) key.toNat) key.toNat w.val) % 12) =
+        true := sorry
+
+theorem keys_triad_white_keys_are_the_chord (t key : UInt32) (triad : t < 24) (k12 : key < 12) :
+    let mask := Harmony.rotate (Tonnetz.mask t.toNat) key.toNat
+    (1 <<< ((key.toNat + Keys.degree mask key.toNat 0) % 12)) |||
+      (1 <<< ((key.toNat + Keys.degree mask key.toNat 1) % 12)) |||
+      (1 <<< ((key.toNat + Keys.degree mask key.toNat 2) % 12)) = mask := sorry
 
 -- Proofs/Lane.lean
 theorem lane_make_valid (hits steps div mask low span : Nat) (seed : UInt32) :
@@ -1103,6 +1155,21 @@ theorem punch_crush_repeats (factor index : UInt32) (heldSample sample : Int32) 
 theorem punch_restrikes_on_the_beat (keys choice : UInt32) (some : Punch.stutterPeriod keys choice ≠ 0) :
     24 % Punch.stutterPeriod keys choice = 0 := sorry
 
+-- Proofs/PunchMix.lean
+theorem punch_gate_never_amplifies (sample : Int32) (gain : UInt32) (inLimit : sample.toInt.natAbs ≤ 524287)
+    (unit : gain.toNat ≤ 32768) :
+    (Punch.gateSample sample gain).toInt.natAbs ≤ sample.toInt.natAbs ∧
+      (Punch.gateSample sample gain).toInt.natAbs ≤ 524287 := sorry
+
+theorem punch_crush_keeps_limit (factor index : UInt32) (heldSample sample : Int32)
+    (h1 : heldSample.toInt.natAbs ≤ 524287) (h2 : sample.toInt.natAbs ≤ 524287) :
+    (Punch.crushSample factor index heldSample sample).toInt.natAbs ≤ 524287 := sorry
+
+theorem punch_master_never_wraps (factor index gain : UInt32) (held m : Int32)
+    (mixBounded : m.toInt.natAbs ≤ 524287) (heldBounded : held.toInt.natAbs ≤ 524287)
+    (unit : gain.toNat ≤ 32768) :
+    (Punch.gateSample (Punch.crushSample factor index held m) gain).toInt.natAbs ≤ 524287 := sorry
+
 -- Proofs/Quantizer.lean
 theorem quantizer_snap_keeps_scale_notes (mask note : Nat) (inside : Quantizer.inScale mask note = true) :
     Quantizer.snap mask note = note := sorry
@@ -1244,6 +1311,14 @@ theorem run_bar_plays_every_hit_turned (hits steps div mask low span : Nat) (see
     let l := ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).setRhythm
       1 rotate accents rule ratchet subHits true
     Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) = l.hits := sorry
+
+theorem run_bar_plays_every_ratchet (hits steps div mask low span : Nat) (seed : UInt32)
+    (rotate accents rule ratchet subHits : Nat) :
+    let l := ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).setRhythm
+      3 rotate accents rule ratchet subHits true
+    l.rhythm.ratchet ≤ l.div →
+    Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) =
+      l.hits * Rhythm.count (Rhythm.subPlays l.rhythm) l.rhythm.ratchet := sorry
 
 -- Proofs/Smooth.lean
 theorem smooth_parameter_between (start target xfade : Int32)

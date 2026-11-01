@@ -565,7 +565,7 @@ static void clock_poll(void)                    /* 24 ticks a quarter note: bpm 
     if (set.clock) {                            /* CLOCK EXT: a MIDI clock is a tick; midi_in counts them */
         if (fm1_ms - ext_ms >= 2000u) { ext_bpm = 0; ext_ms = fm1_ms; }   /* nothing for 2 s: no clock */
         tick_acc = 0;
-    } else tick_acc += dt * bpm * 4u * fm1_punch_tempo(punch_keys) / 100u;   /* HALF and DOUBLE time */
+    } else tick_acc = fm1_clock_advance(tick_acc, dt, bpm, fm1_punch_tempo(punch_keys));   /* HALF and DOUBLE: Firmware/Clock.lean */
     while (set.clock ? ext_ticks > 0 : tick_acc >= fm1_swing_tick_length(tick_count % 24u, set.swing)) {
         if (set.clock) ext_ticks--; else tick_acc -= fm1_swing_tick_length(tick_count % 24u, set.swing);
 #ifdef WATCHED

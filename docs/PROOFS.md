@@ -148,6 +148,36 @@ Why it matters: `wavetables_setup_table_in_table` multiplies the parameter by th
 step and the one after it inside the 17 steps of a definition; this checks the counts Braids ships (4, 8 or 16) instead
 of assuming them.
 
+## Clock
+
+**`clock_advance_never_wraps`**: The clock accumulator never wraps: for a loop stall of up to 20 seconds, at any tempo
+up to 240 and under HALF, straight or DOUBLE time, the 32-bit sum is the exact sum, starting from any residue below the
+longest swung tick.
+
+Why it matters: however long the main loop stalled (a patch load, a save, a screen redraw), the clock makes up the time
+it missed rather than wrapping to garbage and jumping the song to a random place.
+
+**`clock_division_is_the_loop`**: Dividing the accumulator by the tick length is exactly the firmware's `while (acc >=
+len) { acc -= len; tick(); }` loop: the ticks due times the length plus the remainder is the accumulator, and the
+remainder is below one tick, so the loop stops.
+
+Why it matters: the C clock keeps its loop; this says the loop and the division agree, so every fact about `ticksDue`
+and `remainder` is a fact about the loop in `dinghy.c`.
+
+**`clock_half_time_is_half`**: Over the same milliseconds from the same residue, HALF fires half the ticks of straight
+time, to within the rounding of one tick: twice the HALF count is at most the straight count plus two, and the straight
+count is at most twice the HALF count plus one (for straight ticks of 10000, swing 0).
+
+Why it matters: HALF is exactly half speed, not roughly: a bar under HALF is two bars long to the tick, so the chord
+changes, the lanes and the swing stay in step with each other and with where the song would be.
+
+**`clock_double_time_is_double`**: Over the same milliseconds from the same residue, DOUBLE fires twice the ticks of
+straight time, to within the rounding of one tick: the DOUBLE count is at most twice the straight count plus one, and
+twice the straight count is at most the DOUBLE count plus two (for straight ticks of 10000, swing 0).
+
+Why it matters: DOUBLE is exactly double speed: a bar under DOUBLE is half a bar long to the tick, so the chord changes,
+the lanes and the swing stay in step with each other and with where the song would be.
+
 ## Delay
 
 **`delay_gains_in_range`**: For every feedback setting the gain is between 0 and 0.95 (31129 in Q15), and for every tone
@@ -529,6 +559,28 @@ Why it matters: the organ and bass lock to the carrier by `fm_harmonic_ratios_lo
 harmonic and the note is one steady pitch; the bell's ratios of 3.5, 7.2 and 1.4 are chosen not to lock, and the
 inharmonic, slowly beating partials that follow are what make it sound like a bell.
 
+## FmRange
+
+**`fm_cap_is_a_hold`**: The cap is a saturation of the exact value: the increment is the product shifted by eight, or
+half a cycle, whichever is smaller.
+
+Why it matters: above the keyboard an operator holds at Nyquist instead of wrapping to a wrong pitch, and below it
+nothing is lost; this is the one shape the arithmetic can take.
+
+**`fm_increment_exact_below_cap`**: Below the cap the increment is the exact product shifted by eight: a product below
+2^39 shifts to below 2^31, so neither the hold nor the narrowing to 32 bits changes it.
+
+Why it matters: an operator's pitch is exactly the voice's times the shape's ratio whenever the product is small enough,
+with no rounding beyond the Q8 shift.
+
+**`fm_no_cap_on_the_keyboard`**: Across the keyboard, MIDI notes 0 to 88 (up to E6, 1319 Hz), every operator's increment
+is the exact product of the voice's increment and its shape's ratio, shifted by eight: the Nyquist cap never engages.
+The voice's increment is `Pitch.phaseIncrement` at the note's pitch (`note * 128`, in 1/128 semitones), which is below
+2^27 there, and every shape's ratio is at most 16.0 (`fm_shapes_in_range`), so the product is below 2^39.
+
+Why it matters: every FM shape's ratios are exact across the playable keyboard, so what the tables say is what sounds;
+above it (`fm_cap_is_a_hold`) the engine saturates at Nyquist rather than aliasing.
+
 ## FmSymmetry
 
 **`fm_sine_half_wave`**: The sine half a cycle on is the negative of the sine: `sineAt (phase + 2^31) = -sineAt phase`,
@@ -649,6 +701,27 @@ the chord of the moment); the keyboard cannot play a wrong note.
 Why it matters: a run up the white keys is a run up the scale; quantizing cannot turn a rising line into a falling one.
 (Across an octave it can, by design, for a scale of fewer than seven notes: the white keys past its last degree go round
 into the next octave.)
+
+## KeysChord
+
+**`keys_triad_three_an_octave`**: With CHORD on a Tonnetz walk the lane's mask is a triad, and white key `w + 3` plays
+white key `w` an octave up: C E G are the three chord tones and F A B C repeat them an octave higher.
+
+Why it matters: with CHORD and a walk, the white keys are the chord of the moment, three to the octave, and the fourth
+white key is the first an octave up: what the player feels under the fingers.
+
+**`keys_triad_is_the_chord`**: With CHORD on a Tonnetz walk, each of the three white keys C E G plays a note of the
+walk's triad.
+
+Why it matters: with CHORD and a walk, the white keys are the chord of the moment; the first three are its notes and
+nothing else can sound.
+
+**`keys_triad_white_keys_are_the_chord`**: With CHORD on a Tonnetz walk, the three white keys C E G together are exactly
+the walk's triad: the pitch classes they play, as a mask, are the lane's mask, in rising order from the key's root (so
+degree 0 is the lowest chord tone above the key, which is the triad's root only when the walk is on the key's tonic).
+
+Why it matters: with CHORD and a walk, the white keys are the chord of the moment, the whole of it and nothing but it,
+laid out low to high under the first three fingers.
 
 ## Lane
 
@@ -1348,6 +1421,27 @@ beat's divisions.
 Why it matters: STUTTER and ROLL are in time: every period is an eighth, a sixteenth or a thirty-second, and they always
 come back to the beat.
 
+## PunchMix
+
+**`punch_gate_never_amplifies`**: The gate only ever lowers: the output is within the sample, and within 524287 whenever
+the sample is. The gain is at most one (32768, Q15); both divisions truncate toward zero, so there is no rounding away
+from zero to add level.
+
+Why it matters: the gate is a chop, never a boost: with the mix within the limiter's range, what comes out of the gate
+is still within it and cannot wrap.
+
+**`punch_crush_keeps_limit`**: The crush hands back one of its two inputs, so a mix and a held sample both within the
+limit give a sample within it.
+
+Why it matters: CRUSH only repeats samples that were already in range; it adds no level and cannot wrap.
+
+**`punch_master_never_wraps`**: The whole PUNCH audio path on a mix sample within the limiter's range (524287, what
+`mix_machine_sample_bounded` delivers), with a held sample within the same range, any crush factor and index, and a gate
+gain of at most one: the master stays within 524287.
+
+Why it matters: with every punch-in on at once the master stays inside the limiter's range: the gate only ever lowers,
+the crush only repeats, so nothing on the PUNCH page can wrap.
+
 ## Quantizer
 
 **`quantizer_snap_keeps_scale_notes`**: A note that is already in the scale stays as it is.
@@ -1543,6 +1637,14 @@ exactly `hits` notes in a bar too.
 
 Why it matters: turning the pattern moves the hits round the bar without losing or doubling one; a lane with ROTATE set
 plays the density the HITS knob asks for.
+
+**`run_bar_plays_every_ratchet`**: A ratchet lane (kind 3, play chance 100) whose ratchet is at most `div` plays, over
+the `steps * div` ticks of a bar from a fresh lane, exactly `hits` times the number of sub-hits that play: every hit
+step rolls the same sub-hits (its pulse and those SUB-HITS spreads over the ratchet), each on a tick of its own. The
+bound `ratchet ≤ div` is what keeps the sub-hits on distinct ticks; a step shorter than its ratchet merges them.
+
+Why it matters: ratchets play exactly the rolls the knobs ask for, no sub-hit lost or doubled; with this every rhythm
+kind the FEEL page offers has its liveness theorem.
 
 ## Smooth
 

@@ -438,3 +438,374 @@ theorem run_bar_plays_every_hit_turned (hits steps div mask low span : Nat) (see
     | succ s ih => unfold run_count Euclid.countHits; rw [ih]
   rw [same]
   exact euclid_hit_count l.hits l.steps valid.stepsPositive valid.hitsFit
+
+/-- A ratchet lane: its rhythm is `r`, a ratchet (kind 3), and its play chance is 100. -/
+private def Lane.Ratchet (l : Lane) (r : Rhythm) : Prop := l.rhythm = r ∧ l.prob = 100 ∧ r.kind = 3
+
+/-- Whether tick `n` of a ratchet lane plays: the tick starts sub-hit `k` (the pulse of its step when `k = 0`;
+otherwise `k * div / ratchet` ticks after the pulse of the step before, which the step counter has left
+behind) of a step the rhythm marks, and sub-hit `k` plays. -/
+private def run_sub_plays (r : Rhythm) (hits steps div n : Nat) : Bool :=
+  match Rhythm.subIndex div r.ratchet ((n + 1) % div) with
+  | none => false
+  | some k =>
+    Rhythm.hit r hits steps (if k = 0 then (n / div) % steps else ((n / div) % steps + steps - 1) % steps) &&
+      Rhythm.subPlays r k
+
+/-- How many of the ticks `k` to `k + count - 1` of a ratchet lane play. -/
+private def run_sub_ons (r : Rhythm) (hits steps div k : Nat) : Nat → Nat
+  | 0 => 0
+  | count + 1 =>
+    (if run_sub_plays r hits steps div k then 1 else 0) + run_sub_ons r hits steps div (k + 1) count
+
+/-- A ratchet lane whose clock stands at tick `n` starts a note on this tick exactly when `run_sub_plays`
+says. -/
+private theorem run_ratchet_tick_on (l : Lane) (r : Rhythm) (n : Nat) (ratchet : l.Ratchet r)
+    (count : l.count = n % l.div) (step : l.step = (n / l.div) % l.steps) :
+    l.tick.on.isSome = run_sub_plays r l.hits l.steps l.div n := by
+  have chance : Lane.draw (Random.next (Random.next (Random.next l.rng))) 100 < l.prob := by
+    rw [ratchet.2.1]
+    exact random_below_lt _ 100 (by decide) (by decide)
+  have plays : l.plays = l.isHit := by
+    unfold Lane.plays; simp [chance]
+  have on : l.tick.on.isSome = l.plays := by
+    unfold Lane.tick; split <;> (try split) <;> simp_all
+  have sub : l.subHit = Rhythm.subIndex l.div r.ratchet ((n + 1) % l.div) := by
+    unfold Lane.subHit; rw [ratchet.1, ite_eq_left ratchet.2.2, count, Nat.mod_add_mod]
+  rw [on, plays]
+  unfold Lane.isHit Lane.hitStep run_sub_plays
+  rw [sub, ratchet.1, step]
+  cases Rhythm.subIndex l.div r.ratchet ((n + 1) % l.div) with
+  | none => rfl
+  | some k =>
+    cases k with
+    | zero => rfl
+    | succ k => rfl
+
+/-- The note-ons of a run of ticks inside one bar of a ratchet lane are the ticks `run_sub_plays` says
+play. -/
+private theorem run_ratchet_ons (r : Rhythm) (n : Nat) : ∀ (k : Nat) (m : Lane), (0 < n → m.Ratchet r) →
+    0 < m.div → m.count = k % m.div → m.step = (k / m.div) % m.steps → k + n ≤ m.steps * m.div →
+    Lane.noteOns (m.trace (List.replicate n .tick)) = run_sub_ons r m.hits m.steps m.div k n := by
+  induction n with
+  | zero => intro k m _ _ _ _ _; simp [Lane.trace, Lane.noteOns, run_sub_ons]
+  | succ n ih =>
+    intro k m ratchetIf divPos count step inside
+    have ratchet := ratchetIf (by omega)
+    have t := run_tick_clock m k divPos count step
+    have on := run_ratchet_tick_on m r k ratchet count step
+    have keep := run_tick_steady m
+    have ratchetNext : 0 < n → m.tick.Ratchet r := by
+      intro pos
+      have same := keep.2.2.2.2 (run_not_bar_end m k divPos count step (by omega))
+      exact ⟨same.trans ratchet.1, keep.2.1.trans ratchet.2.1, ratchet.2.2⟩
+    have later := ih (k + 1) m.tick ratchetNext (t.2.2.1 ▸ divPos) (by rw [t.1, t.2.2.1])
+      (by rw [t.2.1, t.2.2.1, t.2.2.2]) (by rw [t.2.2.1, t.2.2.2]; omega)
+    have ⟨ons, _⟩ := run_counts_cons (m.tick.off, m.tick.on) (m.tick.trace (List.replicate n .tick))
+    rw [List.replicate_succ]
+    show Lane.noteOns ((m.tick.off, m.tick.on) :: m.tick.trace (List.replicate n .tick)) = _
+    rw [ons, later, keep.2.2.1, t.2.2.1, t.2.2.2]
+    show (if m.tick.on.isSome = true then 1 else 0) + _ = _
+    rw [on]
+    rfl
+
+/-- `find?` over `range' s n` finds nothing when nothing in the range satisfies `p`. -/
+private theorem run_find_none (p : Nat → Bool) : ∀ (n s : Nat), (∀ j, s ≤ j → j < s + n → p j = false) →
+    (List.range' s n).find? p = none := by
+  intro n
+  induction n with
+  | zero => intro s _; rfl
+  | succ n ih =>
+    intro s none
+    rw [List.range'_succ, List.find?_cons, none s (Nat.le_refl _) (by omega)]
+    exact ih (s + 1) (fun j le lt => none j (by omega) (by omega))
+
+/-- `find?` over `range' s n` finds `m` when `m` is in the range and satisfies `p` and nothing before it
+does. -/
+private theorem run_find_some (p : Nat → Bool) : ∀ (n s m : Nat), s ≤ m → m < s + n → p m = true →
+    (∀ j, s ≤ j → j < m → p j = false) → (List.range' s n).find? p = some m := by
+  intro n
+  induction n with
+  | zero => intro s m le lt; omega
+  | succ n ih =>
+    intro s m le lt pm before
+    rw [List.range'_succ, List.find?_cons]
+    by_cases e : s = m
+    · subst e; rw [pm]
+    · rw [before s (Nat.le_refl _) (by omega)]
+      exact ih (s + 1) m (by omega) (by omega) pm (fun j le lt => before j (by omega) lt)
+
+/-- Sub-hit offsets `k * div / ratchet` never go down with `k`. -/
+private theorem run_offset_le (div ratchet i j : Nat) (le : i ≤ j) : i * div / ratchet ≤ j * div / ratchet :=
+  Nat.div_le_div_right (Nat.mul_le_mul_right div le)
+
+/-- With the ratchet at most `div`, sub-hit offsets `k * div / ratchet` go strictly up with `k`. -/
+private theorem run_offset_lt (div ratchet : Nat) (fits : ratchet ≤ div) (ratchetPos : 0 < ratchet)
+    (i j : Nat) (lt : i < j) : i * div / ratchet < j * div / ratchet := by
+  have next : i * div / ratchet + 1 ≤ (i + 1) * div / ratchet := by
+    rw [Nat.le_div_iff_mul_le ratchetPos, Nat.add_mul, Nat.one_mul, Nat.add_mul, Nat.one_mul]
+    have := Nat.div_mul_le_self (i * div) ratchet
+    omega
+  have := run_offset_le div ratchet (i + 1) j lt
+  omega
+
+/-- Count 0 of a step (the pulse) starts sub-hit 0. -/
+private theorem run_sub_index_pulse (div ratchet : Nat) (ratchetPos : 0 < ratchet) :
+    Rhythm.subIndex div ratchet 0 = some 0 := by
+  unfold Rhythm.subIndex
+  rw [List.range_eq_range']
+  exact run_find_some _ ratchet 0 0 (Nat.le_refl _) (by omega) (by simp) (fun j _ lt => by omega)
+
+/-- Count `(k + 1) * div / ratchet` starts sub-hit `k + 1`, the ratchet being at most `div`. -/
+private theorem run_sub_index_hit (div ratchet k : Nat) (fits : ratchet ≤ div) (below : k + 1 < ratchet) :
+    Rhythm.subIndex div ratchet ((k + 1) * div / ratchet) = some (k + 1) := by
+  unfold Rhythm.subIndex
+  rw [List.range_eq_range']
+  refine run_find_some _ ratchet 0 (k + 1) (by omega) (by omega) (by simp) ?_
+  intro j _ lt
+  have := run_offset_lt div ratchet fits (by omega) j (k + 1) lt
+  simp; omega
+
+/-- A count strictly between the offsets of sub-hits `k` and `k + 1` starts no sub-hit. -/
+private theorem run_sub_index_none (div ratchet k c : Nat) (after : k * div / ratchet < c)
+    (before : c < (k + 1) * div / ratchet) :
+    Rhythm.subIndex div ratchet c = none := by
+  unfold Rhythm.subIndex
+  rw [List.range_eq_range']
+  apply run_find_none
+  intro j _ lt
+  simp
+  rcases Nat.lt_or_ge j (k + 1) with low | high
+  · have := run_offset_le div ratchet j k (by omega); omega
+  · have := run_offset_le div ratchet (k + 1) j high; omega
+
+/-- Tick `o` of step `s`'s block (its ticks from `s * div`) as `run_sub_plays` sees it: the count after it is
+`o + 1` (0 at the step's end) and the step counter stands at `s`. -/
+private theorem run_sub_plays_at (r : Rhythm) (hits steps div s o : Nat) (divPos : 0 < div)
+    (inBar : s < steps) (inStep : o < div) :
+    run_sub_plays r hits steps div (s * div + o) =
+      match Rhythm.subIndex div r.ratchet (if o + 1 = div then 0 else o + 1) with
+      | none => false
+      | some k =>
+        Rhythm.hit r hits steps (if k = 0 then s else (s + steps - 1) % steps) && Rhythm.subPlays r k := by
+  unfold run_sub_plays
+  have next := (run_count_succ div s o divPos inStep).1
+  rw [Nat.mul_comm] at next
+  have quot : (s * div + o) / div = s := by
+    rw [Nat.mul_comm, Nat.mul_add_div divPos, Nat.div_eq_of_lt inStep, Nat.add_zero]
+  rw [next, quot, Nat.mod_eq_of_lt inBar]
+
+/-- Counting over two stretches of ticks is counting over each. -/
+private theorem run_sub_ons_add (r : Rhythm) (hits steps div : Nat) (a : Nat) : ∀ (k b : Nat),
+    run_sub_ons r hits steps div k (a + b) =
+      run_sub_ons r hits steps div k a + run_sub_ons r hits steps div (k + a) b := by
+  induction a with
+  | zero => intro k b; simp [run_sub_ons]
+  | succ a ih =>
+    intro k b
+    rw [show k + (a + 1) = k + 1 + a by omega, show a + 1 + b = (a + b) + 1 by omega]
+    show (if run_sub_plays r hits steps div k then 1 else 0) + run_sub_ons r hits steps div (k + 1) (a + b) =
+      (if run_sub_plays r hits steps div k then 1 else 0) + run_sub_ons r hits steps div (k + 1) a +
+        run_sub_ons r hits steps div (k + 1 + a) b
+    rw [ih (k + 1) b]; omega
+
+/-- Chunk `k` of step `s`'s block: its ticks from offset `k * div / ratchet` up to the next sub-hit's offset.
+Only its last tick plays: the pulse of step `s` for the last chunk, sub-hit `k + 1` of the step before for the
+others. -/
+private theorem run_sub_ons_chunk (r : Rhythm) (hits steps div s k : Nat) (divPos : 0 < div)
+    (inBar : s < steps) (fits : r.ratchet ≤ div) (below : k < r.ratchet) :
+    run_sub_ons r hits steps div (s * div + k * div / r.ratchet)
+        ((k + 1) * div / r.ratchet - k * div / r.ratchet) =
+      if k + 1 = r.ratchet then (if Rhythm.hit r hits steps s then 1 else 0)
+      else if Rhythm.hit r hits steps ((s + steps - 1) % steps) && Rhythm.subPlays r (k + 1) then 1
+      else 0 := by
+  have ratchetPos : 0 < r.ratchet := by omega
+  have mono := run_offset_lt div r.ratchet fits ratchetPos k (k + 1) (Nat.lt_succ_self k)
+  have top : (k + 1) * div / r.ratchet ≤ div := by
+    have := run_offset_le div r.ratchet (k + 1) r.ratchet below
+    rw [Nat.mul_div_cancel_left div ratchetPos] at this
+    exact this
+  have full : (k + 1) * div / r.ratchet = div ↔ k + 1 = r.ratchet := by
+    constructor
+    · intro e
+      rcases Nat.lt_or_ge (k + 1) r.ratchet with lt | ge
+      · have := run_offset_lt div r.ratchet fits ratchetPos (k + 1) r.ratchet lt
+        rw [Nat.mul_div_cancel_left div ratchetPos] at this
+        omega
+      · omega
+    · intro e; rw [e, Nat.mul_div_cancel_left div ratchetPos]
+  have hit : k + 1 < r.ratchet → Rhythm.subIndex div r.ratchet ((k + 1) * div / r.ratchet) = some (k + 1) :=
+    run_sub_index_hit div r.ratchet k fits
+  have none : ∀ c, k * div / r.ratchet < c → c < (k + 1) * div / r.ratchet →
+      Rhythm.subIndex div r.ratchet c = none := run_sub_index_none div r.ratchet k
+  generalize ha : k * div / r.ratchet = a at *
+  generalize hb : (k + 1) * div / r.ratchet = b at *
+  suffices h : ∀ m, m ≤ b - a → run_sub_ons r hits steps div (s * div + (b - m)) m =
+      if m = 0 then 0 else
+      if k + 1 = r.ratchet then (if Rhythm.hit r hits steps s then 1 else 0)
+      else if Rhythm.hit r hits steps ((s + steps - 1) % steps) && Rhythm.subPlays r (k + 1) then 1 else 0 by
+    have := h (b - a) (Nat.le_refl _)
+    rw [show b - (b - a) = a by omega, ite_eq_right (by omega)] at this
+    exact this
+  intro m
+  induction m with
+  | zero => intro _; simp [run_sub_ons]
+  | succ m ih =>
+    intro le
+    unfold run_sub_ons
+    rw [run_sub_plays_at r hits steps div s (b - (m + 1)) divPos inBar (by omega),
+      show s * div + (b - (m + 1)) + 1 = s * div + (b - m) by omega, ih (by omega)]
+    by_cases z : m = 0
+    · subst z
+      by_cases e : b = div
+      · rw [ite_eq_left (show b - (0 + 1) + 1 = div by omega), run_sub_index_pulse div r.ratchet ratchetPos,
+          ite_eq_left (full.mp e)]
+        simp [Rhythm.subPlays]
+      · have notLast : ¬ k + 1 = r.ratchet := fun c => e (full.mpr c)
+        rw [ite_eq_right (show ¬ b - (0 + 1) + 1 = div by omega), show b - (0 + 1) + 1 = b by omega,
+          hit (by omega), ite_eq_right notLast]
+        simp
+    · rw [ite_eq_right (show ¬ b - (m + 1) + 1 = div by omega), none (b - (m + 1) + 1) (by omega) (by omega)]
+      simp [z]
+
+/-- The first `j` chunks of step `s`'s block (its ticks up to offset `j * div / ratchet`), `j` below the
+ratchet: the sub-hits `1` to `j` of the step before that play, when that step is a hit. -/
+private theorem run_sub_ons_chunks (r : Rhythm) (hits steps div s : Nat) (divPos : 0 < div)
+    (inBar : s < steps) (fits : r.ratchet ≤ div) : ∀ j, j < r.ratchet →
+    run_sub_ons r hits steps div (s * div) (j * div / r.ratchet) =
+      if Rhythm.hit r hits steps ((s + steps - 1) % steps) then
+        run_count (fun k => Rhythm.subPlays r (k + 1)) j
+      else 0 := by
+  intro j
+  induction j with
+  | zero => intro _; simp [run_sub_ons, run_count]
+  | succ j ih =>
+    intro below
+    have mono := run_offset_lt div r.ratchet fits (by omega) j (j + 1) (Nat.lt_succ_self j)
+    rw [show (j + 1) * div / r.ratchet =
+          j * div / r.ratchet + ((j + 1) * div / r.ratchet - j * div / r.ratchet)
+        by omega,
+      run_sub_ons_add, ih (by omega), run_sub_ons_chunk r hits steps div s j divPos inBar fits (by omega),
+      ite_eq_right (show ¬ j + 1 = r.ratchet by omega)]
+    simp only [run_count]
+    by_cases h1 : Rhythm.hit r hits steps ((s + steps - 1) % steps) = true <;>
+      by_cases h2 : Rhythm.subPlays r (j + 1) = true <;> simp [h1, h2]
+
+/-- Step `s`'s block (its `div` ticks from `s * div`): the pulse of step `s` when it is a hit, and the
+sub-hits `1` to `ratchet - 1` of the step before that play, when that one is a hit. -/
+private theorem run_sub_ons_block (r : Rhythm) (hits steps div s : Nat) (divPos : 0 < div) (inBar : s < steps)
+    (fits : r.ratchet ≤ div) (ratchetPos : 0 < r.ratchet) :
+    run_sub_ons r hits steps div (s * div) div =
+      (if Rhythm.hit r hits steps s then 1 else 0) +
+        if Rhythm.hit r hits steps ((s + steps - 1) % steps) then
+          run_count (fun k => Rhythm.subPlays r (k + 1)) (r.ratchet - 1) else 0 := by
+  have last := run_sub_ons_chunk r hits steps div s (r.ratchet - 1) divPos inBar fits (by omega)
+  rw [show r.ratchet - 1 + 1 = r.ratchet by omega, Nat.mul_div_cancel_left div ratchetPos, ite_eq_left rfl]
+    at last
+  have mono := run_offset_le div r.ratchet (r.ratchet - 1) r.ratchet (by omega)
+  rw [Nat.mul_div_cancel_left div ratchetPos] at mono
+  have split : run_sub_ons r hits steps div (s * div) div = run_sub_ons r hits steps div (s * div)
+      ((r.ratchet - 1) * div / r.ratchet + (div - (r.ratchet - 1) * div / r.ratchet)) := by
+    congr 1; omega
+  rw [split, run_sub_ons_add,
+    run_sub_ons_chunks r hits steps div s divPos inBar fits (r.ratchet - 1) (by omega), last]
+  omega
+
+/-- Over the first `s` steps of a bar: the hits among them, and for each hit among the steps before each of
+them the sub-hits `1` to `ratchet - 1` that play. -/
+private theorem run_sub_ons_blocks (r : Rhythm) (hits steps div : Nat) (divPos : 0 < div)
+    (fits : r.ratchet ≤ div) (ratchetPos : 0 < r.ratchet) : ∀ s, s ≤ steps →
+    run_sub_ons r hits steps div 0 (s * div) =
+      run_count (Rhythm.hit r hits steps) s + run_count (fun k => Rhythm.subPlays r (k + 1)) (r.ratchet - 1) *
+        run_count (fun i => Rhythm.hit r hits steps ((i + steps - 1) % steps)) s := by
+  intro s
+  induction s with
+  | zero => intro _; simp [run_sub_ons, run_count]
+  | succ s ih =>
+    intro le
+    rw [Nat.succ_mul, run_sub_ons_add, Nat.zero_add, ih (by omega),
+      run_sub_ons_block r hits steps div s divPos (by omega) fits ratchetPos]
+    generalize run_count (fun k => Rhythm.subPlays r (k + 1)) (r.ratchet - 1) = c
+    simp only [run_count]
+    by_cases h1 : Rhythm.hit r hits steps s = true <;>
+      by_cases h2 : Rhythm.hit r hits steps ((s + steps - 1) % steps) = true <;>
+      simp [h1, h2, Nat.mul_add] <;> omega
+
+/-- Counting a property of the step before each step of a bar counts it over the bar. -/
+private theorem run_count_turned (f : Nat → Bool) (steps : Nat) (stepsPos : 0 < steps) :
+    run_count (fun i => f ((i + steps - 1) % steps)) steps = run_count f steps := by
+  have shift : ∀ s, s < steps → run_count (fun i => f ((i + steps - 1) % steps)) (s + 1) =
+      (if f (steps - 1) then 1 else 0) + run_count f s := by
+    intro s
+    induction s with
+    | zero =>
+      intro _
+      simp [run_count, Nat.mod_eq_of_lt (show steps - 1 < steps by omega)]
+    | succ s ih =>
+      intro lt
+      show run_count (fun i => f ((i + steps - 1) % steps)) (s + 1) +
+        (if f ((s + 1 + steps - 1) % steps) then 1 else 0) = _
+      rw [ih (by omega), show s + 1 + steps - 1 = s + steps by omega, Nat.add_mod_right,
+        Nat.mod_eq_of_lt (show s < steps by omega)]
+      show _ = _ + (run_count f s + if f s then 1 else 0)
+      omega
+  cases steps with
+  | zero => omega
+  | succ t =>
+    rw [shift t (Nat.lt_succ_self t)]
+    show _ = run_count f t + if f t then 1 else 0
+    rw [Nat.add_sub_cancel]
+    omega
+
+/-- Counting over `m + 1` is the first and then the rest, counted from 1. -/
+private theorem run_count_shift (f : Nat → Bool) : ∀ m,
+    run_count f (m + 1) = (if f 0 then 1 else 0) + run_count (fun k => f (k + 1)) m := by
+  intro m
+  induction m with
+  | zero => simp [run_count]
+  | succ m ih =>
+    show run_count f (m + 1) + (if f (m + 1) then 1 else 0) =
+      _ + (run_count (fun k => f (k + 1)) m + if f (m + 1) then 1 else 0)
+    rw [ih]; omega
+
+/-- A ratchet lane (kind 3, play chance 100) whose ratchet is at most `div` plays, over the `steps * div`
+ticks of a bar from a fresh lane, exactly `hits` times the number of sub-hits that play: every hit step
+rolls the same sub-hits (its pulse and those SUB-HITS spreads over the ratchet), each on a tick of its own.
+The bound `ratchet ≤ div` is what keeps the sub-hits on distinct ticks; a step shorter than its ratchet
+merges them.
+Why it matters: ratchets play exactly the rolls the knobs ask for, no sub-hit lost or doubled; with this
+every rhythm kind the FEEL page offers has its liveness theorem. -/
+theorem run_bar_plays_every_ratchet (hits steps div mask low span : Nat) (seed : UInt32)
+    (rotate accents rule ratchet subHits : Nat) :
+    let l := ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).setRhythm
+      3 rotate accents rule ratchet subHits true
+    l.rhythm.ratchet ≤ l.div →
+    Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) =
+      l.hits * Rhythm.count (Rhythm.subPlays l.rhythm) l.rhythm.ratchet := by
+  intro l fits
+  have valid := lane_set_rhythm_valid _ (lane_set_notes_valid (Lane.make hits steps div mask low span seed)
+    (lane_make_valid hits steps div mask low span seed) 0 100 1 0) 3 rotate accents rule ratchet subHits true
+  have kind : l.rhythm.kind = 3 := by
+    show (Rhythm.make 3 rotate accents rule ratchet subHits _ _ _).kind = 3
+    simp [Rhythm.make]
+  have ratchetPos : 0 < l.rhythm.ratchet := by
+    show 0 < (Rhythm.make 3 rotate accents rule ratchet subHits _ _ _).ratchet
+    simp [Rhythm.make]; omega
+  have hitEq : Rhythm.hit l.rhythm l.hits l.steps = Euclid.hit l.hits l.steps := by
+    funext s; unfold Rhythm.hit Rhythm.source; simp [kind]
+  rw [run_ratchet_ons l.rhythm (l.steps * l.div) 0 l (fun _ => ⟨rfl, rfl, kind⟩) valid.divPositive
+      (by rw [Nat.zero_mod]; rfl) (by rw [Nat.zero_div, Nat.zero_mod]; rfl) (by omega),
+    run_sub_ons_blocks l.rhythm l.hits l.steps l.div valid.divPositive fits ratchetPos l.steps
+      (Nat.le_refl _),
+    hitEq, run_count_turned _ _ valid.stepsPositive]
+  have same : ∀ s, run_count (Euclid.hit l.hits l.steps) s = Euclid.countHits l.hits l.steps s := by
+    intro s; induction s with
+    | zero => rfl
+    | succ s ih => unfold run_count Euclid.countHits; rw [ih]
+  rw [same, euclid_hit_count l.hits l.steps valid.stepsPositive valid.hitsFit, ← run_count_eq]
+  have first : Rhythm.subPlays l.rhythm 0 = true := by simp [Rhythm.subPlays]
+  have count := run_count_shift (Rhythm.subPlays l.rhythm) (l.rhythm.ratchet - 1)
+  rw [show l.rhythm.ratchet - 1 + 1 = l.rhythm.ratchet by omega, first, ite_eq_left rfl] at count
+  rw [count]
+  generalize run_count (fun k => Rhythm.subPlays l.rhythm (k + 1)) (l.rhythm.ratchet - 1) = c
+  rw [Nat.mul_add, Nat.mul_one, Nat.mul_comm c]
