@@ -38,6 +38,7 @@ kbd { border: 1px solid var(--hairline); padding: 0 4px; }
 .vitrine .wrap { position: relative; min-height: 420px; display: grid; place-items: center; padding: 48px 22px; }
 .vitrine img { image-rendering: pixelated; display: block; width: 360px; max-width: 100%; }
 .vitrine .corner { position: absolute; left: 22px; bottom: 22px; color: #b2b2b2; }
+.vitrine .alfred { position: absolute; right: 22px; bottom: 22px; width: 72px; image-rendering: pixelated; }
 
 /* ruled sections: a heading column and a body column */
 section.ruled { border-top: 1px solid var(--rule); padding: 33px 0 var(--band); }

@@ -52,16 +52,5 @@ try:
 except ImportError:
     pass
 shutil.rmtree(frames)
-# Alfred
-try:
-    from PIL import Image
-    rows = (ROOT / "ui/alfred.txt").read_text().split()
-    col = {'K':(10,5,12),'S':(238,190,150),'D':(205,150,115),'E':(20,20,30),'W':(240,236,226),'G':(150,150,160),'B':(52,30,62),'L':(104,70,122),'A':(255,143,177)}
-    img = Image.new("RGBA", (24, 32), (0, 0, 0, 0))
-    for y, r in enumerate(rows):
-        for x, c in enumerate(r):
-            if c != '.': img.putpixel((x, y), col[c] + (255,))
-    img.save(OUT / "alfred.png")
-except ImportError:
-    pass
+shutil.copy(ROOT / "web/alfred.svg", OUT / "alfred.svg")          # the icon of every page, and the butler in the vitrine
 print(OUT, product, len(data))
