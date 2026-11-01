@@ -106,19 +106,19 @@
     <p class="wordmark"><a href="./">formalfred</a></p>
     <h1>A generative sequencer, with proofs.</h1>
     <div class="identity" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-    <p class="lead">Four lanes of Euclidean rhythm and note algorithms, 48 Braids oscillator shapes, chord progressions, and a butler. The lane logic is written and proved in Lean 4.</p>
+    <p class="lead">Four lanes of Euclidean rhythm with a note algorithm each, the 48 oscillator shapes of Braids, chord progressions, and a butler. The sequencer and the voices are Lean 4, with theorems about what they do.</p>
     <p><a href="#installation">Install the latest release</a> &middot; <a href="sim/">Try it in your browser</a> &middot; <a href="https://github.com/mpancia/fmfm">Source and proofs</a></p>
     <ul class="features">
-      <li><strong>Four lanes that compose</strong><p>Euclidean rhythms with a note algorithm each: random, walk, up, down, bounce or a mutating loop.</p></li>
-      <li><strong>Braids, all of it</strong><p>The 48 oscillator shapes of Mutable Instruments' Braids, 199 sounds and 128 patches, with a browser by engine or type.</p></li>
-      <li><strong>Proved, not just tested</strong><p>The lane logic is Lean 4: in-scale notes, exact hit counts, and no stuck notes are theorems, checked by Lean's kernel.</p></li>
+      <li><strong>Four lanes</strong><p>Each divides the clock into a Euclidean rhythm and picks its notes by an algorithm: random, walk, up, down, bounce, a mutating loop, a Turing machine, a Markov chain or a grammar.</p></li>
+      <li><strong>Every Braids shape</strong><p>All 48 oscillator shapes of Mutable Instruments' Braids, in 199 sounds and 128 patches, with a browser that sorts them by engine or by type.</p></li>
+      <li><strong>Theorems about the music</strong><p>Every note is in its scale, a bar has exactly the hits asked for, and no note is ever left sounding: Lean's kernel checks these as theorems about the firmware's own code.</p></li>
     </ul>
   </header>
 
   <section id="installation" aria-labelledby="h-installation">
   <header class="install-intro">
     <h2 id="h-installation">Install FORMALFRED</h2>
-    <p>The latest release downloads and is checked automatically. Connect your FM-1, then press Install.</p>
+    <p>This page fetches the latest release and checks it. Connect your FM-1, then press Install.</p>
     <p class="support">Use a Chromium-based desktop browser with Web MIDI (Chrome, Edge, Brave) and a USB data cable.</p>
   </header>
   <section class="step" aria-labelledby="h-package">
@@ -149,7 +149,7 @@
 
   <section class="step" aria-labelledby="h-install">
     <h3 id="h-install"><span class="num num-3" aria-hidden="true">3</span>Install</h3>
-    <p>Install opens once the package is valid and the connected device matches it. The running firmware stages the update loader first, then the loader writes the whole image and the FM-1 restarts on its own. Success is reported only when the device comes back with the package identity.</p>
+    <p>Install opens once the package is valid and the connected device matches it. The running firmware stages the update loader first, then the loader writes the whole image and the FM-1 restarts on its own. The page reports success only when the device comes back with the package identity.</p>
     <div class="controls"><button id="install" type="button" disabled>Install</button></div>
     <progress id="progress" max="100" aria-labelledby="h-install" hidden></progress>
     <p id="status" class="status" role="status" aria-live="polite">Waiting for a package and a device.</p>

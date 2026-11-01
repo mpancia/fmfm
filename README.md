@@ -132,8 +132,9 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 
 <details><summary><b>The voices</b>: 85 theorems</summary>
 
-Braids' engines, ported to Lean sample for sample. Each engine's arithmetic stays inside a 16-bit sample and reads its
-tables inside their bounds, so no shape, timbre or pitch can wrap, overflow or read past a table.
+Braids' engines, ported to Lean sample for sample. Every table read stays inside its table, the facts about the tables
+are checked rather than assumed, and each engine's sample is the exact arithmetic clipped rather than wrapped, except
+where Braids itself can overflow (listed in docs/LEAN-ENGINES.md).
 
 | Theorem | Says | Protects against |
 |---|---|---|

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="FORMALFRED: a generative sequencer firmware for the M-VAVE FM-1, written and proved in Lean 4.">
+<meta name="description" content="FORMALFRED: generative sequencer firmware for the M-VAVE FM-1. The sequencer, the voices and the effects are Lean 4, with theorems about them.">
 <title>formalfred</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -26,15 +26,15 @@
 
 <section class="ruled"><div class="wrap">
   <div>
-    <h1>A generative sequencer for the FM-1, proved in Lean.</h1>
+    <h1>A generative sequencer for the FM-1, with its promises proved in Lean.</h1>
   </div>
   <div>
-    <p>Four lanes, each a clock divider driving a rhythm, each rhythm choosing notes in a scale. Mutable Instruments'
-    Braids as the voice, all 48 shapes. A reverb and a ping-pong delay on a send. 128 patches. Alfred, the butler,
-    bows at startup and waits in the corner when the clock stops.</p>
-    <p>The sequencing, the voices' arithmetic, the effects, the mix and the patch format are written in Lean 4 and
-    compiled to the chip. {{theorems}} theorems about that code are checked by Lean's kernel; the rest of the firmware
-    is C and is listed as trusted.</p>
+    <p>Four lanes each divide the clock into a rhythm and pick notes for it from a scale. The voice is Mutable
+    Instruments' Braids with all 48 of its shapes, and a reverb and a ping-pong delay sit on a send. It ships with 128
+    patches. Alfred the butler bows at startup and waits in the corner whenever the clock stops.</p>
+    <p>The sequencer, the voices' arithmetic, the effects, the mix and the patch format are Lean 4, compiled to the
+    chip. Lean's kernel checks {{theorems}} theorems about that code. The rest of the firmware is C, and the README
+    lists it as trusted.</p>
     <p>
       <a class="button solid" href="sim/">Try it in the browser</a>
       <a class="button" href="installer.html">Install on an FM-1</a>
@@ -49,12 +49,14 @@
     <div>
       <p class="label">Rhythm</p>
       <p>Euclidean bars of 1 to 32 steps at eight clock divisions, or a rotated bar with accents, a cellular automaton,
-      or ratchets. Each lane runs at its own speed; a proof says the four never drift apart.</p>
+      or ratchets. Each lane runs at its own speed, and where a lane stands in its bar depends only on how many clock
+      ticks have passed, so the four cannot drift apart (<code>run_clock_never_drifts</code>).</p>
     </div>
     <div>
       <p class="label">Notes</p>
       <p>Random, walk, up, down, bounce, loop, Turing, step, Markov, grammar or chord tones, inside a range and a scale.
-      Chord progressions move the scale or keep the triad. Every note a lane plays is in its scale.</p>
+      A chord progression can move the whole scale or hold a lane to the triad. Whatever the algorithm, every note a
+      lane plays is in its scale (<code>lane_note_in_scale</code>).</p>
     </div>
     <div>
       <p class="label">Sound</p>
@@ -94,8 +96,8 @@
     </table>
     <p style="margin-top: 22px">Each theorem's statement and the reason it is worth having are in
     <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a>; the README groups them and
-    lists what is trusted and not proved: the screen, the drivers, Braids' tables, and the C that calls the Lean code.
-    Nothing has been heard on a physical FM-1 yet.</p>
+    lists what is trusted rather than proved: the screen, the drivers, the one-line accessors that read Braids'
+    tables, and the C that calls the Lean code. Nobody has heard it on a physical FM-1 yet.</p>
   </div>
 </div></section>
 
