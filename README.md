@@ -27,11 +27,12 @@ same button again moves to the group's next page. The four knobs set the four va
 |---|---|
 | SELECT | choose a lane (in the browser: the sound or patch group) |
 | PRESETS | open the browser and scroll: sounds (199) in EDIT, patches (128 factory, 8 user) elsewhere, grouped as ALL, DEMOS, SONGS, the moods and USER (SELECT picks the group). Sounds are grouped by engine (analog, filter, voice, FM, physical, percussion, wavetable, noise) or by type (tone, pluck, pad, drum); ALGO switches the grouping while the browser is open, SELECT picks the group |
-| ALGORITHM | tempo |
+| ALGORITHM | tempo (in the sound browser: the grouping) |
 | PLAY | start or stop the clock (stopping silences every lane) |
 | SEL | mute the chosen lane |
 | REC | roll a new variation of the chosen lane |
 | SAVE | keep the patch in the slot chosen on GLO > BANKS |
+| ARP | the arpeggiator page: the keys you hold play one at a time in step with the clock, on the chosen lane's sound (MODE up, down, up-down, random, as played, or off; RATE; OCTAVES; GATE). ARP again on that page latches the notes so you can let go; PLAY stopping lets them go too |
 | keys, OCT- OCT+ | play the chosen lane's sound by hand |
 
 The FX button opens the sends: REVERB (Clouds' reverb, ported to Lean: SEND of the chosen lane, DECAY, BRIGHT,

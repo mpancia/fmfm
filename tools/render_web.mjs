@@ -1,6 +1,7 @@
 // Run a firmware wasm headless and write what it plays as a stereo 16-bit WAV, with a few numbers about it.
 //   node tools/render_web.mjs build/web/dinghy.wasm out.wav 12000 "800:press:8,3000:press:2,3100:turn:5:-20"
-// The script is as for frames.mjs (ms:press:button, ms:turn:encoder:detents). Prints the peak, the loudness
+// The script is as for frames.mjs (ms:press:button, ms:turn:encoder:detents, ms:key:k:1 or :0 to hold or let go of
+// key k, 0 = F3). Prints the peak, the loudness
 // (RMS, dBFS) of each second and how many samples clipped.
 import fs from 'fs';
 const [wasm, out, lengthMs, script = ''] = process.argv.slice(2);
@@ -16,6 +17,7 @@ const imports = { env: {
     for (const [at, kind, a, b] of input) if (Number(at) === t) {
       if (kind === 'press') d.setUint32(8, d.getUint32(8, true) | 1 << Number(a), true);
       if (kind === 'turn') d.setInt32(16 + 4 * Number(a), Number(b), true);
+      if (kind === 'key') d.setUint32(0, Number(b) ? d.getUint32(0, true) | 1 << Number(a) : d.getUint32(0, true) & ~(1 << Number(a)), true);
     }
     if (t >= END) throw new Error('done');
   },

@@ -54,6 +54,18 @@ The FEEL settings are saved with the lane (`Firmware/Patch.lean`, layout version
 patch; `patch_decode_encode_round_trip` covers them, and a slot with a rotation past its steps or more
 accents than hits does not load). Version 1 slots from before no longer load.
 
+## The arpeggiator (ARP)
+
+`Firmware/Arp.lean`: the keys you hold, played one at a time in step with the clock whether the lanes run or
+not, on the chosen lane's sound. MODE: OFF (the keys play straight), UP, DOWN, UPDOWN, RANDOM, PLAYED (in the
+order pressed); RATE a note value; OCTAVES 1 to 3; GATE as a share of the step. ARP again on its page latches:
+the notes keep going after the keys are let go, and the next phrase you play replaces them; PLAY stopping lets
+them go. The keys still teach STEP and MARKOV lanes while the arpeggiator plays them.
+
+Proved (`Proofs/Arp.lean`): every note it starts is one you are holding, raised by whole octaves
+(`arp_note_is_held`); every op keeps it consistent; over any run of ticks, keys and settings every note-on has a
+note-off (`arp_every_note_on_has_a_note_off`).
+
 ## The demo songs
 
 The first seven patches (the DEMOS group of the browser, and the DEMO knob on GLO > BANKS, which steps through

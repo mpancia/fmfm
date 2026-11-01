@@ -6,6 +6,8 @@ import Firmware.Notes
 import Firmware.Rhythm
 import Firmware.Lane
 import Firmware.LaneApi
+import Firmware.Arp
+import Firmware.ArpApi
 import Firmware.Lfo
 import Firmware.Harmony
 import Firmware.Analog

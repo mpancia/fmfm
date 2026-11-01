@@ -424,14 +424,42 @@ static void lfo_tick(uint32_t dt_ms)            /* move every modulator on and r
     }
 }
 
+/* the arpeggiator (Firmware/Arp.lean): the held keys played in step with the clock, on the chosen lane's sound.
+ * MODE off makes the keys play straight. LATCH (ARP again on its page) keeps the notes after the keys are let go. */
+static const char *const ARP_MODE[] = {"OFF", "UP", "DOWN", "UPDOWN", "RANDOM", "PLAYED"};
+#define NARP_MODE (sizeof ARP_MODE / sizeof ARP_MODE[0])
+static lean_object *arp;
+static struct { uint8_t mode, rate, octaves, gate, latch; uint32_t physical; } arp_cfg = {1, 3, 1, 50, 0, 0};   /* rate: SPEED index; gate in percent */
+
+static void arp_report(void)                    /* play what the arpeggiator just started, stop what it stopped */
+{
+    uint32_t off = fm1_arp_off_of(arp), on = fm1_arp_on_of(arp);
+    if (off < 128u) { stop(off); midi_send(0x80u | 15u, off, 0); }
+    if (on < 128u) { play(on, 100, &cfg[selected].sound, cfg[selected].send); midi_send(0x90u | 15u, on, 100); }
+}
+
+static void arp_apply(void)                     /* the ARP knobs into the arpeggiator */
+{
+    uint32_t div = SPEED[arp_cfg.rate];
+    arp = fm1_arp_set(arp, arp_cfg.mode, arp_cfg.octaves, div, div * arp_cfg.gate / 100u);
+}
+
+static void arp_silence(void)
+{
+    arp = fm1_arp_silence(arp);
+    arp_report();
+}
+
 static void clock_poll(void)                    /* 24 ticks a quarter note: bpm * 4 hundred-thousandths of a tick a ms */
 {
     uint32_t dt = fm1_ms - tick_ms, i;
     tick_ms = fm1_ms;
-    if (!running) return;
     tick_acc += dt * bpm * 4u;
     while (tick_acc >= 10000u) {
         tick_acc -= 10000u;
+        arp = fm1_arp_tick(arp);                /* the arpeggiator keeps time whether the lanes run or not */
+        arp_report();
+        if (!running) continue;
         for (i = 0; i < NL; i++) {
             lane[i] = fm1_lane_tick(lane[i]);
             lane_report(i);
@@ -448,25 +476,25 @@ static void play_start(void)
 }
 
 /* ---- pages: four values on screen, four knobs under them */
-enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO };
+enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO, G_ARP };
 enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_REVERB, P_DELAY, P_HARMONY, P_SYSTEM, P_MIDI,
-       P_BANKS, P_LFO, NPAGES };
-#define NGROUPS 6u
-static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO"};
+       P_BANKS, P_LFO, P_ARP, NPAGES };
+#define NGROUPS 7u
+static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO", "ARP"};
 static const uint8_t GROUP_PAGE[NGROUPS][4] = {{P_HOME, 255, 255, 255}, {P_RHYTHM, P_FEEL, P_NOTES, P_RANGE},
                                                {P_SOUND, P_ENVELOPE, P_MIX, 255}, {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS},
-                                               {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}};
+                                               {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}, {P_ARP, 255, 255, 255}};
 static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_FX, G_FX, G_GLO, G_GLO, G_GLO,
-                                           G_GLO, G_LFO};
+                                           G_GLO, G_LFO, G_ARP};
 static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "REVERB", "DELAY",
-                                              "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE"};
+                                              "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS"};
 static const char *const PAGE_LABEL[NPAGES][4] = {
     {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"FEEL", "", "", ""}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
     {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"}, {"TIME", "FEEDBK", "TONE", "RETURN"},
     {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", ""},
-    {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "DEMO", ""}, {"TARGET", "RATE", "DEPTH", ""}};
-static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO};
+    {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "DEMO", ""}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"}};
+static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO, P_ARP};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
 static uint32_t browse_by, browse_type;                                  /* sounds grouped by engine (0) or by type (1) */
 static uint8_t browse_list[NSOUNDS > NBROWSE ? NSOUNDS : NBROWSE];
@@ -609,6 +637,12 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         if (k == 1) { p = put_num(p, LFO_BARS[lfo[selected].rate]); p = put_str(p, " BAR"); *fill = frac(lfo[selected].rate, 4); }
         if (k == 2) { p = put_num(p, lfo[selected].depth); *p++ = '%'; *fill = frac(lfo[selected].depth, 100); }
         break;
+    case P_ARP:
+        if (k == 0) { p = put_str(p, ARP_MODE[arp_cfg.mode]); *fill = frac(arp_cfg.mode, NARP_MODE - 1u); }
+        if (k == 1) { p = put_str(p, SPEED_NAME[arp_cfg.rate]); *fill = frac(arp_cfg.rate, NSPEED - 1u); }
+        if (k == 2) { p = put_num(p, arp_cfg.octaves); *fill = frac(arp_cfg.octaves, 3); }
+        if (k == 3) { p = put_num(p, arp_cfg.gate); *p++ = '%'; *fill = frac(arp_cfg.gate, 100); }
+        break;
     case P_BANKS:
         if (k == 0) { p = patch_index >= NPATCHES ? put_str(p, "U") : put_str(p, "P"); p = put_num(p, patch_index >= NPATCHES ? patch_index - NPATCHES + 1u : patch_index + 1u); *fill = frac(patch_index, NBROWSE - 1u); }
         if (k == 1) { p = put_str(p, "USER "); p = put_num(p, save_slot + 1u); *fill = frac(save_slot, NUSER - 1u); }
@@ -717,6 +751,13 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
         if (k == 0) lfo[selected].target = (uint8_t)clamp(lfo[selected].target + d, 0, (int32_t)NLFO_TARGET - 1);
         if (k == 1) lfo[selected].rate = (uint8_t)clamp(lfo[selected].rate + d, 0, 4);
         if (k == 2) lfo[selected].depth = (uint8_t)clamp(lfo[selected].depth + 5 * d, 0, 100);
+        break;
+    case P_ARP:
+        if (k == 0) arp_cfg.mode = (uint8_t)clamp(arp_cfg.mode + d, 0, (int32_t)NARP_MODE - 1);
+        if (k == 1) arp_cfg.rate = (uint8_t)clamp(arp_cfg.rate + d, 0, (int32_t)NSPEED - 1);
+        if (k == 2) arp_cfg.octaves = (uint8_t)clamp(arp_cfg.octaves + d, 1, 3);
+        if (k == 3) arp_cfg.gate = (uint8_t)clamp(arp_cfg.gate + 10 * d, 10, 100);
+        arp_apply();
         break;
     case P_BANKS:
         if (k == 0) patch_load((uint32_t)clamp((int32_t)patch_index + d, 0, (int32_t)NBROWSE - 1));
@@ -912,7 +953,7 @@ static void draw_title(void)                    /* the group and page, or the na
     char s[24], *p = s;
     cv_begin(240, BAR_H, TH.dim);
     if (page == P_HOME) p = put_str(s, "FORMALFRED");
-    else { p = put_str(s, GROUP_NAME[PAGE_GROUP[page]]); p = put_str(p, "  "); p = put_str(p, PAGE_NAME[page]); if (page == P_LFO) { *p++ = ' '; *p++ = (char)('1' + selected); } }
+    else { p = put_str(s, GROUP_NAME[PAGE_GROUP[page]]); p = put_str(p, "  "); p = put_str(p, PAGE_NAME[page]); if (page == P_LFO) { *p++ = ' '; *p++ = (char)('1' + selected); } if (page == P_ARP && arp_cfg.latch) p = put_str(p, "  LATCH"); }
     *p = 0;
     cv_text(6, 2, &FONT_S, s, TH.hi);
     p = put_num(s, bpm); *p = 0;
@@ -1080,6 +1121,7 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
     const uint8_t *b = (const uint8_t *)cfg;
     uint32_t h = 2166136261u, i;
     uint32_t g[] = {page, selected, patch_index, bpm, key, progression, rate_bars, scale_lock, running, browse_mode, browse_pos,
+                    arp_cfg.mode | arp_cfg.rate << 8 | arp_cfg.octaves << 16 | arp_cfg.gate << 24, arp_cfg.latch,
                     browse_family, browse_by, browse_type, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
                     reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
@@ -1174,6 +1216,8 @@ static void app_main(void)
         set.oct = 0, set.ch = 0, set.look = ALFRED_LOOK;
     for (k = 0; k < NV; k++) braids_voice_init(vmem[k]);
     for (k = 0; k < NL; k++) lane[k] = fm1_lane_make(1, 1, 1, 1, 36, 1, 1u);
+    arp = fm1_arp_make(SPEED[arp_cfg.rate], 0x2545F491u);
+    arp_apply();
     fm1_reverb_init(FM1_REVERB_SCALE_44K, 48694);              /* a half hertz at 44.1 kHz */
     reverb_ready = 1;
     patch_load(0);
@@ -1195,23 +1239,38 @@ static void app_main(void)
         prev = keys;
         for (k = 0; k < 27u; k++) {             /* a key stops the note it started: the octave may change meanwhile */
             if (down >> k & 1u) {
-                held[k] = (uint8_t)(base + k); play(held[k], 100, &cfg[selected].sound, cfg[selected].send); midi_send(0x90u | 15u, held[k], 100);
+                held[k] = (uint8_t)(base + k);
+                if (arp_cfg.mode) {             /* the arpeggiator plays it; a latched set lets go when the next phrase starts */
+                    if (arp_cfg.latch && !arp_cfg.physical) arp = fm1_arp_clear(arp);
+                    arp_cfg.physical |= 1u << k;
+                    arp = fm1_arp_press(arp, held[k]);
+                } else { play(held[k], 100, &cfg[selected].sound, cfg[selected].send); midi_send(0x90u | 15u, held[k], 100); }
                 if (cfg[selected].algo == 7u || cfg[selected].algo == 8u) lane[selected] = fm1_lane_learn(lane[selected], held[k]);   /* STEP writes it, MARKOV counts it */
             }
-            if (up >> k & 1u) { stop(held[k]); midi_send(0x80u | 15u, held[k], 0); }
+            if (up >> k & 1u) {
+                arp_cfg.physical &= ~(1u << k);
+                if (arp_cfg.mode) { if (!arp_cfg.latch) arp = fm1_arp_release(arp, held[k]); }
+                else { stop(held[k]); midi_send(0x80u | 15u, held[k], 0); }
+            }
         }
 
         b = fm1_input_edges(&rel);
         if (b & ~(1u << BTN_PLAY)) browse_mode = 0;
         if (b & (1u << BTN_OCT_DOWN) && oct > -2) { set.oct = (uint8_t)(oct - 1); dirty = 1; t_change = fm1_ms; }
         if (b & (1u << BTN_OCT_UP) && oct < 2) { set.oct = (uint8_t)(oct + 1); dirty = 1; t_change = fm1_ms; }
-        if (b & (1u << BTN_PLAY)) { if (running) { running = 0; stopped_ms = fm1_ms; silence_lanes(); } else play_start(); }
+        if (b & (1u << BTN_PLAY)) { if (running) { running = 0; stopped_ms = fm1_ms; silence_lanes(); arp_silence(); arp = fm1_arp_clear(arp); arp_cfg.latch = 0; } else play_start(); }
         if (b & (1u << BTN_HOME)) goto_group(G_HOME);
         if (b & (1u << BTN_SEQ)) goto_group(G_SEQ);
         if (b & (1u << BTN_EDIT)) goto_group(G_EDIT);
         if (b & (1u << BTN_GLO)) goto_group(G_GLO);
         if (b & (1u << BTN_FX)) goto_group(G_FX);
         if (b & (1u << BTN_LFO)) goto_group(G_LFO);
+        if (b & (1u << BTN_ARP)) {
+            if (page == P_ARP) {                /* ARP again on its page: latch on or off (off lets the notes go) */
+                arp_cfg.latch ^= 1u;
+                if (!arp_cfg.latch && !arp_cfg.physical) arp = fm1_arp_clear(arp);
+            } else goto_group(G_ARP);
+        }
         if (b & (1u << BTN_ENV)) { page = P_ENVELOPE; group_page[G_EDIT] = page; browse_mode = 0; }
         if (b & (1u << BTN_SEL)) cfg[selected].muted ^= 1u;
         if (b & (1u << BTN_REC)) { cfg[selected].seed = (uint16_t)(cfg[selected].seed * 5u + 1u); lane_remake(selected); }
@@ -1251,6 +1310,7 @@ static void app_main(void)
         fm1_led_key(BTN_GLO, PAGE_GROUP[page] == G_GLO);
         fm1_led_key(BTN_FX, PAGE_GROUP[page] == G_FX);
         fm1_led_key(BTN_LFO, PAGE_GROUP[page] == G_LFO);
+        fm1_led_key(BTN_ARP, arp_cfg.mode && (arp_cfg.latch || fm1_arp_held_of(arp)));
         fm1_led_key(BTN_ENV, page == P_ENVELOPE);
         fm1_led_key(BTN_SEL, cfg[selected].muted);
 

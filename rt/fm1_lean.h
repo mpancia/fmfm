@@ -17,6 +17,21 @@ lean_object *fm1_lane_set_rhythm(lean_object *lane, uint32_t kind, uint32_t rota
 lean_object *fm1_lane_learn(lean_object *lane, uint32_t note);   /* a key the player pressed: STEP writes it, MARKOV counts it */
 lean_object *fm1_lane_silence(lean_object *lane);
 
+/* Firmware/Arp.lean: the arpeggiator. Each consumes the arpeggiator except the _of readers. */
+lean_object *fm1_arp_make(uint32_t div, uint32_t seed);
+lean_object *fm1_arp_set(lean_object *arp, uint32_t mode, uint32_t octaves, uint32_t div, uint32_t gate);
+lean_object *fm1_arp_press(lean_object *arp, uint32_t note);
+lean_object *fm1_arp_release(lean_object *arp, uint32_t note);
+lean_object *fm1_arp_clear(lean_object *arp);
+lean_object *fm1_arp_tick(lean_object *arp);
+lean_object *fm1_arp_silence(lean_object *arp);
+uint32_t fm1_arp_on(lean_object *arp);
+uint32_t fm1_arp_off(lean_object *arp);
+uint32_t fm1_arp_held(lean_object *arp);
+static inline uint32_t fm1_arp_on_of(lean_object *a) { lean_inc(a); return fm1_arp_on(a); }
+static inline uint32_t fm1_arp_off_of(lean_object *a) { lean_inc(a); return fm1_arp_off(a); }
+static inline uint32_t fm1_arp_held_of(lean_object *a) { lean_inc(a); return fm1_arp_held(a); }
+
 /* Firmware/Harmony.lean: the scale a lane plays in (scale index, key, chord root, follow 0/1/2); never empty */
 uint32_t fm1_harmony_mask(uint32_t scale, uint32_t key, uint32_t chord_root, uint32_t follow);
 
