@@ -65,3 +65,5 @@ import Firmware.WavetablesSetup
 import Firmware.WavetablesSetupApi
 import Firmware.Fm
 import Firmware.FmApi
+import Firmware.Punch
+import Firmware.PunchApi

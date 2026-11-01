@@ -31,8 +31,8 @@ white; the automaton's row changes every bar.
 | GRAMMAR | GRAMMAR, DEPTH | an L-system (FIBO, CANTOR, THUE, ROUND) expanded `depth` levels; each symbol moves the line by a step or a third |
 | CHORD | TONES, OCTAVE | climbs `tones` notes of the lane's scale from its bottom note (with chord follow, the chord); OCTAVE is the chance of an octave jump |
 
-The keys teach only the chosen lane, and only STEP and MARKOV listen. REC gives a lane a new seed: a new random
-loop, register and automaton row, and an unlearnt chain.
+The keys teach only the chosen lane, and only STEP and MARKOV listen. The four ROLL keys on the PUNCH page (REC;
+A4 to C5) give a lane a new seed: a new random loop, register and automaton row, and an unlearnt chain.
 
 ## What is proved (`docs/PROOFS.md`)
 

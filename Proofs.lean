@@ -41,3 +41,9 @@ import Proofs.Machine
 import Proofs.Presets
 import Proofs.Tonnetz
 import Proofs.Fm
+import Proofs.FmLock
+import Proofs.FmSymmetry
+import Proofs.FmEnvelope
+import Proofs.FmAlgorithms
+import Proofs.FmDeviation
+import Proofs.Punch

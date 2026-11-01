@@ -4,7 +4,7 @@
 // every Braids shape run without the firmware or the Lean runtime failing.
 import fs from 'fs';
 const mod = await WebAssembly.compile(fs.readFileSync(process.env.WASM || 'build/web/dinghy.wasm'));
-const BTN = { PLAY: 12, EDIT: 6, SEQ: 11, GLO: 7, HOME: 8, SAVE: 9, FX: 2, LFO: 5, ENV: 4 };
+const BTN = { PLAY: 12, EDIT: 6, SEQ: 11, GLO: 7, HOME: 8, SAVE: 9, FX: 2, LFO: 5, ENV: 4, REC: 13 };
 const ENC = { SELECT: 0, ALGORITHM: 1, K1: 2, K2: 3, K3: 4, K4: 5, PRESETS: 6 };
 let mem, inp, ms = 0, reports = [], frame = new Uint16Array(240 * 240);
 const peaks = new Map();                               // half-second -> loudest sample in it
@@ -13,6 +13,7 @@ const shots = {};
 const at = (t, fn) => events.push([t, fn]);
 const press = (id) => (d) => d.setUint32(8, d.getUint32(8, true) | 1 << id, true);
 const turn = (enc, n) => (d) => d.setInt32(16 + 4 * enc, n, true);
+const keys = (mask) => (d) => d.setUint32(0, mask, true);             // the note keys held (bit k = key k, F3 up)
 const shot = (name) => () => { shots[name] = frame; };
 const imports = { env: {
   js_sync(t) {
@@ -79,7 +80,13 @@ at(38000, press(BTN.FX)); at(38100, turn(ENC.K4, -20)); at(38200, press(BTN.FX))
 at(38300, turn(ENC.K1, -2)); at(38350, turn(ENC.K2, 20)); at(38400, turn(ENC.K4, 20)); at(38500, press(BTN.HOME));
 at(38600, press(BTN.PLAY));
 at(42000, press(BTN.PLAY));
-const END = 47000;
+// punch-in effects (REC: the PUNCH page; the keys are momentary effects): the delay return back down, play; BREAK (key 11,
+// E4) held mutes every lane, let go brings them back; GATE (key 7) chops; leaving the page with HOME ends everything
+at(47000, press(BTN.FX)); at(47100, turn(ENC.K4, -20)); at(47150, turn(ENC.K2, -20));   // FX returns to the DELAY page
+at(47200, press(BTN.PLAY)); at(47300, press(BTN.REC)); at(47400, shot('punch'));
+at(49500, keys(1 << 11)); at(49600, shot('punch held')); at(53500, keys(0));
+at(56000, keys(1 << 7)); at(58500, keys(0)); at(58600, press(BTN.HOME));
+const END = 61000;
 events.sort((a, b) => a[0] - b[0]);
 const inst = await WebAssembly.instantiate(mod, imports);
 mem = inst.exports.memory; inp = inst.exports.web_in_ptr();
@@ -123,6 +130,10 @@ ok(`the reverb tail rings on after PLAY stops and then dies away (${tail.join(',
 ok(`the delay echoes ring on after PLAY stops and then die away (${echoes.join(', ')})`,
   echoes[0] > 300 && echoes[1] < echoes[0] && echoes[2] < echoes[1]);
 ok('FX, LFO and ENV open three different pages', changed(shots.fx, shots.lfo) > 500 && changed(shots.lfo, shots.env) > 500 && changed(shots.fx, shots.env) > 500);
+ok('REC opens the PUNCH page and a held key lights its cell', changed(shots.punch, shots['home 2']) > 1500 && changed(shots.punch, shots['punch held']) > 100);
+const before = peak(48000, 49500), muted = peak(52000, 53400), after = peak(54500, 56000), gated = peak(56500, 58500), left = peak(59000, 61000);
+ok(`BREAK held mutes every lane and letting go brings them back (${before}, ${muted}, ${after})`, before > 1000 && muted < before / 4 && after > 1000);
+ok(`GATE chops the mix and HOME ends the punch-ins (${gated}, ${left})`, gated > 500 && left > 1000);
 const scaleMask = inst.exports.web_harmony_mask;
 const bits = (m) => m.toString(2).split('1').length - 1;
 ok('the scales are real: minor in C is 0x5AD, major in D is major turned up two semitones, a triad has three notes',

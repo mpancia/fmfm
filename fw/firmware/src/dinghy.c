@@ -7,7 +7,8 @@
  * Menu: the buttons HOME, SEQ, EDIT, GLO pick a group of pages; pressing the same one again moves to its next
  * page. Four knobs set the four values on screen. SELECT picks the lane, SEL mutes it, ALGORITHM sets the tempo.
  * PRESETS opens the browser: sounds in EDIT, patches elsewhere (SELECT then picks the family).
- * PLAY starts and stops, SAVE keeps the patch in a slot, REC rolls a new variation of the lane.
+ * PLAY starts and stops, SAVE keeps the patch in a slot, REC opens the PUNCH page (the keys as momentary effects;
+ * its ROLL keys give a lane a new variation).
  *
  * Rules of the chip (no FPU, no 64-bit division): docs/RULES.md. Platform calls: docs/API.md. */
 static void app_idle(void);
@@ -41,6 +42,13 @@ static struct {
     uint32_t age;
     uint8_t note;
 } voice[NV];
+
+/* punch-in effects (REC, the PUNCH page; Firmware/Punch.lean): the keys held while the page is up, and the knobs:
+ * the stutter and gate periods (choices), the crush hold (2 to 8 samples), the SHIFT key's semitones */
+static uint32_t punch_keys, punch_shown_keys;
+static struct { uint8_t stutter, gate, crush, shift; } punch = {1, 1, 4, 7};
+static uint8_t lane_played[4] = {255, 255, 255, 255}, lane_vel[4];        /* the note a lane's voice was started with, or 255 */
+static volatile uint32_t punch_gate_target = 32768, punch_crush = 1;    /* for the audio thread: the gate's target gain, the crush hold */
 
 static const int32_t ATTACK[4] = {1024, 256, 64, 12};              /* level steps a sample: 2 ms to 190 ms */
 static const int32_t RELEASE[7] = {250, 80, 25, 10, 4, 2, 1};      /* 10 ms to 2.3 s */
@@ -111,8 +119,26 @@ static void app_audio_mix(int32_t *out, uint32_t n)
 
 static void app_audio(int32_t *out, uint32_t n)
 {
+    static uint32_t gain = 32768, index, hold_l, hold_r;   /* the gate's gain, the crush's count and held samples */
     if (n > FM1_REVERB_BLOCK) n = FM1_REVERB_BLOCK;
     app_audio_mix(out, n);
+    {
+        const uint32_t crush = punch_crush, target = punch_gate_target;
+        if (crush > 1u || gain != target || target != 32768u) {   /* punch-in GATE or CRUSH: Firmware/Punch.lean */
+            uint32_t i;
+            for (i = 0; i < n; i++) {
+                int32_t *l = &out[2u * i], *r = l + 1;
+                if (crush > 1u) {
+                    *l = (int32_t)fm1_punch_crush_sample(crush, index, hold_l, (uint32_t)*l); hold_l = (uint32_t)*l;
+                    *r = (int32_t)fm1_punch_crush_sample(crush, index, hold_r, (uint32_t)*r); hold_r = (uint32_t)*r;
+                    index++;
+                } else index = 0;
+                gain = fm1_punch_gate_step(gain, target);
+                *l = (int32_t)fm1_punch_gate_sample((uint32_t)*l, gain);
+                *r = (int32_t)fm1_punch_gate_sample((uint32_t)*r, gain);
+            }
+        }
+    }
 #ifdef WATCHED
     {
         uint32_t i;                             /* the sample the master stage sees: at most 524287 either way */
@@ -280,13 +306,17 @@ static void lane_report(uint32_t i)             /* play what the lane just start
     if (off < 128u) wlane[i].offs++;
     WATCH(W_NOTE_ON_OFF, wlane[i].ons == wlane[i].offs || wlane[i].ons == wlane[i].offs + 1u);
 #endif
-    if (off < 128u) { stop(off); midi_send(0x80u | (midi_out_base + i), off, 0); }
-    if (on < 128u && !cfg[i].muted && lfo[i].level) {
-        uint32_t vel = lfo[i].level;
-        if (cfg[i].feel == 1u && cfg[i].accents) vel = fm1_lane_loud_of(lane[i]) ? vel : vel * 5u / 8u;   /* accents stand out */
-        play(on, vel ? vel : 1u, &lfo[i].sound, cfg[i].send, cfg[i].pan);
-        midi_send(0x90u | (midi_out_base + i), on, vel ? vel : 1u);
+    if (off < 128u && lane_played[i] < 128u) {   /* stop the note the voice was started with: a punch-in may have moved it */
+        stop(lane_played[i]); midi_send(0x80u | (midi_out_base + i), lane_played[i], 0);
+        lane_played[i] = 255;
     }
+    if (on < 128u && !cfg[i].muted && !fm1_punch_lane_muted(punch_keys, i) && lfo[i].level) {
+        uint32_t vel = lfo[i].level, note = fm1_punch_note(punch_keys, punch.shift, on);
+        if (cfg[i].feel == 1u && cfg[i].accents) vel = fm1_lane_loud_of(lane[i]) ? vel : vel * 5u / 8u;   /* accents stand out */
+        play(note, vel ? vel : 1u, &lfo[i].sound, cfg[i].send, cfg[i].pan);
+        midi_send(0x90u | (midi_out_base + i), note, vel ? vel : 1u);
+        lane_played[i] = (uint8_t)note; lane_vel[i] = (uint8_t)(vel ? vel : 1u);
+    } else if (on < 128u) lane_played[i] = 255;
 }
 
 static void set_sound(uint32_t i, uint32_t index)
@@ -324,7 +354,7 @@ static void lanes_remask(void)                  /* the key, scale lock or chord 
 
 static void reverb_apply(void)
 {
-    int32_t gain = (int32_t)(reverb_amount * 328u);         /* 100 is a gain of 1.0 */
+    int32_t gain = (int32_t)(fm1_punch_reverb_amount(punch_keys, reverb_amount) * 328u);   /* 100 is a gain of 1.0; WASH is 100 */
     fm1_reverb_tune(reverb_time, reverb_bright);
     if (!reverb_return && gain) {               /* while the return was off the reverb did not run: drop the stale tail */
         reverb_ready = 0;
@@ -336,7 +366,7 @@ static void reverb_apply(void)
 
 static void delay_apply(void)
 {
-    int32_t gain = (int32_t)(delay_amount * 328u);          /* 100 is a gain of 1.0 */
+    int32_t gain = (int32_t)(fm1_punch_delay_amount(punch_keys, delay_amount) * 328u);     /* 100 is a gain of 1.0; THROW is 100 */
     delay_bpm = bpm;
     fm1_delay_tune(delay_time, bpm, FS, delay_feedback, delay_tone);
     if (!delay_return && gain) {                /* while the return was off the line did not run: drop stale echoes */
@@ -535,7 +565,7 @@ static void clock_poll(void)                    /* 24 ticks a quarter note: bpm 
     if (set.clock) {                            /* CLOCK EXT: a MIDI clock is a tick; midi_in counts them */
         if (fm1_ms - ext_ms >= 2000u) { ext_bpm = 0; ext_ms = fm1_ms; }   /* nothing for 2 s: no clock */
         tick_acc = 0;
-    } else tick_acc += dt * bpm * 4u;
+    } else tick_acc += dt * bpm * 4u * fm1_punch_tempo(punch_keys) / 100u;   /* HALF and DOUBLE time */
     while (set.clock ? ext_ticks > 0 : tick_acc >= fm1_swing_tick_length(tick_count % 24u, set.swing)) {
         if (set.clock) ext_ticks--; else tick_acc -= fm1_swing_tick_length(tick_count % 24u, set.swing);
 #ifdef WATCHED
@@ -565,7 +595,11 @@ static void clock_poll(void)                    /* 24 ticks a quarter note: bpm 
             }
 #endif
         }
+        if (fm1_punch_restrike(punch_keys, punch.stutter, tick_count))   /* STUTTER and ROLL: every sounding note again */
+            for (i = 0; i < NL; i++)
+                if (lane_played[i] < 128u) play(lane_played[i], lane_vel[i], &lfo[i].sound, cfg[i].send, cfg[i].pan);
         tick_count++;
+        punch_gate_target = fm1_punch_gate_target(punch_keys, punch.gate, tick_count);
         if (progression && tick_count % (96u * rate_bars) == 0) { chord_index++; lanes_remask(); }   /* a chord every bar or more */
     }
 }
@@ -606,26 +640,32 @@ static void demo_poll(void)
 }
 
 /* ---- pages: four values on screen, four knobs under them */
-enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO, G_ARP };
+enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO, G_ARP, G_PUNCH };
 enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_PAN, P_REVERB, P_DELAY, P_HARMONY, P_SYSTEM,
-       P_MIDI, P_BANKS, P_LFO, P_ARP, NPAGES };
-#define NGROUPS 7u
-static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO", "ARP"};
+       P_MIDI, P_BANKS, P_LFO, P_ARP, P_PUNCH, NPAGES };
+#define NGROUPS 8u
+static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO", "ARP", "REC"};
 static const uint8_t GROUP_PAGE[NGROUPS][4] = {{P_HOME, 255, 255, 255}, {P_RHYTHM, P_FEEL, P_NOTES, P_RANGE},
                                                {P_SOUND, P_ENVELOPE, P_MIX, P_PAN}, {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS},
-                                               {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}, {P_ARP, 255, 255, 255}};
+                                               {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}, {P_ARP, 255, 255, 255},
+                                               {P_PUNCH, 255, 255, 255}};
 static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_EDIT, G_FX, G_FX, G_GLO,
-                                           G_GLO, G_GLO, G_GLO, G_LFO, G_ARP};
+                                           G_GLO, G_GLO, G_GLO, G_LFO, G_ARP, G_PUNCH};
 static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "PAN", "REVERB",
-                                              "DELAY", "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS"};
+                                              "DELAY", "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS", "PUNCH"};
 static const char *const PAGE_LABEL[NPAGES][4] = {
     {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"FEEL", "", "", ""}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
     {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"},
     {"TIME", "FEEDBK", "TONE", "RETURN"},
     {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", "SWING"},
-    {"IN", "OUT", "CLOCK", ""}, {"PATCH", "SLOT", "DEMO", "AUTO"}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"}};
-static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO, P_ARP};
+    {"IN", "OUT", "CLOCK", ""}, {"PATCH", "SLOT", "DEMO", "AUTO"}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"},
+    {"STUTTER", "GATE", "CRUSH", "SHIFT"}};
+static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO, P_ARP, P_PUNCH};
+/* the PUNCH page's keys, in the lower octave from F3, then the four mutes (Firmware/Punch.lean) */
+static const char *const PUNCH_NAME[16] = {"HALF", "DOUBLE", "STUTTER", "ROLL", "OCT-", "OCT+", "SHIFT", "GATE",
+                                           "CRUSH", "WASH", "THROW", "BREAK", "MUTE 1", "MUTE 2", "MUTE 3", "MUTE 4"};
+static const char *const PUNCH_RATE[3] = {"1/8", "1/16", "1/32"};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
 static uint32_t browse_by, browse_type;                                  /* sounds grouped by engine (0) or by type (1) */
 static uint8_t browse_list[NSOUNDS > NBROWSE ? NSOUNDS : NBROWSE];
@@ -789,6 +829,12 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         if (k == 1) { p = put_num(p, LFO_BARS[lfo[selected].rate]); p = put_str(p, " BAR"); *fill = frac(lfo[selected].rate, 4); }
         if (k == 2) { p = put_num(p, lfo[selected].depth); *p++ = '%'; *fill = frac(lfo[selected].depth, 100); }
         break;
+    case P_PUNCH:
+        if (k == 0) { p = put_str(p, PUNCH_RATE[punch.stutter % 3u]); CHOICE(punch.stutter, 3); }
+        if (k == 1) { p = put_str(p, PUNCH_RATE[punch.gate % 2u]); CHOICE(punch.gate, 2); }
+        if (k == 2) { *p++ = '/'; p = put_num(p, punch.crush); *fill = frac(punch.crush - 2u, 6); }
+        if (k == 3) { *p++ = '+'; p = put_num(p, punch.shift); *fill = frac(punch.shift, 12); }
+        break;
     case P_ARP:
         if (k == 0) { p = put_str(p, ARP_MODE[arp_cfg.mode]); CHOICE(arp_cfg.mode, NARP_MODE); }
         if (k == 1) { p = put_str(p, SPEED_NAME[arp_cfg.rate]); *fill = frac(arp_cfg.rate, NSPEED - 1u); }
@@ -909,6 +955,12 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
         if (k == 0) lfo[selected].target = (uint8_t)clamp(lfo[selected].target + d, 0, (int32_t)NLFO_TARGET - 1);
         if (k == 1) lfo[selected].rate = (uint8_t)clamp(lfo[selected].rate + d, 0, 4);
         if (k == 2) lfo[selected].depth = (uint8_t)clamp(lfo[selected].depth + 5 * d, 0, 100);
+        break;
+    case P_PUNCH:
+        if (k == 0) punch.stutter = (uint8_t)clamp(punch.stutter + d, 0, 2);
+        if (k == 1) punch.gate = (uint8_t)clamp(punch.gate + d, 0, 1);
+        if (k == 2) punch.crush = (uint8_t)clamp(punch.crush + d, 2, 8);
+        if (k == 3) punch.shift = (uint8_t)clamp(punch.shift + d, 1, 12);
         break;
     case P_ARP:
         if (k == 0) arp_cfg.mode = (uint8_t)clamp(arp_cfg.mode + d, 0, (int32_t)NARP_MODE - 1);
@@ -1166,7 +1218,7 @@ static void draw_columns(void)                  /* the page's four values: a met
     for (k = 0; k < 4u; k++) {
         int32_t x = 10 + (int32_t)k * 58;
         uint16_t col = page == P_MIX || page == P_PAN ? LANE_COLOUR(k) : LANE_COLOUR(selected);
-        if (!page_label(page, k)[0]) continue;
+        if (!page_label(page, k)[0] || page == P_PUNCH) continue;
         if ((page == P_RHYTHM || page == P_FEEL) && k < 2u) continue;           /* the circle stands in for these two meters */
         param_text(page, k, value, &fill);
         if (choice) {                           /* one of a few: a stack of marks, the chosen one lit, instead of a level */
@@ -1179,6 +1231,15 @@ static void draw_columns(void)                  /* the page's four values: a met
         }
         cv_rect(x, 0, 46, 62, well);
         cv_rect(x, 62 - (int32_t)(fill * 62u / 255u), 46, (int32_t)(fill * 62u / 255u), col);
+    }
+    if (page == P_PUNCH) {                      /* the keys as a grid, the held ones lit */
+        cv_begin(240, 64, TH.bg);
+        for (k = 0; k < 16u; k++) {
+            int32_t x = 4 + (int32_t)(k % 4u) * 59, y = (int32_t)(k / 4u) * 16;
+            uint32_t on = punch_keys >> k & 1u;
+            cv_rect(x, y, 55, 15, on ? LANE_COLOUR(k < 12u ? selected : k - 12u) : well);
+            cv_text(x + 27 - text_w(&FONT_S, PUNCH_NAME[k]) / 2, y - 1, &FONT_S, PUNCH_NAME[k], on ? TH.bg : TH.mid);
+        }
     }
     cv_blit(0, 90);
     if (page == P_RHYTHM || page == P_FEEL) draw_circle();
@@ -1311,7 +1372,8 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
     uint32_t g[] = {page, selected, patch_index, bpm, key, progression, rate_bars, scale_lock, running, browse_mode, browse_pos,
                     arp_cfg.mode | arp_cfg.rate << 8 | arp_cfg.octaves << 16 | arp_cfg.gate << 24, arp_cfg.latch,
                     browse_family, browse_by, browse_type, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
-                    reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount, demo_auto, set.swing, set.clock, ext_bpm};
+                    reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount, demo_auto, set.swing, set.clock, ext_bpm,
+                    punch_keys, punch.stutter | punch.gate << 8 | punch.crush << 16 | punch.shift << 24};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
     for (i = 0; i < NL; i++) h = (h ^ (lfo[i].target | lfo[i].rate << 8 | lfo[i].depth << 16)) * 16777619u;
     for (i = 0; i < sizeof g / sizeof g[0]; i++) h = (h ^ g[i]) * 16777619u;
@@ -1438,9 +1500,21 @@ static void app_main(void)
         down = keys & ~prev;
         up = prev & ~keys;
         prev = keys;
+        punch_keys = page == P_PUNCH ? keys : 0u;   /* on the PUNCH page the keys are effects, not notes */
+        if (punch_keys != punch_shown_keys) {   /* an effect came or went: the returns and the crush follow the keys */
+            punch_shown_keys = punch_keys;
+            reverb_apply(); delay_apply();
+            punch_crush = fm1_punch_crush_factor(punch_keys, punch.crush);
+            punch_gate_target = fm1_punch_gate_target(punch_keys, punch.gate, tick_count);
+        }
         for (k = 0; k < 27u; k++) {             /* a key stops the note it started: the octave may change meanwhile */
+            if (down >> k & 1u && page == P_PUNCH) {
+                held[k] = 255;                  /* an effect, not a note; keys 16 to 19 roll a new variation of lane 1 to 4 */
+                if (k >= 16u && k < 20u) { cfg[k - 16u].seed = (uint16_t)(cfg[k - 16u].seed * 5u + 1u); lane_remake(k - 16u); }
+                continue;
+            }
             if (down >> k & 1u) {
-                held[k] = (uint8_t)(base + k);
+                held[k] = (uint8_t)fm1_punch_note(punch_keys, punch.shift, base + k);
                 if (arp_cfg.mode) {             /* the arpeggiator plays it; a latched set lets go when the next phrase starts */
                     if (arp_cfg.latch && !arp_cfg.physical) arp = fm1_arp_clear(arp);
                     arp_cfg.physical |= 1u << k;
@@ -1448,7 +1522,7 @@ static void app_main(void)
                 } else { play(held[k], 100, &cfg[selected].sound, cfg[selected].send, cfg[selected].pan); midi_send(0x90u | 15u, held[k], 100); }
                 if (cfg[selected].algo == 7u || cfg[selected].algo == 8u) lane[selected] = fm1_lane_learn(lane[selected], held[k]);   /* STEP writes it, MARKOV counts it */
             }
-            if (up >> k & 1u) {
+            if (up >> k & 1u && held[k] < 128u) {
                 arp_cfg.physical &= ~(1u << k);
                 if (arp_cfg.mode) { if (!arp_cfg.latch) arp = fm1_arp_release(arp, held[k]); }
                 else { stop(held[k]); midi_send(0x80u | 15u, held[k], 0); }
@@ -1475,7 +1549,7 @@ static void app_main(void)
         }
         if (b & (1u << BTN_ENV)) { page = P_ENVELOPE; group_page[G_EDIT] = page; browse_mode = 0; }
         if (b & (1u << BTN_SEL)) cfg[selected].muted ^= 1u;
-        if (b & (1u << BTN_REC)) { cfg[selected].seed = (uint16_t)(cfg[selected].seed * 5u + 1u); lane_remake(selected); }
+        if (b & (1u << BTN_REC)) { page = page == P_PUNCH ? group_page[G_HOME] : P_PUNCH; browse_mode = 0; }   /* the PUNCH page */
         if (b & (1u << BTN_SAVE)) patch_save(save_slot);
 
         if ((e = fm1_enc_take(ENC_PRESETS)) != 0) browse_turn(e);
@@ -1515,6 +1589,7 @@ static void app_main(void)
         fm1_led_key(BTN_ARP, arp_cfg.mode && (arp_cfg.latch || fm1_arp_held_of(arp)));
         fm1_led_key(BTN_ENV, page == P_ENVELOPE);
         fm1_led_key(BTN_SEL, cfg[selected].muted);
+        fm1_led_key(BTN_REC, page == P_PUNCH);
 
         idle_ok = 1;                            /* the drawing below may read MIDI meanwhile (LCD_IDLE) */
         h = ui_hash();

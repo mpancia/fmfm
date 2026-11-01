@@ -16,14 +16,16 @@ GROUPS = [
     ("The sequencer",
      "The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift "
      "apart, rhythms have exactly the hits asked for, and every note is in the scale and the range.",
-     ["Lane", "Run", "Rhythm", "Swing", "Divider", "Euclid", "Notes", "Quantizer", "Random", "Harmony", "Tonnetz", "Arp", "Machine", "Lfo"]),
+     ["Lane", "Run", "Rhythm", "Swing", "Divider", "Euclid", "Notes", "Quantizer", "Random", "Harmony", "Tonnetz", "Arp", "Machine",
+      "Lfo", "Punch"]),
     ("The voices",
      "Braids' engines, ported to Lean sample for sample, and the FM voice written in Lean from the first line "
      "(a polynomial sine with no table, bounded and continuous by a check over every input). Every table read stays "
      "inside its table, the facts about the "
      "tables are checked rather than assumed, and each engine's sample is the exact arithmetic clipped rather than "
      "wrapped, except where Braids itself can overflow (listed in docs/LEAN-ENGINES.md).",
-     ["Pitch", "Tables", "BraidsData", "Fm", "Analog", "Digital", "Blend", "Filters", "Noise", "Percussion", "Physical",
+     ["Pitch", "Tables", "BraidsData", "Fm", "FmLock", "FmSymmetry", "FmEnvelope", "FmAlgorithms", "FmDeviation",
+      "Analog", "Digital", "Blend", "Filters", "Noise", "Percussion", "Physical",
       "Vowels", "Wavetables"]),
     ("Setting a voice up",
      "The per-note and per-block work: a sound's parameters land in range, the smoothing never overshoots, and "

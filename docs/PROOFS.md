@@ -431,6 +431,135 @@ Q8), levels at most one (32767), rates below 65536, and the carrier levels of a 
 Why it matters: with `fm_carry_never_amplifies` the eight shapes cannot clip at full envelope, and with
 `fm_envelope_only_falls` their envelopes behave; the numbers in the tables are checked, not trusted.
 
+## FmAlgorithms
+
+**`fm_no_operator_idle`**: In every algorithm, every operator either carries (is heard) or modulates some operator: none
+of the four is wired to nothing.
+
+Why it matters: the voice has four operators and no more; an operator that neither sounds nor shapes another would be a
+quarter of the voice's budget computed every sample for no audible result. No algorithm on the knob wastes one.
+
+**`fm_algorithms_distinct`**: The eight algorithms are eight different routings: any two differ in some modulation link
+or in which operators carry.
+
+Why it matters: the algorithm knob offers eight positions; if two of them wired the operators the same way the player
+would have a dead position that changes nothing. Each position is a genuinely different sound-shaping structure.
+
+**`fm_every_shape_uses_four_operators`**: In every shape, every operator is either heard as a carrier of the shape's
+algorithm, or has a nonzero depth and modulates some operator in that algorithm: no shape has a silent modulator.
+
+Why it matters: a modulator with depth zero would run its sine and envelope every sample while pushing nothing, and a
+carrier-less, modulation-less operator would be pure waste. The tables for all eight shapes give every operator a job
+that reaches the output.
+
+## FmDeviation
+
+**`fm_sine_lipschitz`**: The sine is Lipschitz in the phase: between two phases it moves by at most two per position
+(2^15 phase units) crossed, counting one more for the partial positions at either end.
+
+Why it matters: the sine an operator reads cannot jump: a phase that moves by a small increment reads a value that moves
+by a bounded amount, which is what makes a modulator's output smooth and a carrier's frequency deviation bounded
+(`fm_modulator_slew`, `fm_carrier_frequency_deviation`).
+
+**`fm_modulator_slew`**: An unmodulated operator at increment `incM` and envelope `env` (at most one) changes by at most
+`2 (incM / 2^15 + 1) + 1` a sample: two per position its phase crosses, one for the envelope scaling's rounding. The
+phase wraps round the cycle as the engine's does; the sine is continuous across the wrap (both ends are zero), so the
+wrap costs nothing.
+
+Why it matters: a modulator's output moves slowly when its frequency is low and faster when it is high, in proportion to
+its increment: the slew is the modulator's frequency in disguise, which is what makes FM's frequency deviation
+proportional to the modulating frequency.
+
+**`fm_carrier_frequency_deviation`**: A carrier at increment `incC` pushed by a modulator (`Fm.push 0 out depth`, `out`
+the modulator's output at each sample): the push changes from one sample to the next by `depth` times the change in the
+modulator's output (as 32-bit numbers, modulo 2^32), so the carrier's pushed phase advances by `incC` plus that term;
+the change in the modulator's output is at most `2 (incM / 2^15 + 1) + 1` (`fm_modulator_slew`), so the change in the
+push, as an integer, is at most `depth` times that.
+
+Why it matters: the carrier's instantaneous frequency is its own increment plus `depth` times the modulator's slew, so
+the peak frequency deviation is at most `depth (2 (incM / 2^15 + 1) + 1)` phase units a sample: proportional to the
+modulation index times the modulator's frequency, the half of Carson's rule that says how wide a shape's spectrum can
+get for a given depth and ratio.
+
+## FmEnvelope
+
+**`fm_envelope_after_bounded`**: The envelope after `k` blocks at `rate` is at most its start times `((2^20 - rate) /
+2^20)^k`, plus 17 counts a block for the roundings (both sides scaled by `2^20^k` to stay in whole numbers), for any
+start up to one (2^24) and rate below 65536; and it never passes one on the way.
+
+Why it matters: an envelope dies away geometrically with the time constant the rate promises (`2^20 / rate` blocks),
+whatever it started from: a modulator's roundings cannot pile up into a floor that keeps the sound bright, and the
+shapes' decays are the exponentials they were tuned as.
+
+**`fm_held_envelope_holds`**: At rate 0 the envelope holds exactly, for ever.
+
+Why it matters: a carrier with no decay (the piano's body, the organ's every operator) sounds at full level for as long
+as the note is held, with no drift down from rounding: `0` in the rate table means hold.
+
+**`fm_shape_tails`**: When every shape's decaying operators are gone, from a full envelope (2^24) at the rates in the
+table, exactly: the first block at which the envelope is under a tenth, and under a hundredth, checked by the kernel
+block by block, with the block before still above (a block is 16 samples, 0.36 ms at 44.1 kHz). Under a hundredth: the
+piano's tine (op 4) in 0.27 s and its modulator (op 2) in 1.8 s, its op 3 in 3.7 s; the bell's three partials in 1.8 to
+4.4 s; the bass's modulators in 0.4 to 0.9 s; the brass's in 7 to 14 s; the glass's op 4 in 5.5 s; the mallet's in 0.16
+to 0.44 s; the clang's in 1.2 to 2.2 s. The organ, and the carriers of every shape, hold (`fm_held_envelope_holds`).
+
+Why it matters: these are the decay times a player hears, computed from the arithmetic the chip runs rather than from
+the time constants the rates were chosen by: the piano's strike is brief and its body sustains, the bell and brass ring
+long, the mallet is short, and no shape's decay is a surprise.
+
+## FmLock
+
+**`fm_harmonic_ratios_lock`**: With both operators starting at phase 0, an operator at integer ratio `r` (Q8 value `r *
+256`) has phase exactly `r` times the carrier's after every number of samples, modulo 2^32 as the voice counts phase.
+
+Why it matters: a harmonic ratio is not approximately harmonic but exactly: the operator's phase is a fixed multiple of
+the carrier's at every sample, so there is no drift and no beating between them, however long the note sounds.
+
+**`fm_integer_ratio_periodic`**: The operator's waveform at integer ratio `r` is a function of the carrier's phase
+alone.
+
+Why it matters: the sum of a carrier and an operator at an integer ratio is exactly periodic with the carrier, so the
+spectrum is exactly harmonic: the overtones sit on whole multiples of the fundamental and the ear hears one pitch,
+forever.
+
+**`fm_organ_and_bass_lock`**: FM ORGAN (shape 54) and FM BASS (shape 50) use integer ratios on every operator; FM BELL
+(shape 49) does not.
+
+Why it matters: the organ and bass lock to the carrier by `fm_harmonic_ratios_lock`, so their partials are exactly
+harmonic and the note is one steady pitch; the bell's ratios of 3.5, 7.2 and 1.4 are chosen not to lock, and the
+inharmonic, slowly beating partials that follow are what make it sound like a bell.
+
+## FmSymmetry
+
+**`fm_sine_half_wave`**: The sine half a cycle on is the negative of the sine: `sineAt (phase + 2^31) = -sineAt phase`,
+for every phase (the quadrant moves by two, the place in the quarter is unchanged, the sign flips).
+
+Why it matters: a half-wave-symmetric waveform has no DC and no even harmonics; whatever error the polynomial has sits
+at odd harmonics only, so the fit can colour the tone but never push an offset or an octave into the mix.
+
+**`fm_sine_quarter_wave`**: The sine is mirrored about the quarter points: `sineAt (0x7FFFFFFF - phase) = sineAt phase`,
+for every phase. This is the exact mirror of the discrete waveform: position `p` (the phase's top 17 bits) pairs with
+position `65535 - p` (modulo 2^17), so place `x` in an even quadrant pairs with place `32767 - x` in the odd quadrant
+above it, which `Fm.folded` reads at the same `x`. (`0x80000000 - phase` would land one position off: the mirror of
+position 0 is position 65535, not 65536.)
+
+Why it matters: the quarter-wave symmetry is why one quarter is all the engine computes: the polynomial is evaluated on
+0 to 32767 and the other three quarters are read from it by mirror and sign, with no seam between a quadrant and the
+next.
+
+**`fm_sine_pairs_cancel`**: Two samples half a cycle apart cancel exactly: `sineAt p + sineAt (p + 2^31) = 0` as
+integers, for every phase (the negation never wraps, the sine being within 32767).
+
+Why it matters: an operator read at two points half a cycle apart contributes nothing net; this is the pairing behind
+`fm_sine_has_no_dc`.
+
+**`fm_sine_has_no_dc`**: Any 256 samples of the sine spaced a 256th of a cycle apart sum to zero, from any starting
+phase: sample `k` and sample `k + 128` are half a cycle apart and cancel (`fm_sine_half_wave`).
+
+Why it matters: a carrier running at any pitch and any phase adds no DC to the mix over a cycle, so the output never
+drifts off centre and nothing is lost to a DC offset at the output stage; and the same pairing says the polynomial's
+error has no even harmonics.
+
 ## Harmony
 
 **`harmony_mask_never_empty`**: The mask handed to a lane always has at least one note and fits in 12 bits, for every
@@ -1154,6 +1283,48 @@ Why it matters: the firmware trusts its own patch table without the checks a loa
 (`patch_decode_only_fits`); this closes that gap, so no shipped patch can hand a lane a sound index, scale, step count
 or note range it would read past a table with. It is also a check on the generator: a patch written by hand or by a mood
 table that strays out of range fails the build.
+
+## Punch
+
+**`punch_nothing_held_changes_nothing`**: With no key held, every effect hands back what it was given: the tempo is 100
+percent, nothing re-strikes, a note is itself, the gate is open and aims at full gain, the crush holds nothing (every
+sample its own), the reverb and delay amounts are the settings, no lane is muted.
+
+Why it matters: there is no effect state, only the keys: when the last key goes up, or the page is left, the performance
+is exactly as it was, with nothing left to undo.
+
+**`punch_note_in_range`**: A punched note is a MIDI note, 0 to 127, whatever the keys, the shift and the note.
+
+Why it matters: OCTAVE and SHIFT can never push a lane's note past the keyboard into a pitch the voices reject (`play`
+drops notes above 127); the top and bottom notes are held at the edge instead.
+
+**`punch_tempo_in_range`**: The clock's speed is 50, 100 or 200 percent: it never stops and never runs away.
+
+Why it matters: HALF and DOUBLE are exactly those, so a tick still comes and a bar still ends, and the swing and the
+chord changes keep their place in it.
+
+**`punch_gate_half_open`**: Over any whole period (one that does not run into the tick counter's end), the gate is open
+for exactly half the ticks.
+
+Why it matters: GATE is a chop at the rate the knob says, an even square: half on, half off, in every eighth or
+sixteenth, however the period lines up with the bar.
+
+**`punch_gate_glides`**: The gate's gain stays between nothing and full gain and moves toward its target by at most 512
+a sample, landing on it exactly.
+
+Why it matters: a chop is a 1.5 ms slope, not a step, so GATE never clicks; and the gain can never pass full scale or go
+negative, so the mix through it is never louder than the mix.
+
+**`punch_crush_repeats`**: A crushed sample is one of the two samples offered: the fresh one or the held one.
+
+Why it matters: CRUSH adds no energy and nothing new: at its worst the mix is the mix a few samples ago, so it stays
+inside every bound the mix had.
+
+**`punch_restrikes_on_the_beat`**: A re-strike period divides the quarter note (24 ticks), so the re-strikes land on the
+beat's divisions.
+
+Why it matters: STUTTER and ROLL are in time: every period is an eighth, a sixteenth or a thirty-second, and they always
+come back to the beat.
 
 ## Quantizer
 

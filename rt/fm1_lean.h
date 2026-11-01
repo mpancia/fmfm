@@ -46,6 +46,20 @@ uint32_t fm1_lfo_modulate(uint32_t base, uint32_t depth, uint32_t phase);   /* b
 /* Firmware/Swing.lean: scalar, safe in any context */
 uint32_t fm1_swing_tick_length(uint32_t phase, uint32_t swing);          /* ten-thousandths of a straight tick; swing 0..100 */
 
+/* Firmware/Punch.lean: the punch-in effects as pure functions of the keys held (bit k = key k) and the settings:
+ * nothing to undo when the keys go up. Scalar, safe in any context. */
+uint32_t fm1_punch_tempo(uint32_t keys);                                  /* the clock's speed in percent */
+uint32_t fm1_punch_restrike(uint32_t keys, uint32_t choice, uint32_t tick);
+uint32_t fm1_punch_note(uint32_t keys, uint32_t shift, uint32_t note);    /* transposed, held to 0..127 */
+uint32_t fm1_punch_gate_target(uint32_t keys, uint32_t choice, uint32_t tick);   /* Q15 */
+uint32_t fm1_punch_gate_step(uint32_t gain, uint32_t target);
+uint32_t fm1_punch_gate_sample(uint32_t sample, uint32_t gain);
+uint32_t fm1_punch_crush_factor(uint32_t keys, uint32_t factor);
+uint32_t fm1_punch_crush_sample(uint32_t factor, uint32_t index, uint32_t held, uint32_t sample);
+uint32_t fm1_punch_reverb_amount(uint32_t keys, uint32_t base);
+uint32_t fm1_punch_delay_amount(uint32_t keys, uint32_t base);
+uint32_t fm1_punch_lane_muted(uint32_t keys, uint32_t lane);
+
 /* Firmware/Mix.lean: scalar, used in the audio interrupt; Lean's Int32 and Int16 are uint32_t and uint16_t here,
  * cast at the call */
 uint32_t fm1_mix_envelope_step(uint32_t amp, uint32_t gate, uint32_t up, uint32_t down);

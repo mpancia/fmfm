@@ -300,6 +300,196 @@ theorem fm_shapes_in_range (shape : UInt32) :
     (Fm.level shape 1).toNat + (Fm.level shape 2).toNat + (Fm.level shape 3).toNat +
         (Fm.level shape 4).toNat ≤ 32767 := sorry
 
+-- Proofs/FmAlgorithms.lean
+theorem fm_no_operator_idle (alg : UInt32) (op : Fin 4) :
+    Fm.carries alg (op.val + 1).toUInt32 = true ∨
+      ∃ target : Fin 4, Fm.modulates alg (target.val + 1).toUInt32 (op.val + 1).toUInt32 = true := sorry
+
+theorem fm_algorithms_distinct : ∀ a b : Fin 8, a ≠ b → ∃ op src : Fin 4,
+    Fm.modulates a.val.toUInt32 (op.val + 1).toUInt32 (src.val + 1).toUInt32 ≠
+        Fm.modulates b.val.toUInt32 (op.val + 1).toUInt32 (src.val + 1).toUInt32 ∨
+      Fm.carries a.val.toUInt32 (op.val + 1).toUInt32 ≠ Fm.carries b.val.toUInt32 (op.val + 1).toUInt32 := sorry
+
+theorem fm_every_shape_uses_four_operators (shape : Fin 8) : ∀ op : Fin 4,
+    Fm.carries (Fm.algorithm shape.val.toUInt32) (op.val + 1).toUInt32 = true ∨
+      (0 < (Fm.depth shape.val.toUInt32 (op.val + 1).toUInt32).toNat ∧
+        ∃ target : Fin 4,
+          Fm.modulates (Fm.algorithm shape.val.toUInt32) (target.val + 1).toUInt32
+            (op.val + 1).toUInt32 = true) := sorry
+
+-- Proofs/FmDeviation.lean
+theorem fm_sine_lipschitz (a b : UInt32) (order : a.toNat ≤ b.toNat) :
+    ((Fm.sineAt b).toInt - (Fm.sineAt a).toInt).natAbs ≤ 2 * ((b.toNat - a.toNat) / 2 ^ 15 + 1) := sorry
+
+theorem fm_modulator_slew (p incM env : UInt32) (unit : env.toNat ≤ 2 ^ 24) (n : Nat) :
+    ((Fm.operator (Fm.phaseAfter p incM (n + 1)) 0 env).toInt -
+        (Fm.operator (Fm.phaseAfter p incM n) 0 env).toInt).natAbs ≤ 2 * (incM.toNat / 2 ^ 15 + 1) + 1 := sorry
+
+theorem fm_carrier_frequency_deviation (c incC p incM env depth : UInt32) (unit : env.toNat ≤ 2 ^ 24)
+    (n : Nat) :
+    let out := fun k => Fm.operator (Fm.phaseAfter p incM k) 0 env
+    Fm.push 0 (out (n + 1)) depth - Fm.push 0 (out n) depth = (out (n + 1) - out n).toUInt32 * depth ∧
+      (Fm.phaseAfter c incC (n + 1) + Fm.push 0 (out (n + 1)) depth) -
+          (Fm.phaseAfter c incC n + Fm.push 0 (out n) depth) =
+        incC + (out (n + 1) - out n).toUInt32 * depth ∧
+      ((out (n + 1)).toInt - (out n).toInt).natAbs ≤ 2 * (incM.toNat / 2 ^ 15 + 1) + 1 ∧
+      (depth.toNat * ((out (n + 1)).toInt - (out n).toInt)).natAbs ≤
+        depth.toNat * (2 * (incM.toNat / 2 ^ 15 + 1) + 1) := sorry
+
+-- Proofs/FmEnvelope.lean
+theorem fm_envelope_after_bounded (e r : UInt32) (unit : e.toNat ≤ 2 ^ 24) (small : r.toNat < 65536)
+    (k : Nat) :
+    (Fm.envelopeAfter e r k).toNat ≤ 2 ^ 24 ∧
+      (Fm.envelopeAfter e r k).toNat * (2 ^ 20) ^ k ≤
+        e.toNat * (2 ^ 20 - r.toNat) ^ k + 17 * k * (2 ^ 20) ^ k := sorry
+
+theorem fm_held_envelope_holds (e : UInt32) (k : Nat) : Fm.envelopeAfter e 0 k = e := sorry
+
+theorem fm_shape_tails :
+    -- piano
+    (
+      -- op 2, rate 960: a tenth at 2515 blocks (0.91 s), a hundredth at 5033 (1.83 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 2) 2514).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 2) 2515).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 2) 5032).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 2) 5033).toNat < 2 ^ 24 / 100 ∧
+      -- op 3, rate 480: a tenth at 5031 blocks (1.83 s), a hundredth at 10074 (3.65 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 3) 5030).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 3) 5031).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 3) 10073).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 3) 10074).toNat < 2 ^ 24 / 100 ∧
+      -- op 4, rate 6400: a tenth at 377 blocks (0.14 s), a hundredth at 753 (0.27 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 4) 376).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 4) 377).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 4) 752).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 48 4) 753).toNat < 2 ^ 24 / 100
+    ) ∧
+    -- bell
+    (
+      -- op 2, rate 400: a tenth at 6037 blocks (2.19 s), a hundredth at 12093 (4.39 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 2) 6036).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 2) 6037).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 2) 12092).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 2) 12093).toNat < 2 ^ 24 / 100 ∧
+      -- op 3, rate 960: a tenth at 2515 blocks (0.91 s), a hundredth at 5033 (1.83 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 3) 2514).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 3) 2515).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 3) 5032).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 3) 5033).toNat < 2 ^ 24 / 100 ∧
+      -- op 4, rate 640: a tenth at 3773 blocks (1.37 s), a hundredth at 7552 (2.74 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 4) 3772).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 4) 3773).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 4) 7551).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 49 4) 7552).toNat < 2 ^ 24 / 100
+    ) ∧
+    -- bass
+    (
+      -- op 2, rate 1920: a tenth at 1257 blocks (0.46 s), a hundredth at 2514 (0.91 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 2) 1256).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 2) 1257).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 2) 2513).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 2) 2514).toNat < 2 ^ 24 / 100 ∧
+      -- op 3, rate 3200: a tenth at 754 blocks (0.27 s), a hundredth at 1508 (0.55 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 3) 753).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 3) 754).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 3) 1507).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 3) 1508).toNat < 2 ^ 24 / 100 ∧
+      -- op 4, rate 4800: a tenth at 502 blocks (0.18 s), a hundredth at 1005 (0.36 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 4) 501).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 4) 502).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 4) 1004).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 50 4) 1005).toNat < 2 ^ 24 / 100
+    ) ∧
+    -- brass
+    (
+      -- op 2, rate 128: a tenth at 18880 blocks (6.85 s), a hundredth at 37926 (13.76 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 2) 18879).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 2) 18880).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 2) 37925).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 2) 37926).toNat < 2 ^ 24 / 100 ∧
+      -- op 3, rate 192: a tenth at 12583 blocks (4.57 s), a hundredth at 25241 (9.16 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 3) 12582).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 3) 12583).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 3) 25240).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 3) 25241).toNat < 2 ^ 24 / 100 ∧
+      -- op 4, rate 256: a tenth at 9435 blocks (3.42 s), a hundredth at 18911 (6.86 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 4) 9434).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 4) 9435).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 4) 18910).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 51 4) 18911).toNat < 2 ^ 24 / 100
+    ) ∧
+    -- glass
+    (
+      -- op 4, rate 320: a tenth at 7548 blocks (2.74 s), a hundredth at 15122 (5.49 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 52 4) 7547).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 52 4) 7548).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 52 4) 15121).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 52 4) 15122).toNat < 2 ^ 24 / 100
+    ) ∧
+    -- mallet
+    (
+      -- op 2, rate 4000: a tenth at 603 blocks (0.22 s), a hundredth at 1206 (0.44 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 2) 602).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 2) 603).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 2) 1205).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 2) 1206).toNat < 2 ^ 24 / 100 ∧
+      -- op 3, rate 8000: a tenth at 301 blocks (0.11 s), a hundredth at 602 (0.22 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 3) 300).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 3) 301).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 3) 601).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 3) 602).toNat < 2 ^ 24 / 100 ∧
+      -- op 4, rate 11200: a tenth at 215 blocks (0.08 s), a hundredth at 429 (0.16 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 4) 214).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 4) 215).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 4) 428).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 53 4) 429).toNat < 2 ^ 24 / 100
+    ) ∧
+    -- clang
+    (
+      -- op 2, rate 800: a tenth at 3018 blocks (1.09 s), a hundredth at 6040 (2.19 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 2) 3017).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 2) 3018).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 2) 6039).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 2) 6040).toNat < 2 ^ 24 / 100 ∧
+      -- op 3, rate 1120: a tenth at 2155 blocks (0.78 s), a hundredth at 4313 (1.56 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 3) 2154).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 3) 2155).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 3) 4312).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 3) 4313).toNat < 2 ^ 24 / 100 ∧
+      -- op 4, rate 1440: a tenth at 1676 blocks (0.61 s), a hundredth at 3354 (1.22 s)
+      2 ^ 24 / 10 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 4) 1675).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 4) 1676).toNat < 2 ^ 24 / 10 ∧
+      2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 4) 3353).toNat ∧
+        (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 4) 3354).toNat < 2 ^ 24 / 100
+    ) := sorry
+
+-- Proofs/FmLock.lean
+theorem fm_harmonic_ratios_lock (voiceInc r : UInt32) (small : voiceInc.toNat * r.toNat < 2 ^ 31)
+    (fits : r.toNat < 256) (n : Nat) :
+    Fm.phaseAfter 0 (Fm.increment voiceInc (r * 256)) n = r * Fm.phaseAfter 0 voiceInc n := sorry
+
+theorem fm_integer_ratio_periodic (voiceInc r : UInt32) (small : voiceInc.toNat * r.toNat < 2 ^ 31)
+    (fits : r.toNat < 256) (n : Nat) :
+    Fm.sineAt (Fm.phaseAfter 0 (Fm.increment voiceInc (r * 256)) n) =
+      Fm.sineAt (r * Fm.phaseAfter 0 voiceInc n) := sorry
+
+theorem fm_organ_and_bass_lock :
+    (∀ op : Fin 4, (Fm.ratio 54 (op.val + 1).toUInt32) % 256 = 0) ∧
+    (∀ op : Fin 4, (Fm.ratio 50 (op.val + 1).toUInt32) % 256 = 0) ∧
+    ¬ (∀ op : Fin 4, (Fm.ratio 49 (op.val + 1).toUInt32) % 256 = 0) := sorry
+
+-- Proofs/FmSymmetry.lean
+theorem fm_sine_half_wave (phase : UInt32) : Fm.sineAt (phase + 0x80000000) = -Fm.sineAt phase := sorry
+
+theorem fm_sine_quarter_wave (phase : UInt32) : Fm.sineAt (0x7FFFFFFF - phase) = Fm.sineAt phase := sorry
+
+theorem fm_sine_pairs_cancel (phase : UInt32) :
+    (Fm.sineAt phase).toInt + (Fm.sineAt (phase + 0x80000000)).toInt = 0 := sorry
+
+theorem fm_sine_has_no_dc (start : UInt32) :
+    (List.range 256).foldl (fun acc k => acc + (Fm.sineAt (start + k.toUInt32 * 0x01000000)).toInt) 0
+      = 0 := sorry
+
 -- Proofs/Harmony.lean
 theorem harmony_mask_never_empty (scale key progression step follow : UInt32) :
     (harmonyMask scale key progression step follow).toNat ≠ 0 ∧
@@ -866,6 +1056,38 @@ theorem pitch_increment_bounded (pitch : Int16) : (Pitch.phaseIncrement pitch).t
 
 -- Proofs/Presets.lean
 theorem presets_all_fit : ∀ p ∈ Presets.all, p.Fits := sorry
+
+-- Proofs/Punch.lean
+theorem punch_nothing_held_changes_nothing (choice shift note base lane factor tick : UInt32) (midi : note
+    ≤ 127) :
+    Punch.tempoPercent 0 = 100 ∧ Punch.restrike 0 choice tick = false ∧ Punch.note 0 shift note = note ∧
+      Punch.gateOpen 0 choice tick = true ∧ Punch.gateTarget (Punch.gateOpen 0 choice tick) = 32768 ∧
+      Punch.crushFactor 0 factor = 1 ∧ Punch.reverbAmount 0 base = base ∧ Punch.delayAmount 0 base = base ∧
+      Punch.laneMuted 0 lane = false := sorry
+
+theorem punch_note_in_range (keys shift note : UInt32) : Punch.note keys shift note ≤ 127 := sorry
+
+theorem punch_tempo_in_range (keys : UInt32) :
+    Punch.tempoPercent keys = 50 ∨ Punch.tempoPercent keys = 100 ∨ Punch.tempoPercent keys = 200 := sorry
+
+theorem punch_gate_half_open (keys choice start : UInt32) (on : Punch.held keys 7 = true)
+    (noWrap : start.toNat + 12 < 2 ^ 32) :
+    let period := Punch.gatePeriod keys choice
+    ((List.range period.toNat).filter (fun k => Punch.gateOpen keys choice (start + k.toUInt32))).length =
+      period.toNat / 2 := sorry
+
+theorem punch_gate_glides (gain target : UInt32) (unitG : gain ≤ 32768) (unitT : target ≤ 32768) :
+    Punch.gateStep gain target ≤ 32768 ∧
+      (gain < target → gain < Punch.gateStep gain target ∧ Punch.gateStep gain target ≤ target) ∧
+      (target < gain → target ≤ Punch.gateStep gain target ∧ Punch.gateStep gain target < gain) ∧
+      (gain = target → Punch.gateStep gain target = gain) := sorry
+
+theorem punch_crush_repeats (factor index : UInt32) (heldSample sample : Int32) :
+    Punch.crushSample factor index heldSample sample = sample ∨
+      Punch.crushSample factor index heldSample sample = heldSample := sorry
+
+theorem punch_restrikes_on_the_beat (keys choice : UInt32) (some : Punch.stutterPeriod keys choice ≠ 0) :
+    24 % Punch.stutterPeriod keys choice = 0 := sorry
 
 -- Proofs/Quantizer.lean
 theorem quantizer_snap_keeps_scale_notes (mask note : Nat) (inside : Quantizer.inScale mask note = true) :
