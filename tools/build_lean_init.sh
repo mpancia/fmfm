@@ -1,12 +1,12 @@
 #!/bin/sh
 # Build Lean's own library (Init) as a static archive for a target the toolchain does not ship it for.
-#   tools/build_lean_init.sh wasm32|pi32v2     ->  build/init/<target>/libInit.a
+#   tools/build_lean_init.sh wasm32|pi32v2|host     ->  build/init/<target>/libInit.a
 # Lean-generated C calls library functions (List.reverse, Array.erase, ...) that live in Init. We generate C
 # for every Init module with the pinned `lean` (extract_closed off, so no module initialisation is needed) and
 # compile it for the target. The linker then takes only the archive members the firmware actually uses.
 set -eu
 cd "$(dirname "$0")/.."
-T=${1:?target: wasm32 or pi32v2}
+T=${1:?target: wasm32, pi32v2 or host}
 . tools/target_env.sh
 STAMP=$(lean --version | head -1)
 C=build/init/c; O=build/init/$T

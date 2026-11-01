@@ -7,7 +7,7 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
 
-.PHONY: install run web test test-lean audit build check lean-check fw flash-deps clean lint proofs comparator
+.PHONY: install run web test test-lean audit build check lean-check fw flash-deps clean lint proofs comparator perf
 
 
 install:
@@ -45,6 +45,10 @@ lean-check:
 # The engines ported to Lean against Braids' original C++, sample for sample (tests/reference is Braids unchanged).
 test-lean:
 	sh tools/test_lean_engines.sh
+
+# The firmware on this computer with Linux perf counters: instructions a sample (docs/BUDGET.md).
+perf:
+	sh tools/perf_host.sh
 
 # Renders every factory sound on this computer: each must be audible, not clip, and keep its level across octaves.
 audit:

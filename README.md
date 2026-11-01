@@ -84,6 +84,7 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 | `make lean-check` | the Lean code in `Firmware/` links for the chip with only the small runtime in `rt/` |
 | `make proofs` | list every proved theorem with what it claims and why (`docs/PROOFS.md`); regenerate the Comparator challenge |
 | `make comparator` | `lake comparator`: `Proofs/` proves every statement of `Challenge.lean`, standard axioms only, kernel-checked in a sandbox (`PARANOID=1` adds the five external checkers) |
+| `make perf` | the firmware on this computer, counting instructions a sample (`docs/BUDGET.md`: what fits the chip) |
 | `make lint` | style checks, proof layout checks |
 | `make check` | `make lint` + `make lean-check` + `make test-lean` + `make comparator` |
 | `make flash-deps` | optional: MIDI libraries for `fw/tools/fm1_install.py` |

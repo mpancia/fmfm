@@ -1,10 +1,10 @@
 #!/bin/sh
 # Compile the Braids voice (voices/: Braids and stmlib sources, shims, voice.cc) for one target:
-#   tools/build_braids.sh wasm32|pi32v2   ->  build/braids/<target>/*.o
+#   tools/build_braids.sh wasm32|pi32v2|host   ->  build/braids/<target>/*.o
 # Braids is C++ written for a chip with no standard library; voices/shim/ supplies the few headers it names.
 set -eu
 cd "$(dirname "$0")/.."
-T=${1:?target: wasm32 or pi32v2}
+T=${1:?target: wasm32, pi32v2 or host}
 . tools/target_env.sh
 O=build/braids/$T
 rm -rf "$O"; mkdir -p "$O" build/lean_gen

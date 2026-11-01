@@ -94,6 +94,7 @@ lean_object *lean_alloc_small_object_core(unsigned sz)
 lean_object *lean_alloc_object(size_t sz) { return heap_alloc(sz); }
 void lean_free_object(lean_object *o) { heap_free(o); }
 void *mi_malloc(size_t n) { return heap_alloc(n); }
+void lean_inc_heartbeat(void) {}             /* the big-object path counts heartbeats; nothing here reads them */
 void mi_free(void *p) { heap_free(p); }
 
 /* ---- freeing: when the count reaches zero, free the object and drop one reference on each child.

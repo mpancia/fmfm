@@ -94,7 +94,7 @@ Measured with `tools/render_web.mjs` (the simulator's output as a WAV, with its 
 ### Not done, not measured
 
 - Not heard: the numbers say the port follows Clouds and that nothing clips, not that it sounds good.
-- Not measured on the chip: the cost is about 20 multiplies per sample per channel, plus the voices. The memory is
-  64 KiB of the pool (the pool use is 267 KiB of 344 KiB).
+- Not measured on the chip: about 720 chip instructions a sample (`docs/BUDGET.md`), the price of two INIT
+  patches' voices. The memory is 64 KiB of the pool (the pool use is 267 KiB of 344 KiB).
 - No delay, no chorus, no other Clouds parts (granular, pitch shifter, diffuser). The diffuser inside the reverb is
   part of it.
