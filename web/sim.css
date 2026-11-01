@@ -22,6 +22,7 @@ button { font: inherit; color: var(--ink); background: transparent; border: 1px 
 button:hover { border-color: var(--note); }
 button.primary { background: var(--ink); color: var(--page); }
 button.primary:hover { border-color: var(--ink); background: #222; }
+button.on { border-color: var(--note); box-shadow: inset 0 -2px 0 var(--note); }
 button:disabled { opacity: .5; cursor: default; }
 .vol { display: flex; gap: 8px; align-items: center; color: var(--muted); }
 .vol input { accent-color: var(--ink); }

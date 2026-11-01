@@ -29,7 +29,9 @@ const imports = { env: {
     Atomics.store(ctl, 12, mr);
     dv.setUint32(44, n, true);
     dv.setUint32(112, Atomics.exchange(ctl, 20, 0), true);     // a patch to load (index + 1)
+    dv.setUint32(116, Atomics.exchange(ctl, 22, 0), true);     // the Demo button: 1 start, 2 stop
     Atomics.store(ctl, 21, exports.web_patch_index());
+    Atomics.store(ctl, 23, exports.web_demo_auto());
     Atomics.store(ctl, 19, ms);
   },
   js_audio(ptr, frames) {

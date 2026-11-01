@@ -5,6 +5,7 @@
  *                      4..10 encoder detents   11 MIDI write index   12 MIDI read index   13 audio frames written
  *                      14 audio frames read   15,16 LEDs (lo, hi)   17 screen frame counter   18 audio underruns
  *                      19 simulated ms   20 a patch to load (index + 1)   21 the patch playing
+ *                      22 the Demo button (1 start, 2 stop)   23 AUTO is on
  *                      32..95 MIDI queue (status | d1 << 8 | d2 << 16 | source << 24)
  *   ring: 16-bit stereo audio.   frame: 240x240 RGB565. */
 const RING = 16384;
@@ -140,6 +141,9 @@ function draw() {
     status(`Running: ${(Atomics.load(ctl, 19) / 1000).toFixed(1)} s of firmware time` + (under ? `, ${under} audio dropouts (browser too busy)` : ''));
     const playing = Atomics.load(ctl, 21);                     // the device's own browser may have changed the patch
     if (document.activeElement !== $('patch') && String(playing) !== $('patch').value) $('patch').value = String(playing);
+    if (demoWanted && Atomics.load(ctl, 19) > 1000) { demoWanted = false; Atomics.store(ctl, 22, 1); }
+    $('demo').textContent = Atomics.load(ctl, 23) ? 'Stop demo' : 'Demo';
+    $('demo').classList.toggle('on', !!Atomics.load(ctl, 23));
   }
 }
 
@@ -180,11 +184,17 @@ function powerOff(why) {
   [...ledBtn, ...ledKey].forEach((l) => l.classList.remove('lit'));
   $('off').hidden = false; $('power').textContent = 'Power on'; $('power').disabled = false;
   $('patch').disabled = true;
+  $('demo').textContent = 'Demo'; $('demo').classList.remove('on');
   status(why || 'Off. Power on to boot the firmware (the firmware\'s saved settings are lost when it powers off).');
 }
 $('power').addEventListener('click', () => (running ? powerOff() : powerOn()));
 $('vol').addEventListener('input', () => { if (gain) gain.gain.value = $('vol').value / 100; });
 $('patch').addEventListener('change', () => { if (running) Atomics.store(ctl, 20, Number($('patch').value) + 1); $('patch').blur(); });
+let demoWanted = false;                                      // Demo pressed while off: start AUTO once the firmware is up
+$('demo').addEventListener('click', async () => {
+  if (!running) { demoWanted = true; await powerOn(); return; }
+  Atomics.store(ctl, 22, Atomics.load(ctl, 23) ? 2 : 1);
+});
 
 $('midi').addEventListener('click', async () => {
   if (!navigator.requestMIDIAccess) { status('This browser has no Web MIDI. Use Chrome or Edge.'); return; }

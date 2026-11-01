@@ -1270,6 +1270,10 @@ static void app_main(void)
             patch_load(web_patch_request - 1u); web_patch_request = 0;
             browse_mode = 0; t_change = fm1_ms;
         }
+        if (web_demo_request) {                 /* the simulator page's Demo button */
+            demo_start(web_demo_request == 1u); web_demo_request = 0;
+            browse_mode = 0; t_change = fm1_ms;
+        }
 #endif
         clock_poll();
         demo_poll();
@@ -1404,4 +1408,5 @@ __attribute__((export_name("web_patch_name"))) const char *web_patch_name(uint32
     return "";
 }
 __attribute__((export_name("web_patch_index"))) uint32_t web_patch_index(void) { return patch_index; }
+__attribute__((export_name("web_demo_auto"))) uint32_t web_demo_auto(void) { return demo_auto; }
 #endif

@@ -39,9 +39,10 @@ struct web_input {
     int32_t enc[HOST_NENC];             /* detents turned since the last ms, + = clockwise */
     uint32_t midi_n;                    /* MIDI messages queued below (0..16), consumed each ms */
     uint8_t midi[16][4];                /* status, data 1, data 2, source (1 USB, 2 TRS) */
-    uint32_t patch;                     /* a patch to load, index plus one (0: none); the page's demo list */
+    uint32_t patch;                     /* a patch to load, index plus one (0: none); the page's patch list */
+    uint32_t demo;                      /* the page's Demo button: 1 start AUTO, 2 stop it (0: nothing) */
 };
-static uint32_t web_patch_request;      /* the same, for the app to take (dinghy.c's main loop) */
+static uint32_t web_patch_request, web_demo_request;   /* the same, for the app to take (dinghy.c's main loop) */
 static struct web_input web_in;
 __attribute__((export_name("web_in_ptr"))) struct web_input *web_in_ptr(void) { return &web_in; }
 
@@ -153,6 +154,7 @@ static void platform_poll(void)                 /* one call = one millisecond */
     }
     web_in.midi_n = 0;
     if (web_in.patch) { web_patch_request = web_in.patch; web_in.patch = 0; }
+    if (web_in.demo) { web_demo_request = web_in.demo; web_in.demo = 0; }
 
     owed += FS;                                 /* the frames this millisecond is worth, in blocks as the ISR renders */
     while (owed >= 1000u * HALF_FRAMES) {

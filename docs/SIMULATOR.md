@@ -23,7 +23,8 @@ needs the two headers `tools/serve_web.py` sends; opening `build/web/index.html`
 Click the keys, or use the computer keyboard (`Z`..`/` from C4, `Q`..`T` from C5; `-`/`=` are OCT-/OCT+).
 Knobs: wheel, drag, click left/right half, arrow keys. **Connect MIDI in** feeds Web MIDI devices to the USB
 MIDI input (Chrome/Edge). The **Patch** list loads any factory patch or user slot without touching the device
-(the page asks the firmware for the names at boot, and follows the patch the device itself changes to).
+(the page asks the firmware for the names at boot, and follows the patch the device itself changes to). **Demo** turns AUTO on (GLO > BANKS): the demo songs play themselves; from power-off it boots first. Press it
+again, or PLAY, to stop.
 
 ## What it does not model
 - CPU time: the chip is far slower than your computer. Check the audio ISR budget on hardware (`fm1_ticks()`), or
