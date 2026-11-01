@@ -256,12 +256,12 @@ def generated_patches(count):
 # Feel: 0 euclid 1 rotate 2 automaton 3 ratchet. The first demo is the boot patch.
 EUCLID = (0, 0, 0, 90, 1, 1)
 DEMOS = [
-    # a clockwork groove: a locked turing bass, an automaton on the hats, ratcheted FM stabs, a markov line
-    ("CLOCKWORK", 112, 2, [(4, 16, 3, 4, "SAW SUB DARK", 36, 12, 201, (6, 100, 8, 0, 2, 100, 10), (1, 0, 2, 90, 1, 1)),
-                           (6, 16, 3, 7, "CYMBAL MID", 60, 1, 202, (0, 100, 1, 0, 0, 70, 20), (2, 0, 0, 30, 1, 1)),
-                           (3, 8, 5, 4, "FM PLUCK", 60, 12, 203, (8, 100, 1, 15, 1, 85, 35), (3, 0, 0, 90, 3, 2)),
-                           (5, 12, 5, 4, "BELL DARK", 72, 12, 204, (1, 70, 2, 0, 1, 70, 60), (1, 3, 2, 90, 1, 1))],
-     2, 2, (60, 60, 60), (4, 40, 65, 35)),
+    # a clockwork groove: a locked turing bass, a rule-30 automaton ticking on a dark string, ratcheted stabs, a markov bell
+    ("CLOCKWORK", 104, 2, [(4, 16, 3, 4, "SAW SUB DARK", 36, 12, 201, (6, 100, 8, 0, 2, 100, 10), (1, 0, 2, 90, 1, 1)),
+                           (6, 16, 3, 4, "PLUCK DARK", 55, 12, 202, (2, 100, 1, 0, 1, 65, 40), (2, 0, 0, 30, 1, 1)),
+                           (3, 8, 5, 4, "MORPH PLUCK", 60, 12, 203, (8, 100, 1, 15, 1, 80, 35), (3, 0, 0, 90, 3, 2)),
+                           (5, 12, 5, 4, "BELL DARK", 72, 12, 204, (1, 70, 2, 0, 1, 55, 65), (1, 3, 2, 90, 1, 1))],
+     2, 2, (70, 50, 65), (4, 40, 55, 35)),
     # after Eno's Music for Airports: bars of 7, 11, 13 and 5 steps (pairwise coprime, so they realign only every
     # 5005 steps), sparse, D pentatonic over a slow I-V-vi-IV, a long reverb
     ("AIRPORTS", 64, 2, [(1, 7, 7, 2, "3 SIN PAD", 36, 12, 101, (10, 100, 2, 0, 2, 100, 40)),

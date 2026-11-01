@@ -62,7 +62,7 @@ clips (peaks -7 to -15 dBFS); nobody has listened to them.
 
 | Demo | What it shows |
 |---|---|
-| CLOCKWORK (112, D dorian) | a locked TURING bass with an accent, rule 30 AUTOMATON hats, RATCHET FM stabs, a MARKOV line on a turned bar |
+| CLOCKWORK (104, D dorian) | a locked TURING bass with an accent, a rule-30 AUTOMATON ticking on a dark plucked string, RATCHET stabs, a MARKOV bell on a turned bar |
 | AIRPORTS (64, D pentatonic) | after Eno: bars of 7, 11, 13 and 5 steps (coprime: they realign every 5005 steps), a CHORD pad, a locked TURING flute, a MARKOV bell, a GRAMMAR pad that rests |
 | PHASES (120, G pentatonic) | after Reich: the same locked twelve-note phrase on 12 and on 13 steps, drifting apart and back |
 | SIERPINSKI (96, A lydian) | rule 90 draws its triangle on 32 steps, rule 110 crawls on 16, rule 30 boils underneath, a CHORD pad |
