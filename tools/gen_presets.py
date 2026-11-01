@@ -212,6 +212,9 @@ ROLE_SEND = {"bass": 8, "pad": 45, "lead": 28, "bell": 50, "kick": 5, "snare": 1
 # reverb decay, brightness and return by mood
 MOOD_REVERB = {"calm": (75, 55, 75), "dream": (80, 50, 80), "drive": (35, 65, 55), "pulse": (30, 70, 50), "drift": (90, 45, 85),
                "shimmer": (70, 80, 80), "machine": (30, 75, 50), "folk": (55, 60, 65)}
+# delay note value (0 1/32 .. 7 1/4: 2 is 1/8 triplet, 6 a dotted 1/8), feedback, tone and return by mood
+MOOD_DELAY = {"calm": (6, 35, 50, 30), "dream": (6, 50, 40, 45), "drive": (4, 30, 70, 25), "pulse": (1, 25, 80, 30),
+              "drift": (7, 55, 35, 40), "shimmer": (6, 45, 90, 45), "machine": (1, 40, 70, 35), "folk": (4, 20, 60, 0)}
 PROGRESSION_NAMES = ["OFF", "I-IV-V-I", "I-V-vi-IV", "vi-IV-I-V", "ii-V-I-I", "i-VI-III-VII", "I-iii-IV-V", "i-iv-v-i"]
 MOOD_PROGRESSIONS = {"calm": [2, 3, 6], "dream": [3, 2, 0], "drive": [5, 7, 0], "pulse": [0], "drift": [0, 4],
                      "shimmer": [2, 3, 6], "machine": [0], "folk": [1, 2, 6]}
@@ -242,7 +245,8 @@ def generated_patches(count):
             chord = (2 if role == "bass" else 1 if role == "pad" else 0) if progression else 0
             cells.append((min(rng.choice(hits), st), st, rng.choice(speeds), scale if role not in ("kick", "snare", "hat") else 7,
                           sound, low, span, rng.randrange(1, 1000), (algo, chance, amount, mutate, chord, 100, ROLE_SEND[role])))
-        out.append((name, rng.randrange(lo, hi + 1), rng.randrange(12), cells, progression, rate, MOOD_REVERB[mood_name]))
+        out.append((name, rng.randrange(lo, hi + 1), rng.randrange(12), cells, progression, rate, MOOD_REVERB[mood_name],
+                    MOOD_DELAY[mood_name]))
     return out
 
 
@@ -254,7 +258,7 @@ INIT = ("AIRPORTS", 64, 2, [(1, 7, 7, 2, "3 SIN PAD", 36, 12, 101, (10, 100, 2, 
                             (3, 11, 5, 2, "FLUTE MID", 60, 12, 102, (6, 100, 5, 0, 1, 100, 50), (1, 2, 1, 90, 1, 1)),
                             (2, 13, 5, 2, "BELL DARK", 72, 12, 103, (8, 100, 1, 10, 1, 95, 60)),
                             (1, 5, 7, 2, "GRANULAR PAD", 48, 7, 104, (9, 60, 1, 50, 1, 90, 55))],
-        2, 4, (90, 45, 80))
+        2, 4, (90, 45, 80), (7, 50, 40, 35))
 
 
 def resolve(name, index):
@@ -288,6 +292,7 @@ def render(measurements):
            "typedef struct {",
            "    const char *name; uint8_t bpm, key, progression, rate, scale_lock;",
            "    uint8_t reverb[3];                                        /* decay, brightness, return */",
+           "    uint8_t delay[4];                                         /* note value, feedback, tone, return */",
            "    patch_lane_t lane[4];",
            "} patch_t;", "",
            f"#define NSOUNDS {len(snd)}u", "static const sound_t SOUNDS[NSOUNDS] = {"]
@@ -301,7 +306,7 @@ def render(measurements):
     out.append("static const patch_t PATCHES[NPATCHES] = {")
     for patch in allp:
         name, bpm, key, lanes = patch[:4]
-        progression, rate, reverb = patch[4:] if len(patch) > 4 else (0, 1, (50, 60, 70))
+        progression, rate, reverb, delay = (*patch[4:], *((0, 1, (50, 60, 70), (6, 40, 60, 0))[len(patch) - 4:]))
         cells = []
         for pos, lane in enumerate(lanes):
             h, st, sp, sc, snd_name, low, span, seed = lane[:8]
@@ -309,7 +314,7 @@ def render(measurements):
             feel = lane[9] if len(lane) > 9 else (0, 0, 0, 90, 1, 1)      # feel, rotate, accents, rule, ratchet, sub-hits
             cells.append(f"{{{h}, {st}, {sp}, {sc}, {resolve(snd_name, index)}, {low}, {span}, {', '.join(map(str, extra))}, {seed}, "
                          f"{', '.join(map(str, feel))}}}")
-        out.append(f'    {{"{name}", {bpm}, {key}, {progression}, {rate}, 0, {{{", ".join(map(str, reverb))}}}, {{{", ".join(cells)}}}}},')
+        out.append(f'    {{"{name}", {bpm}, {key}, {progression}, {rate}, 0, {{{", ".join(map(str, reverb))}}}, {{{", ".join(map(str, delay))}}}, {{{", ".join(cells)}}}}},')
     out.append("};")
     return "\n".join(out) + "\n"
 

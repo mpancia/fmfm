@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define FM1_DELAY_TIMES 8u              /* TIME settings 0 to 7: 1/32 to 1/4 (Delay.division) */
+#define FM1_DELAY_TIMES 8u              /* TIME settings 0 to 7: 1/32 to 1/4 (Delay.numerator, Delay.denominator) */
 
 void fm1_delay_clear(void);                                        /* forget the echoes; not while the block runs */
 void fm1_delay_tune(uint32_t time, uint32_t bpm, uint32_t rate, uint32_t feedback, uint32_t tone);  /* settings 0..100 */

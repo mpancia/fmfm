@@ -48,6 +48,40 @@ wrap is a multiple of 2^16 and the cut to 16 bits cancels it exactly, so the res
 Why it matters: this is the blend inside every table read and every wave crossfade; the result can never exceed what it
 blends, and the overflow in the original is proved harmless rather than assumed.
 
+## Delay
+
+**`delay_gains_in_range`**: For every feedback setting the gain is between 0 and 0.95 (31129 in Q15), and for every tone
+setting the low-pass amount is between 0.2 and 1.0.
+
+Why it matters: an echo is always quieter than the one before it, so echoes die away at every knob position; the delay
+cannot build up into a howl.
+
+**`delay_echo_shrinks`**: With nothing new on the send, what goes back into the line is at most 95% of the echo plus one
+count of rounding, for every feedback setting (the one most negative number left out).
+
+Why it matters: this is the geometric decay of the echoes. With the low-pass only ever between its state and its input
+(`reverb_lowpass_stays_between`), each pass round the line loses at least a twentieth, so a tail of echoes dies away
+whatever the settings.
+
+**`delay_samples_in_line`**: The delay in samples is always between 1 and 32767, so the echo is read from inside the
+line, never from the sample being written (an offset of 0) and never from a wrapped-round position.
+
+Why it matters: a TIME or TEMPO setting can never make the line read where it writes, which would be a feedback path
+with no delay at all.
+
+**`delay_short_notes_exact`**: At 44.1 kHz and any tempo from 40 to 240, the note values up to a dotted sixteenth (TIME
+0 to 3) give exactly `60 * 44100 * numerator / (bpm * denominator)` samples: the line is long enough that nothing is cut
+short. (Longer notes are exact too until they would pass 32767 samples, 743 ms, where they are held: a quarter note
+below 81 bpm, a dotted eighth below 61, an eighth triplet or an eighth below 41.)
+
+Why it matters: the echo lands on the beat the setting names, at every tempo the TEMPO knob allows.
+
+**`delay_store_saturates`**: A signal for the line saturates at the 16-bit ends instead of wrapping: from 32767 up it
+stores 32767, from -32768 down it stores -32768, and in between it stores the signal.
+
+Why it matters: a send louder than full scale clips at the top of the line, as tape would, rather than flipping sign
+into a click that would then echo.
+
 ## Digital
 
 **`digital_mix_between_inputs`**: A crossfade of two 16-bit values never leaves the range between them (give or take one
@@ -414,12 +448,12 @@ firmware, where it would read past a table; such a slot loads as EMPTY instead.
 Why it matters: a slot never written, or written by other software, is told apart by its first byte and treated as empty
 rather than read as a scramble of settings.
 
-**`patch_decode_rejects_wrong_size`**: A slot that is not exactly 98 bytes long never loads.
+**`patch_decode_rejects_wrong_size`**: A slot that is not exactly 102 bytes long never loads.
 
 Why it matters: a slot written by a firmware with a different patch layout is rejected whole instead of being read field
 by field in the wrong places.
 
-**`patch_encode_size`**: Every saved patch is 98 bytes long.
+**`patch_encode_size`**: Every saved patch is 102 bytes long.
 
 Why it matters: the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a different count
 would make every saved patch unloadable.

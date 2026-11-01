@@ -41,6 +41,28 @@ theorem blend_sixteen_between (a b : Int32) (frac : UInt32)
     min a.toInt b.toInt ≤ (a + (((b - a) * (frac &&& 0xFFFF).toInt32) >>> 16)).toInt16.toInt32.toInt ∧
       (a + (((b - a) * (frac &&& 0xFFFF).toInt32) >>> 16)).toInt16.toInt32.toInt ≤ max a.toInt b.toInt := sorry
 
+-- Proofs/Delay.lean
+theorem delay_gains_in_range (setting : UInt32) :
+    0 ≤ (Delay.feedbackGain setting).toInt ∧ (Delay.feedbackGain setting).toInt ≤ 31129 ∧
+      6554 ≤ (Delay.toneGain setting).toInt ∧ (Delay.toneGain setting).toInt ≤ 32768 := sorry
+
+theorem delay_echo_shrinks (echo feedback : Int32) (nonmin : -2 ^ 31 < echo.toInt)
+    (nonneg : 0 ≤ feedback.toInt) (unit : feedback.toInt ≤ 31129) :
+    (Delay.input 0 echo feedback).toInt.natAbs ≤ echo.toInt.natAbs * 19 / 20 + 1 := sorry
+
+theorem delay_samples_in_line (time bpm rate : UInt32) :
+    1 ≤ (Delay.samples time bpm rate).toNat ∧ (Delay.samples time bpm rate).toNat ≤ 32767 := sorry
+
+theorem delay_short_notes_exact (time bpm : UInt32) (short : time.toNat ≤ 3) (slow : 40 ≤ bpm.toNat)
+    (fast : bpm.toNat ≤ 240) :
+    (Delay.samples time bpm 44100).toNat =
+      60 * 44100 * (Delay.numerator time).toNat / (bpm.toNat * (Delay.denominator time).toNat) := sorry
+
+theorem delay_store_saturates (signal : Int32) :
+    (32767 ≤ signal.toInt → (Delay.store signal).toInt = 32767) ∧
+    (signal.toInt ≤ -32768 → (Delay.store signal).toInt = -32768) ∧
+    (-32768 ≤ signal.toInt → signal.toInt ≤ 32767 → (Delay.store signal).toInt = signal.toInt) := sorry
+
 -- Proofs/Digital.lean
 theorem digital_mix_between_inputs (a b : Int32) (balance : UInt32) (hbal : balance.toNat ≤ 65535)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
@@ -331,10 +353,10 @@ theorem patch_decode_only_fits (bytes : ByteArray) (p : Patch) (loaded : Patch.d
 theorem patch_decode_rejects_wrong_marker (bytes : ByteArray) (nonEmpty : 0 < bytes.size)
     (wrong : bytes[0] ≠ 0xA7) : Patch.decode bytes = none := sorry
 
-theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 98) :
+theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 102) :
     Patch.decode bytes = none := sorry
 
-theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 98 := sorry
+theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 102 := sorry
 
 -- Proofs/Percussion.lean
 theorem percussion_excite_decays (state decay counter level : Int32)

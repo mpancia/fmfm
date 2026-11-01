@@ -20,6 +20,7 @@ static void app_idle(void);
 #include "presets.h"
 #include "theme.h"
 #include "reverb.h"
+#include "delay.h"
 #include "alfred.h"
 #ifndef ALFRED_LOOK
 #define ALFRED_LOOK 5                           /* the look a fresh unit starts with (index into THEMES) */
@@ -69,6 +70,7 @@ static int32_t send_bus[FM1_REVERB_BLOCK], wet_left[FM1_REVERB_BLOCK], wet_right
     __attribute__((section(".pool")));
 static volatile uint32_t reverb_ready;          /* the reverb memory is cleared and the network may run */
 static volatile int32_t reverb_return = 32768;  /* Q15 gain of the wet signal into the mix */
+static volatile int32_t delay_return;           /* the same for the delay; the delay is off while it is 0 */
 
 static void app_audio(int32_t *out, uint32_t n)
 {
@@ -78,7 +80,17 @@ static void app_audio(int32_t *out, uint32_t n)
     for (v = 0; v < NV; v++)
         if (voice[v].amp || voice[v].gate)
             render_voice(v, out, send_bus, n);
-    if (!reverb_ready || !reverb_return) return;
+    if (!reverb_ready) return;
+    if (delay_return) {                         /* the echo, the same to both sides, before the reverb */
+        const uint32_t gain = (uint32_t)delay_return;
+        fm1_delay_block(send_bus, wet_left, n);
+        for (i = 0; i < n; i++) {
+            int32_t *l = &out[2u * i], *r = l + 1, w = (int32_t)fm1_mix_wet_sample((uint32_t)wet_left[i], gain);
+            *l = (int32_t)fm1_mix_limit((uint32_t)(*l + w));
+            *r = (int32_t)fm1_mix_limit((uint32_t)(*r + w));
+        }
+    }
+    if (!reverb_return) return;
     fm1_reverb_block(send_bus, wet_left, wet_right, n);
     for (i = 0; i < n; i++) {
         const uint32_t gain = (uint32_t)reverb_return;
@@ -185,6 +197,9 @@ static struct {
     sound_t sound;
 } lfo[NL];
 static uint32_t reverb_time = 50, reverb_bright = 60, reverb_amount = 70;   /* the send reverb: decay, brightness, return */
+static uint32_t delay_time = 6, delay_feedback = 40, delay_tone = 60, delay_amount;   /* the send delay: note value, feedback, tone, return */
+static uint32_t delay_bpm;                      /* the tempo the delay line is tuned to */
+static const char *const DELAY_TIME_NAME[FM1_DELAY_TIMES] = {"1/32", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.", "1/4"};
 static uint32_t bpm = 100, key, progression, rate_bars = 1, scale_lock, running = 1, tick_acc, tick_ms, tick_count, chord_index;
 static uint32_t selected, patch_index, save_slot, midi_out_base;
 static char patch_name[20] = "INIT";
@@ -264,8 +279,21 @@ static void reverb_apply(void)
     reverb_return = gain;
 }
 
+static void delay_apply(void)
+{
+    int32_t gain = (int32_t)(delay_amount * 328u);          /* 100 is a gain of 1.0 */
+    delay_bpm = bpm;
+    fm1_delay_tune(delay_time, bpm, FS, delay_feedback, delay_tone);
+    if (!delay_return && gain) {                /* while the return was off the line did not run: drop stale echoes */
+        reverb_ready = 0;
+        fm1_delay_clear();
+        reverb_ready = 1;
+    }
+    delay_return = gain;
+}
+
 static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint32_t prog, uint32_t rate, uint32_t lock,
-                      const uint8_t *reverb, const patch_lane_t *src)
+                      const uint8_t *reverb, const uint8_t *delay, const patch_lane_t *src)
 {
     uint32_t i;
     silence_lanes();
@@ -275,6 +303,8 @@ static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint
     chord_index = 0; tick_count = 0;
     reverb_time = reverb[0]; reverb_bright = reverb[1]; reverb_amount = reverb[2];
     reverb_apply();
+    delay_time = delay[0] % FM1_DELAY_TIMES; delay_feedback = delay[1]; delay_tone = delay[2]; delay_amount = delay[3];
+    delay_apply();
     for (i = 0; i < NL; i++) {
         cfg[i].hits = src[i].hits; cfg[i].steps = src[i].steps; cfg[i].speed = src[i].speed; cfg[i].scale = src[i].scale;
         cfg[i].low = src[i].low; cfg[i].span = src[i].span; cfg[i].seed = src[i].seed; cfg[i].algo = src[i].algo;
@@ -317,10 +347,10 @@ static void patch_load(uint32_t index)
     patch_index = index;
     if (index < NPATCHES) {
         const patch_t *p = &PATCHES[index];
-        patch_set(p->name, p->bpm, p->key, p->progression, p->rate, p->scale_lock, p->reverb, p->lane);
+        patch_set(p->name, p->bpm, p->key, p->progression, p->rate, p->scale_lock, p->reverb, p->delay, p->lane);
     } else if ((user = patch_from_slot(index - NPATCHES)) != 0) {
         patch_lane_t lanes[NL];
-        uint8_t reverb[3];
+        uint8_t reverb[3], delay[4];
         char name[7];
         uint32_t i;
         for (i = 0; i < NL; i++) {
@@ -340,13 +370,14 @@ static void patch_load(uint32_t index)
             lean_dec(l);
         }
         for (i = 0; i < 3u; i++) reverb[i] = (uint8_t)fm1_patch_field_of(user, 5u + i);
+        for (i = 0; i < 4u; i++) delay[i] = (uint8_t)fm1_patch_field_of(user, 8u + i);
         user_name(name, index - NPATCHES);
         patch_set(name, fm1_patch_field_of(user, 0), fm1_patch_field_of(user, 1), fm1_patch_field_of(user, 2),
-                  fm1_patch_field_of(user, 3), fm1_patch_field_of(user, 4), reverb, lanes);
+                  fm1_patch_field_of(user, 3), fm1_patch_field_of(user, 4), reverb, delay, lanes);
         lean_dec(user);
     } else {
         const patch_t *p = &PATCHES[0];
-        patch_set("EMPTY", p->bpm, 0, 0, 1, 0, p->reverb, p->lane);
+        patch_set("EMPTY", p->bpm, 0, 0, 1, 0, p->reverb, p->delay, p->lane);
     }
 }
 
@@ -360,7 +391,7 @@ static void patch_save(uint32_t slot)
                                        cfg[i].level, cfg[i].send, cfg[i].seed, cfg[i].feel, cfg[i].rotate, cfg[i].accents,
                                        cfg[i].rule, cfg[i].ratchet, cfg[i].subhits);
     patch = fm1_patch_make(bpm, key, progression, rate_bars, scale_lock, reverb_time, reverb_bright, reverb_amount,
-                           lanes[0], lanes[1], lanes[2], lanes[3]);
+                           delay_time, delay_feedback, delay_tone, delay_amount, lanes[0], lanes[1], lanes[2], lanes[3]);
     bytes = fm1_patch_encode(patch);
     silence_lanes();                            /* a flash write stalls the sound */
     slot_save(slot, lean_sarray_cptr(bytes), (uint32_t)lean_sarray_size(bytes));
@@ -418,21 +449,22 @@ static void play_start(void)
 
 /* ---- pages: four values on screen, four knobs under them */
 enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO };
-enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_REVERB, P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS, P_LFO,
-       NPAGES };
+enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_REVERB, P_DELAY, P_HARMONY, P_SYSTEM, P_MIDI,
+       P_BANKS, P_LFO, NPAGES };
 #define NGROUPS 6u
 static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO"};
 static const uint8_t GROUP_PAGE[NGROUPS][4] = {{P_HOME, 255, 255, 255}, {P_RHYTHM, P_FEEL, P_NOTES, P_RANGE},
                                                {P_SOUND, P_ENVELOPE, P_MIX, 255}, {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS},
-                                               {P_REVERB, 255, 255, 255}, {P_LFO, 255, 255, 255}};
-static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_FX, G_GLO, G_GLO, G_GLO, G_GLO,
-                                           G_LFO};
-static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "REVERB", "HARMONY",
-                                              "SYSTEM", "MIDI", "BANKS", "LANE"};
+                                               {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}};
+static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_FX, G_FX, G_GLO, G_GLO, G_GLO,
+                                           G_GLO, G_LFO};
+static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "REVERB", "DELAY",
+                                              "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE"};
 static const char *const PAGE_LABEL[NPAGES][4] = {
     {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"FEEL", "", "", ""}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
-    {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"}, {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", ""},
+    {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"}, {"TIME", "FEEDBK", "TONE", "RETURN"},
+    {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", ""},
     {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "", ""}, {"TARGET", "RATE", "DEPTH", ""}};
 static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
@@ -546,6 +578,12 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         if (k == 2) { p = put_num(p, reverb_bright); *p++ = '%'; *fill = frac(reverb_bright, 100); }
         if (k == 3) { p = put_num(p, reverb_amount); *p++ = '%'; *fill = frac(reverb_amount, 100); }
         break;
+    case P_DELAY:
+        if (k == 0) { p = put_str(p, DELAY_TIME_NAME[delay_time % FM1_DELAY_TIMES]); *fill = frac((int32_t)delay_time, FM1_DELAY_TIMES - 1); }
+        if (k == 1) { p = put_num(p, delay_feedback); *p++ = '%'; *fill = frac(delay_feedback, 100); }
+        if (k == 2) { p = put_num(p, delay_tone); *p++ = '%'; *fill = frac(delay_tone, 100); }
+        if (k == 3) { p = put_num(p, delay_amount); *p++ = '%'; *fill = frac(delay_amount, 100); }
+        break;
     case P_HARMONY:
         if (k == 0) { p = put_str(p, KEY_NAME[key]); *fill = frac(key, 11); }
         if (k == 1) { p = put_str(p, scale_lock ? SCALE_NAME[scale_lock - 1u] : "LANES"); *fill = frac(scale_lock, NSCALE); }
@@ -638,6 +676,13 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
         if (k == 2) reverb_bright = (uint32_t)clamp((int32_t)reverb_bright + 5 * d, 0, 100);
         if (k == 3) reverb_amount = (uint32_t)clamp((int32_t)reverb_amount + 5 * d, 0, 100);
         reverb_apply();
+        break;
+    case P_DELAY:
+        if (k == 0) delay_time = (uint32_t)clamp((int32_t)delay_time + d, 0, FM1_DELAY_TIMES - 1);
+        if (k == 1) delay_feedback = (uint32_t)clamp((int32_t)delay_feedback + 5 * d, 0, 100);
+        if (k == 2) delay_tone = (uint32_t)clamp((int32_t)delay_tone + 5 * d, 0, 100);
+        if (k == 3) delay_amount = (uint32_t)clamp((int32_t)delay_amount + 5 * d, 0, 100);
+        delay_apply();
         break;
     case P_HARMONY:
         if (k == 0) key = (uint32_t)clamp((int32_t)key + d, 0, 11);
@@ -1000,7 +1045,7 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
     uint32_t h = 2166136261u, i;
     uint32_t g[] = {page, selected, patch_index, bpm, key, progression, rate_bars, scale_lock, running, browse_mode, browse_pos,
                     browse_family, browse_by, browse_type, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
-                    reverb_amount};
+                    reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
     for (i = 0; i < NL; i++) h = (h ^ (lfo[i].target | lfo[i].rate << 8 | lfo[i].depth << 16)) * 16777619u;
     for (i = 0; i < sizeof g / sizeof g[0]; i++) h = (h ^ g[i]) * 16777619u;
@@ -1105,6 +1150,7 @@ static void app_main(void)
         uint32_t base = (uint32_t)((int32_t)KEY0 + 12 * oct);
         platform_poll();
         clock_poll();
+        if (delay_bpm != bpm) delay_apply();    /* the echo follows the tempo */
         { static uint32_t lfo_ms; if (fm1_ms != lfo_ms) { lfo_tick(fm1_ms - lfo_ms); lfo_ms = fm1_ms; } }
 
         keys = fm1_in.notes;                    /* bit k: key k (0 = F3 .. 26 = G5) */

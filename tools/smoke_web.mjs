@@ -71,7 +71,13 @@ for (let i = 0; i < 47; i++) at(20100 + i * 200, turn(ENC.K1, 1));
 at(30000, press(BTN.FX));
 at(30100, turn(ENC.K1, 20)); at(30110, turn(ENC.K4, 20)); at(30200, press(BTN.HOME));
 at(31500, press(BTN.PLAY));
-const END = 38000;
+// the delay: reverb return off, FX again is the DELAY page (1/8 note, full feedback and return); play, stop,
+// and the echoes must ring on, then die away
+at(38000, press(BTN.FX)); at(38100, turn(ENC.K4, -20)); at(38200, press(BTN.FX));
+at(38300, turn(ENC.K1, -2)); at(38350, turn(ENC.K2, 20)); at(38400, turn(ENC.K4, 20)); at(38500, press(BTN.HOME));
+at(38600, press(BTN.PLAY));
+at(42000, press(BTN.PLAY));
+const END = 47000;
 events.sort((a, b) => a[0] - b[0]);
 const inst = await WebAssembly.instantiate(mod, imports);
 mem = inst.exports.memory; inp = inst.exports.web_in_ptr();
@@ -92,6 +98,7 @@ ok('the startup screen draws Alfred and the title', changed(shots.boot, new Uint
 ok('lanes make sound with no key pressed', peak(1000, 4000) > 1000);
 ok('PLAY stops every note; only the reverb tail is left and it dies away', peak(5500, 6000) < 400 && peak(5500, 6000) < peak(4000, 4500));
 const tail = [peak(32000, 32500), peak(33000, 33500), peak(36000, 36500)];
+const echoes = [peak(42500, 43500), peak(44000, 45000), peak(46000, 47000)];
 ok('the preset browser opens over the page', changed(shots['sound page'], shots['sound browser']) > 1500);
 ok('SELECT in the browser chooses another family', changed(shots['sound browser'], shots.family) > 500);
 ok('a button closes the browser', changed(shots['sound page'], shots['home 2']) > 0 && changed(shots.family, shots['home 2']) > 1500);
@@ -111,6 +118,8 @@ ok(`a chord progression keeps playing (${chords[0]} of ${chords[1]} half-seconds
 const shapes = audible(20500, 29500);
 ok(`every shape plays without crashing the firmware (${shapes[0]} of ${shapes[1]} half-seconds audible)`, shapes[0] >= 0.8 * shapes[1]);
 ok(`the reverb tail rings on after PLAY stops and then dies away (${tail.join(', ')})`, tail[0] > 300 && tail[1] < tail[0] && tail[2] <= tail[1]);
+ok(`the delay echoes ring on after PLAY stops and then die away (${echoes.join(', ')})`,
+  echoes[0] > 300 && echoes[1] < echoes[0] && echoes[2] < echoes[1]);
 ok('FX, LFO and ENV open three different pages', changed(shots.fx, shots.lfo) > 500 && changed(shots.lfo, shots.env) > 500 && changed(shots.fx, shots.env) > 500);
 const scaleMask = inst.exports.web_harmony_mask;
 const bits = (m) => m.toString(2).split('1').length - 1;

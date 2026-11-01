@@ -23,4 +23,5 @@ numbers. `fx/delay_glue.c` includes the generated code and runs the line with th
 @[export fm1_dl_lowpass] def dlLowpass (state signal coefficient : Int32) : Int32 :=
   Reverb.lowpass state signal coefficient
 /-- What goes into the line. -/
-@[export fm1_dl_input] def dlInput (send filtered feedback : Int32) : Int32 := Delay.input send filtered feedback
+@[export fm1_dl_input] def dlInput (send filtered feedback : Int32) : Int32 :=
+  Delay.input send filtered feedback

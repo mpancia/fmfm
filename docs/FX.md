@@ -1,5 +1,8 @@
 # Effects
 
+Two sends on one bus: each lane's SEND (on the REVERB page) feeds both the reverb and the delay; each effect has
+its own RETURN. The FX button opens REVERB, and again DELAY.
+
 ## Reverb send
 
 A stereo reverb on a send bus: each lane sends some of its sound to it, the reverb adds its wet signal to the mix.
@@ -98,3 +101,33 @@ Measured with `tools/render_web.mjs` (the simulator's output as a WAV, with its 
   patches' voices. The memory is 64 KiB of the pool (the pool use is 267 KiB of 344 KiB).
 - No delay, no chorus, no other Clouds parts (granular, pitch shifter, diffuser). The diffuser inside the reverb is
   part of it.
+
+## Delay send
+
+A tempo-synced echo on the same send bus: one line of 32768 16-bit samples (743 ms at 44.1 kHz), read a note value
+behind the write position and fed back through a low-pass. The arithmetic is `Firmware/Delay.lean` (it reuses the
+reverb's `mul` and `lowpass`); the line is `fx/delay_glue.c`.
+
+| Control (FX, FX, then knobs) | Does |
+|---|---|
+| TIME | the note value of the echo: 1/32, 1/16, 1/8T, 1/16., 1/8, 1/4T, 1/8., 1/4 of the tempo |
+| FEEDBK | how much of each echo goes round again (0 to 100%; 100% is a gain of 0.95) |
+| TONE | the low-pass in the loop (0.2 to 1.0; 100% is no filtering) |
+| RETURN | how loud the echo is in the mix (0 to 100%; 100% is unity) |
+
+The four belong to the patch (layout version 3, 102 bytes); the echo follows the TEMPO knob and a patch's tempo,
+retuning whenever the tempo changes. Notes longer than the line allows at a slow tempo are held at 743 ms (a
+quarter note below 81 bpm, a dotted eighth below 61). With RETURN at 0 the delay does not run, and when it comes
+back the old echoes are dropped.
+
+What is proved (`docs/PROOFS.md`, section Delay): the feedback gain is at most 0.95 and the tone between 0.2 and
+1.0 for every setting; with nothing new on the send, what goes back into the line is at most 95% of the echo plus
+one count of rounding, so a tail of echoes shrinks geometrically whatever the settings; the delay in samples is
+always between 1 and 32767, so the line never reads where it writes; note values up to a dotted sixteenth are exact
+at every tempo from 40 to 240; a send louder than full scale saturates in the line instead of wrapping. The patch
+round-trip proofs cover the four new bytes.
+
+Tested: `make test` plays with the delay at full feedback and return, stops, and checks that the echoes ring on and
+die away. Rendered with `tools/render_web.mjs` at 64 bpm and a dotted eighth, the peaks after a stop come every
+0.7 s, as they should (703 ms). Not heard. Cost: about 85 host instructions a sample (`make perf`), a seventh of the reverb. Memory:
+64 KiB of the pool, which is now 333 KiB of 344 KiB.

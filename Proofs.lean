@@ -7,6 +7,7 @@ import Proofs.Lane
 import Proofs.Rhythm
 import Proofs.Analog
 import Proofs.Reverb
+import Proofs.Delay
 import Proofs.Lfo
 import Proofs.Harmony
 import Proofs.Run

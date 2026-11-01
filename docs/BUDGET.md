@@ -34,7 +34,8 @@ Host instructions a sample (clang, 32-bit x86); multiply by about 1.15 for chip 
 
 | Case | A sample |
 |---|---|
-| Nothing sounding, reverb off | 12 |
+| Nothing sounding, reverb and delay off | 12 |
+| The delay alone (the line running, nothing sounding) | 97 |
 | INIT patch, four lanes, reverb off | 464 |
 | Reverb alone (lanes stopped, tail running) | 628 |
 | INIT patch with its reverb (the default) | 1086 |

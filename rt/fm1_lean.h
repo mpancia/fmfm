@@ -48,9 +48,9 @@ static inline uint32_t fm1_lane_hit_at_of(lean_object *l, uint32_t i) { lean_inc
 static inline uint32_t fm1_lane_accent_at_of(lean_object *l, uint32_t i) { lean_inc(l); return fm1_lane_accent_at(l, i); }
 static inline uint32_t fm1_lane_loud_of(lean_object *l) { lean_inc(l); return fm1_lane_loud(l); }
 
-/* Firmware/PatchApi.lean: a user patch as 74 bytes for a flash slot (Proofs/Patch.lean: a patch the knobs can
+/* Firmware/PatchApi.lean: a user patch as 102 bytes for a flash slot (Proofs/Patch.lean: a patch the knobs can
  * produce loads back unchanged; anything else decodes to none). Every call consumes its object arguments. */
-#define FM1_PATCH_BYTES 98u
+#define FM1_PATCH_BYTES 102u
 lean_object *fm1_patch_lane_make(uint32_t hits, uint32_t steps, uint32_t speed, uint32_t scale, uint32_t sound,
                                  uint32_t low, uint32_t span, uint32_t algo, uint32_t chance, uint32_t amount,
                                  uint32_t mutate, uint32_t chord, uint32_t level, uint32_t send, uint32_t seed,
@@ -58,10 +58,11 @@ lean_object *fm1_patch_lane_make(uint32_t hits, uint32_t steps, uint32_t speed, 
                                  uint32_t subhits);
 lean_object *fm1_patch_make(uint32_t bpm, uint32_t key, uint32_t progression, uint32_t rate, uint32_t scale_lock,
                             uint32_t reverb_time, uint32_t reverb_bright, uint32_t reverb_amount,
+                            uint32_t delay_time, uint32_t delay_feedback, uint32_t delay_tone, uint32_t delay_amount,
                             lean_object *lane0, lean_object *lane1, lean_object *lane2, lean_object *lane3);
 lean_object *fm1_patch_encode(lean_object *patch);             /* a ByteArray: lean_sarray_cptr, lean_sarray_size */
 lean_object *fm1_patch_decode(lean_object *bytes);             /* Option: lean_is_scalar for none, else field 0 */
-uint32_t fm1_patch_field(lean_object *patch, uint32_t index);  /* bpm, key, progression, rate, scale lock, reverb x3 */
+uint32_t fm1_patch_field(lean_object *patch, uint32_t index);  /* bpm, key, progression, rate, scale lock, reverb x3, delay x4 */
 lean_object *fm1_patch_lane(lean_object *patch, uint32_t index);
 uint32_t fm1_patch_lane_field(lean_object *lane, uint32_t index);   /* the patch_lane_t fields in order, seed, then the FEEL six */
 
