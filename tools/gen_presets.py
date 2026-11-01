@@ -305,6 +305,32 @@ DEMOS = [
                           (8, 16, 3, 7, "CYMBAL MID", 60, 1, 703, (0, 90, 1, 0, 0, 60, 12), (3, 0, 0, 90, 2, 2)),
                           (3, 8, 5, 3, "SAW SUB DARK", 36, 12, 704, (6, 100, 6, 5, 0, 100, 10), (3, 0, 0, 90, 2, 1))],
      0, 1, (30, 70, 45), (1, 25, 80, 25)),
+    # the Tonnetz: WALK LR through all 24 triads, a chord a bar (Proofs/Tonnetz.lean: a Hamiltonian cycle, one note
+    # changing each move); a pad holds the triad, a bass and an arpeggio climb it, a bell wanders
+    ("TONNETZ", 72, 0, [(1, 4, 7, 0, "3 SIN PAD", 48, 12, 801, (10, 100, 3, 0, 2, 90, 45)),
+                        (2, 8, 5, 0, "SAW SUB DARK", 36, 12, 802, (2, 100, 1, 0, 2, 100, 10)),
+                        (5, 8, 4, 0, "PLUCK MID", 60, 12, 803, (2, 100, 1, 0, 2, 95, 35)),
+                        (2, 16, 3, 0, "BELL DARK", 72, 12, 804, (0, 60, 1, 0, 1, 75, 60))],
+     8, 1, (80, 50, 70), (6, 40, 55, 30)),
+    # a hexatonic cycle: WALK PL, six triads in E minor's neighbourhood, bowed and slow, two bars a chord
+    ("HEXATONIC", 66, 4, [(1, 4, 7, 1, "VOWEL PAD", 48, 12, 811, (10, 100, 3, 0, 2, 90, 50)),
+                          (3, 8, 5, 1, "BOW MID", 48, 12, 812, (4, 100, 1, 0, 2, 95, 40)),
+                          (1, 8, 6, 1, "SAW SUB DARK", 36, 12, 813, (2, 100, 1, 0, 2, 100, 10)),
+                          (3, 16, 3, 1, "BELL BRIGHT", 72, 12, 814, (0, 50, 1, 0, 2, 70, 60))],
+     9, 2, (85, 45, 75), (7, 45, 50, 30)),
+    # an octatonic cycle: WALK PR, eight triads, plucked and quick, a chord a bar
+    ("OCTATONIC", 112, 7, [(4, 16, 3, 0, "SAW SUB DARK", 36, 12, 821, (2, 100, 1, 0, 2, 100, 10)),
+                           (7, 16, 3, 0, "CSAW PLUCK", 60, 12, 822, (0, 100, 1, 0, 2, 80, 30)),
+                           (5, 8, 4, 0, "FM PLUCK", 55, 12, 823, (4, 100, 1, 0, 2, 75, 35)),
+                           (3, 8, 5, 0, "3 SIN PAD", 48, 12, 824, (10, 100, 3, 0, 2, 60, 45))],
+     10, 1, (60, 60, 55), (3, 35, 65, 30)),
+    # the white keys and the black: two lanes in C major, two on COMPL, the pentatonic it leaves out; the same
+    # intervals two fewer each (harmony_complement_interval_content), and never a note in common
+    ("BLACK KEYS", 88, 0, [(3, 8, 5, 0, "HARMONIC MID", 48, 12, 831, (1, 100, 2, 0, 0, 80, 35)),
+                           (5, 16, 3, 0, "PLUCK BRIGHT", 60, 12, 832, (0, 100, 1, 0, 0, 70, 30)),
+                           (3, 8, 5, 0, "FLUTE MID", 60, 12, 833, (1, 100, 2, 0, 3, 75, 40)),
+                           (2, 8, 6, 0, "WAVE MAP PAD", 72, 12, 834, (0, 80, 1, 0, 3, 55, 55))],
+     0, 1, (70, 55, 60), (6, 40, 55, 30)),
 ]
 
 
