@@ -371,7 +371,9 @@ static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint
         lane[i] = fm1_lane_make(cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i), cfg[i].low, cfg[i].span,
                                 0x9E3779B9u * (cfg[i].seed + 1u));
         lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, cfg[i].chance, cfg[i].amount, cfg[i].mutate);
-        WATCH_LANE_SET(i, lane_mask(i), cfg[i].hits, cfg[i].steps, 0, cfg[i].chance);   /* a made lane's rhythm is plain */
+        lane[i] = fm1_lane_set_rhythm(lane[i], cfg[i].feel, cfg[i].rotate, cfg[i].accents, cfg[i].rule, cfg[i].ratchet,
+                                      cfg[i].subhits, 1);
+        WATCH_LANE_SET(i, lane_mask(i), cfg[i].hits, cfg[i].steps, cfg[i].feel, cfg[i].chance);
     }
 }
 

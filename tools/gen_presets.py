@@ -311,7 +311,7 @@ DEMOS = [
      0, 1, (30, 70, 45), (1, 25, 80, 25)),
     # the Tonnetz: WALK LR through all 24 triads, a chord a bar (Proofs/Tonnetz.lean: a Hamiltonian cycle, one note
     # changing each move); a pad holds the triad, a bass and an arpeggio climb it, a bell wanders
-    ("TONNETZ", 72, 0, [(1, 4, 7, 0, "FM GLASS PAD", 48, 12, 801, (10, 100, 3, 0, 2, 80, 45)),
+    ("TONNETZ", 72, 0, [(1, 4, 7, 0, "FM GLASS PAD", 48, 12, 801, (10, 100, 3, 0, 2, 80, 45), (1, 1, 0, 90, 1, 1)),
                         (2, 8, 5, 0, "FM BASS MID", 36, 12, 802, (2, 100, 1, 0, 2, 100, 10)),
                         (5, 8, 4, 0, "FM PIANO MID", 60, 12, 803, (2, 100, 1, 0, 2, 90, 35)),
                         (2, 16, 3, 0, "FM BELL MID", 72, 12, 804, (0, 60, 1, 0, 1, 70, 60))],
@@ -335,6 +335,32 @@ DEMOS = [
                            (3, 8, 5, 0, "FLUTE MID", 60, 12, 833, (1, 100, 2, 0, 3, 75, 40)),
                            (2, 8, 6, 0, "WAVE MAP PAD", 72, 12, 834, (0, 80, 1, 0, 3, 55, 55))],
      0, 1, (70, 55, 60), (6, 40, 55, 30)),
+    # the FM voice: an electric piano ballad in F, I-V-vi-IV two bars a chord; piano chords, a bass on the triad,
+    # a glass pad holding it, a dark bell now and then
+    ("ELECTRIC", 84, 5, [(2, 8, 5, 0, "FM PIANO MID", 55, 12, 901, (10, 100, 3, 0, 1, 90, 40)),
+                         (3, 8, 5, 0, "FM BASS MID", 36, 12, 902, (2, 100, 1, 0, 2, 100, 10)),
+                         (1, 8, 7, 0, "FM GLASS PAD", 60, 12, 903, (10, 100, 3, 0, 2, 60, 55), (1, 1, 0, 90, 1, 1)),
+                         (2, 16, 3, 0, "FM BELL DARK", 72, 12, 904, (0, 45, 1, 0, 1, 55, 65))],
+     2, 2, (80, 55, 65), (6, 45, 50, 30)),
+    # mallets: a gamelan of bells and mallets in D pentatonic, bars of 16, 8 and 12 steps against each other
+    ("LANTERNS", 108, 2, [(7, 16, 3, 2, "FM MALLET MID", 60, 12, 911, (1, 100, 2, 0, 0, 85, 35)),
+                          (3, 8, 4, 2, "FM BELL BRIGHT", 72, 12, 912, (4, 100, 1, 0, 0, 60, 60)),
+                          (5, 12, 3, 2, "FM MALLET DARK", 48, 12, 913, (5, 100, 5, 15, 0, 90, 30)),
+                          (2, 8, 5, 2, "FM PIANO DARK", 36, 12, 914, (2, 100, 1, 0, 0, 100, 20))],
+     0, 1, (65, 65, 55), (3, 35, 65, 35)),
+    # vespers: an organ holds the chord of a slow i-VI-III-VII in A minor, four bars each (its one hit turned to the
+    # first step, so the chord is there from the start); brass answers mid-bar, glass walks a line, a bell marks the bar
+    ("VESPERS", 60, 9, [(1, 4, 7, 1, "FM ORGAN PAD", 48, 12, 921, (10, 100, 3, 0, 1, 80, 60), (1, 1, 0, 90, 1, 1)),
+                        (1, 8, 7, 1, "FM BRASS PAD", 48, 12, 922, (2, 100, 1, 0, 2, 70, 55), (1, 5, 0, 90, 1, 1)),
+                        (3, 8, 5, 1, "FM GLASS MID", 60, 12, 923, (1, 90, 2, 0, 2, 75, 50)),
+                        (1, 16, 5, 1, "FM BELL MID", 72, 12, 924, (0, 100, 1, 0, 2, 60, 70))],
+     5, 4, (95, 40, 80), (7, 50, 45, 35)),
+    # factory: a kick, an FM bass loop, clang stabs and a ratcheted mallet, in E phrygian
+    ("FACTORY", 126, 4, [(4, 16, 3, 7, "KICK MID", 36, 1, 931, (0, 100, 1, 0, 0, 100, 5)),
+                         (6, 16, 3, 8, "FM BASS BRIGHT", 36, 12, 932, (5, 100, 8, 10, 0, 100, 10)),
+                         (3, 16, 3, 8, "FM CLANG MID", 60, 12, 933, (0, 90, 1, 0, 0, 70, 40)),
+                         (5, 8, 4, 8, "FM MALLET BRIGHT", 72, 12, 934, (4, 100, 1, 0, 0, 65, 35), (3, 0, 0, 90, 3, 2))],
+     0, 1, (40, 70, 45), (2, 30, 75, 30)),
 ]
 
 
