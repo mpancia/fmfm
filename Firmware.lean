@@ -10,6 +10,7 @@ import Firmware.Arp
 import Firmware.ArpApi
 import Firmware.Lfo
 import Firmware.Harmony
+import Firmware.Tonnetz
 import Firmware.Analog
 import Firmware.AnalogApi
 import Firmware.Digital

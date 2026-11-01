@@ -61,7 +61,7 @@ for (let i = 0; i < 6; i++) at(6600 + i * 1000, turn(ENC.K2, 3));               
 at(12000, press(BTN.SEQ)); at(12050, turn(ENC.K3, 3)); at(12100, shot('compl')); at(14000, turn(ENC.K3, -3));
 // a chord progression and a key change (GLO: HARMONY; knob 1 key, 3 chords)
 at(14100, press(BTN.GLO)); at(14200, turn(ENC.K3, 2)); at(14300, turn(ENC.K1, 3));
-at(17000, turn(ENC.K3, 2));
+at(17000, turn(ENC.K3, 4));                                                     // and on to WALK LR (progression 8)
 // the FX, LFO and ENV buttons open their pages; an LFO on lane 1's chance keeps the music going
 at(19000, press(BTN.FX)); at(19100, shot('fx'));
 at(19200, press(BTN.LFO)); at(19300, shot('lfo')); at(19350, turn(ENC.K1, 1)); at(19400, turn(ENC.K3, 20));
@@ -126,10 +126,15 @@ ok('FX, LFO and ENV open three different pages', changed(shots.fx, shots.lfo) > 
 const scaleMask = inst.exports.web_harmony_mask;
 const bits = (m) => m.toString(2).split('1').length - 1;
 ok('the scales are real: minor in C is 0x5AD, major in D is major turned up two semitones, a triad has three notes',
-   scaleMask(1, 0, 0, 0) === 0x5AD && scaleMask(0, 2, 0, 0) === (((0xAB5 << 2) | (0xAB5 >> 10)) & 0xFFF) &&
-   bits(scaleMask(0, 0, 0, 2)) === 3);
+   scaleMask(1, 0, 0, 0, 0) === 0x5AD && scaleMask(0, 2, 0, 0, 0) === (((0xAB5 << 2) | (0xAB5 >> 10)) & 0xFFF) &&
+   bits(scaleMask(0, 0, 1, 0, 2)) === 3);
 ok('COMPL is the notes outside the key: C major gives the black keys, the chromatic scale stays whole',
-   scaleMask(0, 0, 0, 3) === (0xFFF ^ 0xAB5) && scaleMask(7, 0, 0, 3) === 0xFFF);
+   scaleMask(0, 0, 0, 0, 3) === (0xFFF ^ 0xAB5) && scaleMask(7, 0, 0, 0, 3) === 0xFFF);
+// the L R walk from C major: C, E minor, G, B minor (progression 8; TRIAD follow); every chord shares two notes with the last
+const triad = (s) => scaleMask(0, 0, 8, s, 2);
+ok('WALK LR from C major goes C, Em, G, Bm, a triad each, two notes in common each move',
+   triad(0) === 0x091 && triad(1) === 0x890 && triad(2) === 0x884 && triad(3) === 0x844 &&
+   [0, 1, 2, 3, 22].every((s) => bits(triad(s)) === 3 && bits(triad(s) & triad(s + 1)) === 2));
 ok('the RANGE page shows COMPL', changed(shots.compl, shots['home 2']) > 500);
 ok('no Lean runtime reports', reports.length === 0);
 // the proofs, watched (fw/firmware/src/watch.h): the theorems' statements checked on the running machine

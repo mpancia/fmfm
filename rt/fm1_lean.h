@@ -32,9 +32,12 @@ static inline uint32_t fm1_arp_on_of(lean_object *a) { lean_inc(a); return fm1_a
 static inline uint32_t fm1_arp_off_of(lean_object *a) { lean_inc(a); return fm1_arp_off(a); }
 static inline uint32_t fm1_arp_held_of(lean_object *a) { lean_inc(a); return fm1_arp_held(a); }
 
-/* Firmware/Harmony.lean: the scale a lane plays in (scale index, key, chord root, follow 0/1/2); never empty */
-uint32_t fm1_harmony_mask(uint32_t scale, uint32_t key, uint32_t chord_root, uint32_t follow);
-uint32_t fm1_harmony_chord_root(uint32_t scale, uint32_t progression, uint32_t step);   /* semitones above the key */
+/* Firmware/Harmony.lean: the scale a lane plays in (scale index, key, progression, chord count, follow 0 to 3);
+ * never empty. The chord root for the screen, semitones above the key, and whether the chord is a minor triad
+ * (only a Tonnetz walk, progression 8 and up, can say). */
+uint32_t fm1_harmony_mask(uint32_t scale, uint32_t key, uint32_t progression, uint32_t step, uint32_t follow);
+uint32_t fm1_harmony_chord_root(uint32_t scale, uint32_t progression, uint32_t step);
+uint32_t fm1_harmony_chord_minor(uint32_t scale, uint32_t progression, uint32_t step);
 
 /* Firmware/Lfo.lean: scalar, safe in any context */
 uint32_t fm1_lfo_advance(uint32_t phase, uint32_t step);

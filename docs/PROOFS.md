@@ -374,28 +374,53 @@ is the range that keeps that product in step with the original's.
 ## Harmony
 
 **`harmony_mask_never_empty`**: The mask handed to a lane always has at least one note and fits in 12 bits, for every
-scale, key, chord and follow mode the firmware offers.
+scale, key, progression, chord and follow mode the firmware offers, the Tonnetz walks included.
 
 Why it matters: `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for the
 chord-following lanes too, so a chord change can never leave a lane with nothing to play.
 
-**`harmony_follow_in_key`**: With chord follow, 7TH or TRIAD, every note a lane may play is a note of the key's scale,
-whatever chord it is on: the chord is stacked from the key's scale at the chord root, not a shape moved to the root.
+**`harmony_follow_in_key`**: On a table progression with chord follow, 7TH or TRIAD, every note a lane may play is a
+note of the key's scale, whatever chord it is on: the chord is stacked from the key's scale at the chord root, not a
+shape moved to the root.
 
 Why it matters: a chord progression played with chord follow stays in the key. (The ii chord of C major is D F A, not D
-F# A; the second is what a transposed shape gave, and trying to prove this is what caught it.)
+F# A; the second is what a transposed shape gave, and trying to prove this is what caught it.) The Tonnetz walks are the
+exception on purpose: `harmony_walk_chord_is_triad` says where they go.
 
-**`harmony_progression_chord_has_root`**: With chord follow on a chord of a progression, the chord's root is among the
-lane's notes, in every scale and key (and without follow it is too, being a note of the key).
+**`harmony_progression_chord_has_root`**: With chord follow, 7TH or TRIAD, the chord's root is among the lane's notes,
+in every scale and key, on the tables and on the walks alike.
 
-Why it matters: joined with `harmony_chord_root_in_key`, a progression's chord is a chord of the key with its root
-present; a lane following it can play the root, not only upper notes of some other chord.
+Why it matters: joined with `harmony_chord_root_in_key`, a table progression's chord is a chord of the key with its root
+present, and a walk's chord is the triad the screen names; a lane following either can play the root, not only upper
+notes of some other chord.
 
-**`harmony_chord_root_in_key`**: Every chord root is a note of the key's scale: whatever the progression, scale and
-chord, the root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave.
+**`harmony_chord_root_in_key`**: On a table progression, every chord root is a note of the key's scale: whatever the
+scale and chord, the root the lanes move to (and the screen names) is a semitone step that the scale has, below an
+octave.
 
 Why it matters: progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor one; this
-is the promise that a chord never lands on a note outside the key.
+is the promise that a chord never lands on a note outside the key. A walk's root can and does.
+
+**`harmony_walk_chord_is_triad`**: On a Tonnetz walk (progressions 8 and up) with chord follow, 7TH or TRIAD, a lane
+plays exactly the walk's triad turned to the key: three notes, and the chord the screen names.
+
+Why it matters: the walks leave the key on purpose, one note at a time (`harmony_walk_keeps_two_notes`); this is the
+promise that what the lane plays is that triad and nothing else, so the screen's chord name is the truth about the
+notes.
+
+**`harmony_walk_keeps_two_notes`**: Every move of a Tonnetz walk keeps two of the triad's three notes and changes one:
+consecutive chords of any walk share exactly two pitch classes.
+
+Why it matters: this is what makes the walks sound like voice leading rather than jumps: P, L and R are the three ways
+to change one note of a triad and get another triad, so a lane on a walk moves one note at a time, through all 24 triads
+if the word is L R.
+
+**`harmony_complement_outside_key`**: COMPL (chord follow 3) plays the notes outside the key's scale and nothing else,
+for every scale and key, whatever chord is on; the chromatic scale, which leaves nothing out, plays whole.
+
+Why it matters: COMPL is a second voice that never collides with a lane in the key, the black keys to its white; with
+`harmony_complement_interval_content` it has the key's intervals, so it belongs to the same music while sharing no note
+with it.
 
 **`harmony_complement_interval_content`**: Babbitt's hexachord theorem in its general form, any cycle `Z_n` and any set:
 the pairs at distance `d` in the complement are the pairs at that distance in the set, plus `n - 2 * size` (an ordered
@@ -413,13 +438,6 @@ twelve pitch classes has the interval vector of the six it leaves out, checked f
 Why it matters: the instance the name comes from, on the 12-bit masks the lanes play from: a hexachord and its
 complement are indistinguishable by interval content, which is the general theorem above at `n = 12`, `size = 6`, where
 the difference `n - 2 * size` is zero.
-
-**`harmony_complement_outside_key`**: COMPL (chord follow 3) plays the notes outside the key's scale and nothing else,
-for every scale and key, whatever chord is on; the chromatic scale, which leaves nothing out, plays whole.
-
-Why it matters: COMPL is a second voice that never collides with a lane in the key, the black keys to its white; with
-`harmony_complement_interval_content` it has the key's intervals, so it belongs to the same music while sharing no note
-with it.
 
 ## Lane
 
@@ -1347,6 +1365,45 @@ tables (16 phases by 16 amplitudes).
 
 Why it matters: the vowel's formant amplitudes are 4-bit by construction of its data; with any such amplitude, no phase
 can read past the formant sine or square table.
+
+## Tonnetz
+
+**`tonnetz_moves_are_involutions`**: Each of P, L and R undoes itself: C major to E minor and back.
+
+Why it matters: a walk can always be retraced; and it is the first of the dihedral relations below.
+
+**`tonnetz_group_has_order_24`**: The group the three moves generate has exactly 24 elements: every word of moves acts
+as one of the 24 listed elements, and no two of those act alike.
+
+Why it matters: however long a word of P, L and R, there are only 24 things it can do to a triad; the knob's walks live
+in a small, fully known group (the dihedral group of order 24, `tonnetz_group_is_dihedral`), the neo-Riemannian PLR
+group of music theory.
+
+**`tonnetz_simply_transitive`**: The group acts simply transitively on the triads: from any triad there is exactly one
+element reaching any other.
+
+Why it matters: every one of the 24 triads is reachable from every other by some word of moves, and the word's effect is
+determined by where it sends a single triad: a walk that returns C major to C major returns every triad to itself.
+
+**`tonnetz_commutes_with_transposition_and_inversion`**: The PLR group commutes with every transposition and every
+inversion (the duality of the two groups, Lewin's): moving by P, L or R and then transposing is transposing and then
+moving, likewise inverting.
+
+Why it matters: a walk sounds the same in every key: the walk from D major is the walk from C major moved up a tone,
+note for note; and the walk from a minor triad is the inversion of the walk from a major one.
+
+**`tonnetz_group_is_dihedral`**: The dihedral relations: L R has order exactly 12, L has order 2, and L conjugates L R
+to its inverse R L.
+
+Why it matters: with `tonnetz_group_has_order_24` this names the group: the dihedral group of order 24, the symmetries
+of a 12-gon, with L R the rotation and L a reflection.
+
+**`tonnetz_walks_are_cycles`**: The L R walk visits all 24 triads, each once, and comes back after 24 moves, from any
+start; the P L walk is a cycle of six (a hexatonic cycle) and the P R walk one of eight (an octatonic cycle).
+
+Why it matters: the walks on the knob are these: L R is a Hamiltonian cycle on the Tonnetz, every major and minor triad
+once in 24 chords, a note changing at a time (`harmony_walk_keeps_two_notes`); P L and P R are the two short cycles, six
+and eight chords, that the same two-note rule allows.
 
 ## VoiceSetup
 

@@ -1,119 +1,276 @@
 import Spec.Harmony
 
 /-- The C entries reduce their arguments as 32-bit numbers; as plain numbers that is the same reduction. -/
-private theorem harmony_mod_toNat (x : UInt32) (n : UInt32) : (x % n).toNat = x.toNat % n.toNat := UInt32.toNat_mod x n
+private theorem harmony_mod_toNat (x : UInt32) (n : UInt32) : (x % n).toNat = x.toNat % n.toNat :=
+  UInt32.toNat_mod x n
 
-/-- Checked for every scale, key, chord root and follow mode: the mask is never empty and fits in 12 bits. -/
-private theorem harmony_every_mask_ok :
-    ∀ scale, scale < 14 → ∀ key, key < 12 → ∀ root, root < 12 → ∀ follow, follow < 4 →
-      Harmony.laneMask scale key root follow ≠ 0 ∧ Harmony.laneMask scale key root follow < 4096 := by
+/-- A made triad is below 24. -/
+private theorem tonnetz_make_lt (r : Nat) (m : Bool) : Tonnetz.make r m < 24 := by
+  unfold Tonnetz.make; cases m <;> simp <;> omega
+
+/-- A move lands below 24. -/
+private theorem tonnetz_step_lt (g t : Nat) : Tonnetz.step g t < 24 := by
+  unfold Tonnetz.step Tonnetz.P Tonnetz.L Tonnetz.R
+  split <;> (try split) <;> exact tonnetz_make_lt _ _
+
+/-- A walk only ever stands on one of the 24 triads. -/
+private theorem tonnetz_walk_lt (word start : Nat) : ∀ count, Tonnetz.walk word start count < 24 := by
+  intro count
+  cases count with
+  | zero => exact Nat.mod_lt _ (by decide)
+  | succ count => exact tonnetz_step_lt _ _
+
+/-- A word's letters are 0, 1 or 2. -/
+private theorem tonnetz_letter_lt (word i : Nat) : Tonnetz.letter word i < 3 := by
+  unfold Tonnetz.letter; split <;> omega
+
+/-- A walk's chord is one of the 24 triads. -/
+private theorem harmony_walk_chord_lt (scale p s : Nat) : Harmony.walkChord scale p s < 24 :=
+  tonnetz_walk_lt _ _ _
+
+/-- A table progression repeats every four chords: the mask and the root only see the chord count modulo 4. -/
+private theorem harmony_table_period (scale key p s follow : Nat) (table : p < 8) :
+    Harmony.laneMask scale key p s follow = Harmony.laneMask scale key p (s % 4) follow ∧
+      Harmony.chordRoot scale p s = Harmony.chordRoot scale p (s % 4) := by
+  have w : Harmony.walks p = false := by unfold Harmony.walks; simp; omega
+  constructor
+  · unfold Harmony.laneMask Harmony.chordRoot Harmony.degree
+    simp only [Nat.mod_mod, w, Bool.false_eq_true, ite_false]
+  · unfold Harmony.chordRoot Harmony.degree
+    simp only [Nat.mod_mod]
+
+/-- Checked for every scale, key, table progression, chord and follow mode: the mask is never empty and fits
+in 12 bits. -/
+private theorem harmony_every_table_mask_ok :
+    ∀ scale : Fin 14, ∀ key : Fin 12, ∀ p : Fin 8, ∀ s : Fin 4, ∀ follow : Fin 4,
+      Harmony.laneMask scale key p s follow ≠ 0 ∧ Harmony.laneMask scale key p s follow < 4096 := by
   decide +kernel
 
-/-- Checked likewise: with either chord follow, every note of the chord is a note of the key's scale. -/
-private theorem harmony_every_chord_in_key :
-    ∀ scale, scale < 14 → ∀ key, key < 12 → ∀ root, root < 12 → ∀ follow, follow < 3 →
-      Harmony.laneMask scale key root follow &&& Harmony.laneMask scale key 0 0 =
-        Harmony.laneMask scale key root follow := by
+/-- Checked likewise for OFF, 7TH and TRIAD: the mask is inside the key's scale and holds the chord root. -/
+private theorem harmony_every_table_chord_ok :
+    ∀ scale : Fin 14, ∀ key : Fin 12, ∀ p : Fin 8, ∀ s : Fin 4, ∀ follow : Fin 3,
+      Harmony.laneMask scale key p s follow &&& Harmony.laneMask scale key 0 0 0 =
+          Harmony.laneMask scale key p s follow ∧
+        (Harmony.laneMask scale key p s follow).testBit ((key + Harmony.chordRoot scale p s) % 12) =
+            true := by
   decide +kernel
 
-/-- Checked for every scale, progression and chord: the root is a note of the scale and below an octave. -/
+/-- Checked for every triad and key: a walk's triad turned to the key is three notes in 12 bits with its root
+among them. -/
+private theorem harmony_every_walk_mask_ok :
+    ∀ t : Fin 24, ∀ key : Fin 12,
+      Harmony.rotate (Tonnetz.mask t) key ≠ 0 ∧ Harmony.rotate (Tonnetz.mask t) key < 4096 ∧
+        Harmony.size (Harmony.rotate (Tonnetz.mask t) key) = 3 ∧
+        (Harmony.rotate (Tonnetz.mask t) key).testBit ((key + Tonnetz.root t) % 12) = true := by
+  decide +kernel
+
+/-- Checked for every triad and move: the triad after a move shares exactly two notes with the one before. -/
+private theorem tonnetz_every_move_keeps_two :
+    ∀ t : Fin 24, ∀ g : Fin 3, Harmony.size (Tonnetz.mask t &&& Tonnetz.mask (Tonnetz.step g t)) = 2 := by
+  decide +kernel
+
+/-- Checked for every scale, table progression and chord: the root is a note of the scale and below an octave. -/
 private theorem harmony_every_root_in_scale :
-    ∀ scale, scale < 14 → ∀ p, p < 8 → ∀ s, s < 4 →
-      (Harmony.scale scale).testBit (Harmony.chordRoot scale p s) = true ∧ Harmony.chordRoot scale p s < 12 := by
+    ∀ scale : Fin 14, ∀ p : Fin 8, ∀ s : Fin 4,
+      (Harmony.scale scale).testBit (Harmony.chordRoot scale p s) = true ∧
+          Harmony.chordRoot scale p s < 12 := by
   decide +kernel
 
-/-- Checked likewise: with chord follow on a progression's chord, the chord root itself is one of the lane's
-notes. -/
-private theorem harmony_every_chord_has_root :
-    ∀ scale, scale < 14 → ∀ key, key < 12 → ∀ p, p < 8 → ∀ s, s < 4 → ∀ follow, follow < 3 →
-      (Harmony.laneMask scale key (Harmony.chordRoot scale p s) follow).testBit
-        ((key + Harmony.chordRoot scale p s) % 12) = true := by
-  decide +kernel
+/-- On a walk, 7TH and TRIAD both give the walk's triad turned to the key. -/
+private theorem harmony_walk_mask (scale key p s follow : Nat) (walk : 8 ≤ p) (chordal : 1 ≤ follow ∧
+    follow ≤ 2) :
+    Harmony.laneMask scale key p s follow =
+        Harmony.rotate (Tonnetz.mask (Harmony.walkChord scale p s)) (key % 12) := by
+  unfold Harmony.laneMask
+  have w : Harmony.walks p = true := by unfold Harmony.walks; simp [walk]
+  simp only [show follow ≠ 3 by omega, show follow ≠ 0 by omega, w, ite_true, ite_false]
 
-/-- The mask handed to a lane always has at least one note and fits in 12 bits, for every scale, key, chord
-and follow mode the firmware offers.
+/-- OFF and COMPL see only the key's scale, whatever the progression and chord. -/
+private theorem harmony_key_only (scale key p s follow : Nat) (plain : follow = 0 ∨ follow = 3) :
+    Harmony.laneMask scale key p s follow = Harmony.laneMask scale key 0 0 follow := by
+  unfold Harmony.laneMask
+  rcases plain with rfl | rfl <;> simp
+
+/-- The mask, for any settings in range: never empty, 12 bits. -/
+private theorem harmony_mask_ok (scale key p s follow : Nat) (sc : scale < 14) (k : key < 12) (pr : p < 11)
+    (st : s < 24) (f : follow < 4) :
+    Harmony.laneMask scale key p s follow ≠ 0 ∧ Harmony.laneMask scale key p s follow < 4096 := by
+  rcases Nat.lt_or_ge p 8 with table | walk
+  · rw [(harmony_table_period scale key p s follow table).1]
+    exact harmony_every_table_mask_ok ⟨scale, sc⟩ ⟨key, k⟩ ⟨p, table⟩ ⟨s % 4,
+        Nat.mod_lt _ (by decide)⟩ ⟨follow, f⟩
+  · by_cases plain : follow = 0 ∨ follow = 3
+    · rw [harmony_key_only scale key p s follow plain]
+      exact harmony_every_table_mask_ok ⟨scale, sc⟩ ⟨key, k⟩ ⟨0, by decide⟩ ⟨0, by decide⟩ ⟨follow, f⟩
+    · rw [harmony_walk_mask scale key p s follow walk (by omega), Nat.mod_eq_of_lt k]
+      have ⟨ne, small, _⟩ := harmony_every_walk_mask_ok ⟨Harmony.walkChord scale p s,
+          harmony_walk_chord_lt _ _ _⟩
+        ⟨key, k⟩
+      exact ⟨ne, small⟩
+
+/-- The chord root, for any settings in range: below an octave. -/
+private theorem harmony_root_lt (scale p s : Nat) (sc : scale < 14) (pr : p < 11) (st : s < 24) :
+    Harmony.root scale p s < 12 := by
+  unfold Harmony.root
+  rcases Nat.lt_or_ge p 8 with table | walk
+  · have w : Harmony.walks p = false := by unfold Harmony.walks; simp; omega
+    simp only [w, Bool.false_eq_true, ite_false]
+    rw [(harmony_table_period scale 0 p s 0 table).2]
+    exact (harmony_every_root_in_scale ⟨scale, sc⟩ ⟨p, table⟩ ⟨s % 4, Nat.mod_lt _ (by decide)⟩).2
+  · have w : Harmony.walks p = true := by unfold Harmony.walks; simp [walk]
+    simp only [w, ite_true]
+    exact Nat.mod_lt _ (by decide)
+
+/-- The settings as the C entries reduce them. -/
+private theorem harmony_args (scale key progression step follow : UInt32) :
+    (harmonyMask scale key progression step follow).toNat =
+        Harmony.laneMask (scale.toNat % 14) (key.toNat % 12)
+      (progression.toNat % 11) (step.toNat % 24) (follow.toNat % 4) ∧
+    (harmonyChordRoot scale progression step).toNat =
+      Harmony.root (scale.toNat % 14) (progression.toNat % 11) (step.toNat % 24) := by
+  unfold harmonyMask harmonyChordRoot
+  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat =
+      12 from rfl,
+    show (11 : UInt32).toNat = 11 from rfl, show (24 : UInt32).toNat = 24 from rfl,
+    show (4 : UInt32).toNat = 4 from rfl]
+  have ⟨_, small⟩ := harmony_mask_ok (scale.toNat % 14) (key.toNat % 12) (progression.toNat % 11)
+    (step.toNat % 24) (follow.toNat % 4) (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide))
+    (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide))
+  have root := harmony_root_lt (scale.toNat % 14) (progression.toNat % 11) (step.toNat % 24)
+    (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide))
+  generalize Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) (progression.toNat % 11) (step.toNat % 24)
+    (follow.toNat % 4) = a at *
+  generalize Harmony.root (scale.toNat % 14) (progression.toNat % 11) (step.toNat % 24) = r at *
+  simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show a < 2 ^ 32 by omega),
+    Nat.mod_eq_of_lt (show r < 2 ^ 32 by omega)]
+
+/-- The mask handed to a lane always has at least one note and fits in 12 bits, for every scale, key,
+progression, chord and follow mode the firmware offers, the Tonnetz walks included.
 Why it matters: `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for
 the chord-following lanes too, so a chord change can never leave a lane with nothing to play. -/
-theorem harmony_mask_never_empty (scale key root follow : UInt32) :
-    (harmonyMask scale key root follow).toNat ≠ 0 ∧ (harmonyMask scale key root follow).toNat < 4096 := by
-  unfold harmonyMask
-  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat = 12 from rfl,
-    show (8 : UInt32).toNat = 8 from rfl, show (4 : UInt32).toNat = 4 from rfl]
-  have ⟨ne, small⟩ := harmony_every_mask_ok (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) (root.toNat % 12) (Nat.mod_lt _ (by decide)) (follow.toNat % 4)
-    (Nat.mod_lt _ (by decide))
-  generalize Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) (root.toNat % 12) (follow.toNat % 4) = m
-    at *
-  simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show m < 2 ^ 32 by omega), ne, small]
+theorem harmony_mask_never_empty (scale key progression step follow : UInt32) :
+    (harmonyMask scale key progression step follow).toNat ≠ 0 ∧
+      (harmonyMask scale key progression step follow).toNat < 4096 := by
+  rw [(harmony_args scale key progression step follow).1]
+  exact harmony_mask_ok _ _ _ _ _ (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide))
+    (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide))
 
-/-- With chord follow, 7TH or TRIAD, every note a lane may play is a note of the key's scale, whatever chord
-it is on: the chord is stacked from the key's scale at the chord root, not a shape moved to the root.
+/-- On a table progression with chord follow, 7TH or TRIAD, every note a lane may play is a note of the key's
+scale, whatever chord it is on: the chord is stacked from the key's scale at the chord root, not a shape moved
+to the root.
 Why it matters: a chord progression played with chord follow stays in the key. (The ii chord of C major is
-D F A, not D F# A; the second is what a transposed shape gave, and trying to prove this is what caught it.) -/
-theorem harmony_follow_in_key (scale key root follow : UInt32) (chordal : follow.toNat % 4 < 3) :
-    (harmonyMask scale key root follow).toNat &&& (harmonyMask scale key 0 0).toNat =
-      (harmonyMask scale key root follow).toNat := by
-  unfold harmonyMask
-  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat = 12 from rfl,
-    show (8 : UInt32).toNat = 8 from rfl, show (4 : UInt32).toNat = 4 from rfl]
-  have ⟨_, s2⟩ := harmony_every_mask_ok (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) (root.toNat % 12) (Nat.mod_lt _ (by decide)) (follow.toNat % 4)
-    (Nat.mod_lt _ (by decide))
-  have ⟨_, s0⟩ := harmony_every_mask_ok (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) 0 (by decide) 0 (by decide)
-  have inside := harmony_every_chord_in_key (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) (root.toNat % 12) (Nat.mod_lt _ (by decide)) (follow.toNat % 4) chordal
-  simp only [show (0 : UInt32).toNat % 4 = 0 from rfl, show (0 : UInt32).toNat % 12 = 0 from rfl]
-  generalize Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) (root.toNat % 12) (follow.toNat % 4) = a at *
-  generalize Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) 0 0 = b at *
-  simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show a < 2 ^ 32 by omega),
-    Nat.mod_eq_of_lt (show b < 2 ^ 32 by omega), inside]
+D F A, not D F# A; the second is what a transposed shape gave, and trying to prove this is what caught it.)
+The Tonnetz walks are the exception on purpose: `harmony_walk_chord_is_triad` says where they go. -/
+theorem harmony_follow_in_key (scale key progression step follow : UInt32)
+    (table : progression.toNat % 11 < 8) (chordal : follow.toNat % 4 < 3) :
+    (harmonyMask scale key progression step follow).toNat &&& (harmonyMask scale key 0 0 0).toNat =
+      (harmonyMask scale key progression step follow).toNat := by
+  rw [(harmony_args scale key progression step follow).1, (harmony_args scale key 0 0 0).1]
+  simp only [show (0 : UInt32).toNat % 11 = 0 from rfl, show (0 : UInt32).toNat % 24 = 0 from rfl,
+    show (0 : UInt32).toNat % 4 = 0 from rfl]
+  rw [(harmony_table_period _ _ _ _ _ table).1]
+  exact (harmony_every_table_chord_ok ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, table⟩
+    ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, chordal⟩).1
 
-/-- With chord follow on a chord of a progression, the chord's root is among the lane's notes, in every scale
-and key (and without follow it is too, being a note of the key).
-Why it matters: joined with `harmony_chord_root_in_key`, a progression's chord is a chord of the key with its
-root present; a lane following it can play the root, not only upper notes of some other chord. -/
+/-- With chord follow, 7TH or TRIAD, the chord's root is among the lane's notes, in every scale and key,
+    on the
+tables and on the walks alike.
+Why it matters: joined with `harmony_chord_root_in_key`,
+    a table progression's chord is a chord of the key with
+its root present, and a walk's chord is the triad the screen names; a lane following either can play the root,
+not only upper notes of some other chord. -/
 theorem harmony_progression_chord_has_root (scale key progression step follow : UInt32)
-    (chordal : follow.toNat % 4 < 3) :
-    (harmonyMask scale key (harmonyChordRoot scale progression step) follow).toNat.testBit
+    (chordal : 1 ≤ follow.toNat % 4 ∧ follow.toNat % 4 ≤ 2) :
+    (harmonyMask scale key progression step follow).toNat.testBit
       ((key.toNat % 12 + (harmonyChordRoot scale progression step).toNat) % 12) = true := by
-  unfold harmonyMask harmonyChordRoot
-  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat = 12 from rfl,
-    show (8 : UInt32).toNat = 8 from rfl, show (4 : UInt32).toNat = 4 from rfl]
-  have ⟨_, small⟩ := harmony_every_root_in_scale (scale.toNat % 14) (Nat.mod_lt _ (by decide))
-    (progression.toNat % 8) (Nat.mod_lt _ (by decide)) (step.toNat % 4) (Nat.mod_lt _ (by decide))
-  have has := harmony_every_chord_has_root (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) (progression.toNat % 8) (Nat.mod_lt _ (by decide)) (step.toNat % 4)
-    (Nat.mod_lt _ (by decide)) (follow.toNat % 4) chordal
-  have ⟨_, s2⟩ := harmony_every_mask_ok (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) (Harmony.chordRoot (scale.toNat % 14) (progression.toNat % 8) (step.toNat % 4))
-    small (follow.toNat % 4) (Nat.mod_lt _ (by decide))
-  generalize Harmony.chordRoot (scale.toNat % 14) (progression.toNat % 8) (step.toNat % 4) = r at *
-  have rn : (r.toUInt32).toNat = r := by
-    simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show r < 2 ^ 32 by omega)]
-  simp only [rn, Nat.mod_eq_of_lt small]
-  generalize Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) r (follow.toNat % 4) = a at *
-  simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show a < 2 ^ 32 by omega)]
-  rwa [Nat.add_mod, Nat.mod_mod, ← Nat.add_mod] at has
+  rw [(harmony_args scale key progression step follow).1, (harmony_args scale key progression step follow).2]
+  unfold Harmony.root
+  rcases Nat.lt_or_ge (progression.toNat % 11) 8 with table | walk
+  · have w : Harmony.walks (progression.toNat % 11) = false := by unfold Harmony.walks; simp; omega
+    simp only [w, Bool.false_eq_true, ite_false]
+    rw [(harmony_table_period _ _ _ _ _ table).1, (harmony_table_period (scale.toNat % 14) 0 _ _ 0 table).2]
+    exact (harmony_every_table_chord_ok ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, table⟩
+      ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, by omega⟩).2
+  · have w : Harmony.walks (progression.toNat % 11) = true := by unfold Harmony.walks; simp [walk]
+    simp only [w, ite_true]
+    rw [harmony_walk_mask _ _ _ _ _ walk chordal, Nat.mod_mod]
+    exact (harmony_every_walk_mask_ok ⟨_, harmony_walk_chord_lt _ _ _⟩ ⟨_, Nat.mod_lt _ (by decide)⟩).2.2.2
 
-/-- Every chord root is a note of the key's scale: whatever the progression, scale and chord, the root the
-lanes move to (and the screen names) is a semitone step that the scale has, below an octave.
+/-- On a table progression, every chord root is a note of the key's scale: whatever the scale and chord, the
+root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave.
 Why it matters: progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor
-one; this is the promise that a chord never lands on a note outside the key. -/
-theorem harmony_chord_root_in_key (scale progression step : UInt32) :
+one; this is the promise that a chord never lands on a note outside the key. A walk's root can and does. -/
+theorem harmony_chord_root_in_key (scale progression step : UInt32) (table : progression.toNat % 11 < 8) :
     (Harmony.scale (scale.toNat % 14)).testBit (harmonyChordRoot scale progression step).toNat = true ∧
       (harmonyChordRoot scale progression step).toNat < 12 := by
-  unfold harmonyChordRoot
-  simp only [harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl, show (12 : UInt32).toNat = 12 from rfl,
-    show (8 : UInt32).toNat = 8 from rfl, show (4 : UInt32).toNat = 4 from rfl]
-  have ⟨inScale, small⟩ := harmony_every_root_in_scale (scale.toNat % 14) (Nat.mod_lt _ (by decide))
-    (progression.toNat % 8) (Nat.mod_lt _ (by decide)) (step.toNat % 4) (Nat.mod_lt _ (by decide))
-  generalize Harmony.chordRoot (scale.toNat % 14) (progression.toNat % 8) (step.toNat % 4) = r at *
-  simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show r < 2 ^ 32 by omega), inScale, small]
+  rw [(harmony_args scale 0 progression step 0).2]
+  unfold Harmony.root
+  have w : Harmony.walks (progression.toNat % 11) = false := by unfold Harmony.walks; simp; omega
+  simp only [w, Bool.false_eq_true, ite_false]
+  rw [(harmony_table_period (scale.toNat % 14) 0 _ _ 0 table).2]
+  exact harmony_every_root_in_scale ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, table⟩ ⟨_, Nat.mod_lt _ (by decide)⟩
+
+/-- On a Tonnetz walk (progressions 8 and up) with chord follow, 7TH or TRIAD, a lane plays exactly the walk's
+triad turned to the key: three notes, and the chord the screen names.
+Why it matters: the walks leave the key on purpose, one note at a time (`harmony_walk_keeps_two_notes`); this
+is the promise that what the lane plays is that triad and nothing else, so the screen's chord name is the
+truth about the notes. -/
+theorem harmony_walk_chord_is_triad (scale key progression step follow : UInt32)
+    (walk : 8 ≤ progression.toNat % 11) (chordal : 1 ≤ follow.toNat % 4 ∧ follow.toNat % 4 ≤ 2) :
+    (harmonyMask scale key progression step follow).toNat = Harmony.rotate
+      (Tonnetz.mask (Harmony.walkChord (scale.toNat % 14) (progression.toNat % 11) (step.toNat % 24)))
+      (key.toNat % 12) ∧
+    Harmony.size (harmonyMask scale key progression step follow).toNat = 3 := by
+  rw [(harmony_args scale key progression step follow).1, harmony_walk_mask _ _ _ _ _ walk chordal,
+      Nat.mod_mod]
+  exact ⟨rfl, (harmony_every_walk_mask_ok ⟨_, harmony_walk_chord_lt _ _ _⟩ ⟨_,
+      Nat.mod_lt _ (by decide)⟩).2.2.1⟩
+
+/-- Every move of a Tonnetz walk keeps two of the triad's three notes and changes one: consecutive chords of
+any walk share exactly two pitch classes.
+Why it matters: this is what makes the walks sound like voice leading rather than jumps: P, L and R are the
+three ways to change one note of a triad and get another triad, so a lane on a walk moves one note at a
+time, through all 24 triads if the word is L R. -/
+theorem harmony_walk_keeps_two_notes (word start count : Nat) :
+    Harmony.size (Tonnetz.mask (Tonnetz.walk word start count) &&&
+      Tonnetz.mask (Tonnetz.walk word start (count + 1))) = 2 := by
+  show Harmony.size (Tonnetz.mask (Tonnetz.walk word start count) &&&
+    Tonnetz.mask (Tonnetz.step (Tonnetz.letter word count) (Tonnetz.walk word start count))) = 2
+  exact tonnetz_every_move_keeps_two ⟨_, tonnetz_walk_lt _ _ _⟩ ⟨_, tonnetz_letter_lt _ _⟩
+
+/-- Checked for every scale and key: COMPL plays exactly the notes outside the key's scale, except for the
+chromatic scale, which it leaves whole. -/
+private theorem harmony_every_complement_outside :
+    ∀ scale : Fin 14, ∀ key : Fin 12,
+      let inKey := Harmony.laneMask scale key 0 0 0
+      (inKey = 0xFFF ∧ Harmony.laneMask scale key 0 0 3 = 0xFFF) ∨
+        (Harmony.laneMask scale key 0 0 3 &&& inKey = 0 ∧ Harmony.laneMask scale key 0 0 3 ||| inKey =
+            0xFFF) := by
+  decide +kernel
+
+/-- COMPL (chord follow 3) plays the notes outside the key's scale and nothing else, for every scale and key,
+whatever chord is on; the chromatic scale, which leaves nothing out, plays whole.
+Why it matters: COMPL is a second voice that never collides with a lane in the key, the black keys to its
+white; with `harmony_complement_interval_content` it has the key's intervals, so it belongs to the same music
+while sharing no note with it. -/
+theorem harmony_complement_outside_key (scale key progression step follow : UInt32)
+    (compl : follow.toNat % 4 = 3) :
+    let inKey := (harmonyMask scale key 0 0 0).toNat
+    let outside := (harmonyMask scale key progression step follow).toNat
+    (inKey = 0xFFF ∧ outside = 0xFFF) ∨ (outside &&& inKey = 0 ∧ outside ||| inKey = 0xFFF) := by
+  intro inKey outside
+  have a := (harmony_args scale key progression step follow).1
+  have b := (harmony_args scale key 0 0 0).1
+  simp only [show (0 : UInt32).toNat % 11 = 0 from rfl, show (0 : UInt32).toNat % 24 = 0 from rfl,
+    show (0 : UInt32).toNat % 4 = 0 from rfl] at b
+  rw [compl, harmony_key_only _ _ _ _ 3 (Or.inr rfl)] at a
+  simp only [inKey, outside, a, b]
+  exact harmony_every_complement_outside ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, Nat.mod_lt _ (by decide)⟩
 
 /-- Splitting a count by a second test: the ones that pass it and the ones that do not add up. -/
 private theorem harmony_count_split (p q : Nat → Bool) : ∀ l : List Nat,
-    (l.filter (fun k => p k && q k)).length + (l.filter (fun k => p k && !q k)).length = (l.filter p).length := by
+    (l.filter (fun k => p k && q k)).length + (l.filter (fun k => p k && !q k)).length =
+        (l.filter p).length := by
   intro l
   induction l with
   | nil => rfl
@@ -207,37 +364,3 @@ theorem harmony_hexachord_theorem (mask : Nat) (small : mask < 4096) (six : Harm
   rw [split]
   exact this (split ▸ six)
 
-/-- Checked for every scale and key: COMPL plays exactly the notes outside the key's scale, except for the
-chromatic scale, which it leaves whole. -/
-private theorem harmony_every_complement_outside :
-    ∀ scale, scale < 14 → ∀ key, key < 12 → ∀ root, root < 12 →
-      let inKey := Harmony.laneMask scale key 0 0
-      (inKey = 0xFFF ∧ Harmony.laneMask scale key root 3 = 0xFFF) ∨
-        (Harmony.laneMask scale key root 3 &&& inKey = 0 ∧
-          Harmony.laneMask scale key root 3 ||| inKey = 0xFFF) := by
-  decide +kernel
-
-/-- COMPL (chord follow 3) plays the notes outside the key's scale and nothing else, for every scale and key,
-whatever chord is on; the chromatic scale, which leaves nothing out, plays whole.
-Why it matters: COMPL is a second voice that never collides with a lane in the key, the black keys to its
-white; with `harmony_complement_interval_content` it has the key's intervals, so it belongs to the same music
-while sharing no note with it. -/
-theorem harmony_complement_outside_key (scale key root follow : UInt32) (compl : follow.toNat % 4 = 3) :
-    let inKey := (harmonyMask scale key 0 0).toNat
-    let outside := (harmonyMask scale key root follow).toNat
-    (inKey = 0xFFF ∧ outside = 0xFFF) ∨ (outside &&& inKey = 0 ∧ outside ||| inKey = 0xFFF) := by
-  intro inKey outside
-  have ⟨_, s0⟩ := harmony_every_mask_ok (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) 0 (by decide) 0 (by decide)
-  have ⟨_, s3⟩ := harmony_every_mask_ok (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) (root.toNat % 12) (Nat.mod_lt _ (by decide)) 3 (by decide)
-  have := harmony_every_complement_outside (scale.toNat % 14) (Nat.mod_lt _ (by decide)) (key.toNat % 12)
-    (Nat.mod_lt _ (by decide)) (root.toNat % 12) (Nat.mod_lt _ (by decide))
-  simp only [inKey, outside, harmonyMask, harmony_mod_toNat, show (14 : UInt32).toNat = 14 from rfl,
-    show (12 : UInt32).toNat = 12 from rfl, show (4 : UInt32).toNat = 4 from rfl, compl,
-    show (0 : UInt32).toNat % 4 = 0 from rfl, show (0 : UInt32).toNat % 12 = 0 from rfl]
-  generalize Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) (root.toNat % 12) 3 = a at *
-  generalize Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) 0 0 = b at *
-  simp only [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show a < 2 ^ 32 by omega),
-    Nat.mod_eq_of_lt (show b < 2 ^ 32 by omega)]
-  exact this

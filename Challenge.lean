@@ -260,32 +260,46 @@ theorem filters_setup_cutoff_in_range (pitch parameter : Int32) :
       (FiltersSetup.swarmCutoff pitch parameter).toInt ≤ 25078 := sorry
 
 -- Proofs/Harmony.lean
-theorem harmony_mask_never_empty (scale key root follow : UInt32) :
-    (harmonyMask scale key root follow).toNat ≠ 0 ∧ (harmonyMask scale key root follow).toNat < 4096 := sorry
+theorem harmony_mask_never_empty (scale key progression step follow : UInt32) :
+    (harmonyMask scale key progression step follow).toNat ≠ 0 ∧
+      (harmonyMask scale key progression step follow).toNat < 4096 := sorry
 
-theorem harmony_follow_in_key (scale key root follow : UInt32) (chordal : follow.toNat % 4 < 3) :
-    (harmonyMask scale key root follow).toNat &&& (harmonyMask scale key 0 0).toNat =
-      (harmonyMask scale key root follow).toNat := sorry
+theorem harmony_follow_in_key (scale key progression step follow : UInt32)
+    (table : progression.toNat % 11 < 8) (chordal : follow.toNat % 4 < 3) :
+    (harmonyMask scale key progression step follow).toNat &&& (harmonyMask scale key 0 0 0).toNat =
+      (harmonyMask scale key progression step follow).toNat := sorry
 
 theorem harmony_progression_chord_has_root (scale key progression step follow : UInt32)
-    (chordal : follow.toNat % 4 < 3) :
-    (harmonyMask scale key (harmonyChordRoot scale progression step) follow).toNat.testBit
+    (chordal : 1 ≤ follow.toNat % 4 ∧ follow.toNat % 4 ≤ 2) :
+    (harmonyMask scale key progression step follow).toNat.testBit
       ((key.toNat % 12 + (harmonyChordRoot scale progression step).toNat) % 12) = true := sorry
 
-theorem harmony_chord_root_in_key (scale progression step : UInt32) :
+theorem harmony_chord_root_in_key (scale progression step : UInt32) (table : progression.toNat % 11 < 8) :
     (Harmony.scale (scale.toNat % 14)).testBit (harmonyChordRoot scale progression step).toNat = true ∧
       (harmonyChordRoot scale progression step).toNat < 12 := sorry
+
+theorem harmony_walk_chord_is_triad (scale key progression step follow : UInt32)
+    (walk : 8 ≤ progression.toNat % 11) (chordal : 1 ≤ follow.toNat % 4 ∧ follow.toNat % 4 ≤ 2) :
+    (harmonyMask scale key progression step follow).toNat = Harmony.rotate
+      (Tonnetz.mask (Harmony.walkChord (scale.toNat % 14) (progression.toNat % 11) (step.toNat % 24)))
+      (key.toNat % 12) ∧
+    Harmony.size (harmonyMask scale key progression step follow).toNat = 3 := sorry
+
+theorem harmony_walk_keeps_two_notes (word start count : Nat) :
+    Harmony.size (Tonnetz.mask (Tonnetz.walk word start count) &&&
+      Tonnetz.mask (Tonnetz.walk word start (count + 1))) = 2 := sorry
+
+theorem harmony_complement_outside_key (scale key progression step follow : UInt32)
+    (compl : follow.toNat % 4 = 3) :
+    let inKey := (harmonyMask scale key 0 0 0).toNat
+    let outside := (harmonyMask scale key progression step follow).toNat
+    (inKey = 0xFFF ∧ outside = 0xFFF) ∨ (outside &&& inKey = 0 ∧ outside ||| inKey = 0xFFF) := sorry
 
 theorem harmony_complement_interval_content (n d : Nat) (positive : 0 < n) (S : Nat → Bool) :
     Harmony.pairs n d (fun k => !S k) + 2 * Harmony.count n S = Harmony.pairs n d S + n := sorry
 
 theorem harmony_hexachord_theorem (mask : Nat) (small : mask < 4096) (six : Harmony.size mask = 6) :
     Harmony.intervalVector mask = Harmony.intervalVector (0xFFF ^^^ mask) := sorry
-
-theorem harmony_complement_outside_key (scale key root follow : UInt32) (compl : follow.toNat % 4 = 3) :
-    let inKey := (harmonyMask scale key 0 0).toNat
-    let outside := (harmonyMask scale key root follow).toNat
-    (inKey = 0xFFF ∧ outside = 0xFFF) ∨ (outside &&& inKey = 0 ∧ outside ||| inKey = 0xFFF) := sorry
 
 -- Proofs/Lane.lean
 theorem lane_make_valid (hits steps div mask low span : Nat) (seed : UInt32) :
@@ -998,6 +1012,32 @@ theorem tables_wave_line_reads_inside_129 (phase mask : UInt32) :
 
 theorem tables_formant_reads_inside_256 (phase amp : UInt32) (nibble : amp.toNat ≤ 15) :
     (((phase >>> 24) &&& 0xF0) ||| amp).toNat ≤ 255 := sorry
+
+-- Proofs/Tonnetz.lean
+theorem tonnetz_moves_are_involutions (g : Fin 3) (t : Tonnetz.Triad) :
+    Tonnetz.move g (Tonnetz.move g t) = t := sorry
+
+theorem tonnetz_group_has_order_24 :
+    (∀ w : List (Fin 3), ∃ i : Fin 24, ∀ t, Tonnetz.apply w t = Tonnetz.act i t) ∧
+      ∀ i j : Fin 24, i ≠ j → ∃ t, Tonnetz.act i t ≠ Tonnetz.act j t := sorry
+
+theorem tonnetz_simply_transitive :
+    (∀ a b : Tonnetz.Triad, ∃ i : Fin 24, Tonnetz.act i a = b) ∧
+      ∀ a : Tonnetz.Triad, ∀ i j : Fin 24, Tonnetz.act i a = Tonnetz.act j a → i = j := sorry
+
+theorem tonnetz_commutes_with_transposition_and_inversion (i : Fin 24) (n : Fin 12) (t : Tonnetz.Triad) :
+    Tonnetz.act i (Tonnetz.transpose n t) = Tonnetz.transpose n (Tonnetz.act i t) ∧
+      Tonnetz.act i (Tonnetz.invert n t) = Tonnetz.invert n (Tonnetz.act i t) := sorry
+
+theorem tonnetz_group_is_dihedral :
+    (∀ t, Tonnetz.apply ((List.replicate 12 [1, 2]).flatten) t = t) ∧
+      (∀ k : Fin 12, 0 < k.val → ∃ t, Tonnetz.apply ((List.replicate k.val [1, 2]).flatten) t ≠ t) ∧
+      (∀ t, Tonnetz.apply [1, 1, 2, 1] t = Tonnetz.apply [2, 1] t) := sorry
+
+theorem tonnetz_walks_are_cycles (start : Fin 24) :
+    ((List.range 24).map (Tonnetz.walk 0 start)).Nodup ∧ Tonnetz.walk 0 start 24 = start ∧
+      ((List.range 6).map (Tonnetz.walk 1 start)).Nodup ∧ Tonnetz.walk 1 start 6 = start ∧
+      ((List.range 8).map (Tonnetz.walk 2 start)).Nodup ∧ Tonnetz.walk 2 start 8 = start := sorry
 
 -- Proofs/VoiceSetup.lean
 theorem voice_setup_pitch_in_range (note : UInt32) (midi : note.toNat ≤ 127) (timbre : Int32)

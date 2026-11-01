@@ -1,3 +1,5 @@
+import Firmware.Tonnetz
+
 set_option compiler.extract_closed false
 
 /-- Scale number `scale` as a 12-bit mask: bit 0 is the root, bit 11 the major seventh. The order matches the
@@ -31,20 +33,6 @@ def Harmony.triad (mask root : Nat) : Nat := Harmony.stack mask root 3
 /-- The seventh chord on `root`: the triad and the seventh. -/
 def Harmony.seventh (mask root : Nat) : Nat := Harmony.stack mask root 4
 
-/-- The mask a lane plays in: scale number `scale`, in `key`, and with chord follow the chord on `chordRoot`
-semitones above the key, built from the key's own scale so its notes are always notes of the key: `follow` 1
-(7TH) is the seventh chord, the first, third, fifth and seventh note of the key's scale from the chord root;
-`follow` 2 (TRIAD) is the first, third and fifth. `follow` 3 (COMPL) is the complement: the notes outside the
-key's scale (the black keys to its white), which `harmony_complement_interval_content` shows carry the same
-intervals as the scale, each class `12 - 2 * size` times fewer; a chromatic scale has no complement and keeps
-every note. -/
-def Harmony.laneMask (scale key chordRoot follow : Nat) : Nat :=
-  let inKey := Harmony.rotate (Harmony.scale scale) (key % 12)
-  let root := (key + chordRoot) % 12
-  if follow = 3 then (if inKey = 0xFFF then inKey else 0xFFF ^^^ inKey)
-  else if follow = 2 then Harmony.triad inKey root
-  else if follow = 1 then Harmony.seventh inKey root else inKey
-
 /-- The chord progressions on GLO > HARMONY, as scale degrees (0 is the key's root, 4 the fifth note of the
 scale), four chords each, chord `s`: 0 is no progression, then 1-4-5-1, 1-5-6-4, 6-4-1-5, 2-5-1-1, 1-6-3-7,
 1-3-4-5 and 1-6-2-5. Degrees, not semitones, so the same progression fits every scale: 1-4-5-1 is I IV V in a
@@ -66,14 +54,53 @@ def Harmony.chordRoot (scale p s : Nat) : Nat :=
   let tones := Harmony.tones (Harmony.scale scale) 0
   tones.getD (Harmony.degree p s % tones.length) 0
 
-/-- C entry: the chord root for the lanes and the screen (see `Harmony.chordRoot`). The settings are reduced as
-32-bit numbers before they become `Nat`: on the chip a `Nat` above 2^31 would need the big-number runtime it
-does not have. -/
+/-- The chord `s` of progression `p` in scale `scale` as a triad (`Tonnetz.make`), for the walks (`p` 8 and
+up): the word `p - 8` walked `s` moves from the key's tonic triad, major or minor as the scale's third is. -/
+def Harmony.walkChord (scale p s : Nat) : Nat :=
+  let tonic := Tonnetz.make 0 (!(Harmony.scale scale).testBit 4 && (Harmony.scale scale).testBit 3)
+  Tonnetz.walk (p - 8) tonic (s % 24)
+
+/-- Is progression `p` a walk on the Tonnetz rather than a table of degrees? -/
+def Harmony.walks (p : Nat) : Bool := 8 ≤ p
+
+/-- The root of chord `s` of progression `p`, as semitones above the key: the scale degree's note for the
+tables, the walk's triad root for the walks. -/
+def Harmony.root (scale p s : Nat) : Nat :=
+  if Harmony.walks p then Tonnetz.root (Harmony.walkChord scale p s) else Harmony.chordRoot scale p s
+
+/-- The mask a lane plays in: scale number `scale`, in `key`, on chord `s` of progression `p`, with chord
+follow `follow`. The chords of a table progression are built from the key's own scale, so their notes are
+always notes of the key: `follow` 1 (7TH) is the seventh chord, the first, third, fifth and seventh note of
+the key's scale from the chord root; `follow` 2 (TRIAD) the first, third and fifth. On a walk (`p` 8 and up) both
+give the walk's own triad, turned to the key: a walk leaves the key by design, one note at a time. `follow` 3
+(COMPL) is the complement: the notes outside the key's scale (the black keys to its white), which
+`harmony_complement_interval_content` shows carry the same intervals as the scale, each class `12 - 2 * size`
+times fewer; a chromatic scale has no complement and keeps every note. -/
+def Harmony.laneMask (scale key p s follow : Nat) : Nat :=
+  let inKey := Harmony.rotate (Harmony.scale scale) (key % 12)
+  let root := (key + Harmony.chordRoot scale p s) % 12
+  if follow = 3 then (if inKey = 0xFFF then inKey else 0xFFF ^^^ inKey)
+  else if follow = 0 then inKey
+  else if Harmony.walks p then Harmony.rotate (Tonnetz.mask (Harmony.walkChord scale p s)) (key % 12)
+  else if follow = 2 then Harmony.triad inKey root
+  else Harmony.seventh inKey root
+
+/-- C entry: the chord root for the screen (see `Harmony.root`): 11 progressions, a chord count that wraps at
+24 (the longest walk). The settings are reduced as 32-bit numbers before they become `Nat`: on the chip a
+`Nat` above 2^31 would need the big-number runtime it does not have. -/
 @[export fm1_harmony_chord_root]
 def harmonyChordRoot (scale progression step : UInt32) : UInt32 :=
-  (Harmony.chordRoot (scale % 14).toNat (progression % 8).toNat (step % 4).toNat).toUInt32
+  (Harmony.root (scale % 14).toNat (progression % 11).toNat (step % 24).toNat).toUInt32
+
+/-- C entry: is the chord a minor triad (1) or not (0)? Only a walk can say minor; the tables name degrees. -/
+@[export fm1_harmony_chord_minor]
+def harmonyChordMinor (scale progression step : UInt32) : UInt32 :=
+  if Harmony.walks (progression % 11).toNat ∧
+      Tonnetz.minor (Harmony.walkChord (scale % 14).toNat (progression % 11).toNat (step % 24).toNat) then 1
+  else 0
 
 /-- C entry: the mask for a lane (see `Harmony.laneMask`). -/
 @[export fm1_harmony_mask]
-def harmonyMask (scale key chordRoot follow : UInt32) : UInt32 :=
-  (Harmony.laneMask (scale % 14).toNat (key % 12).toNat (chordRoot % 12).toNat (follow % 4).toNat).toUInt32
+def harmonyMask (scale key progression step follow : UInt32) : UInt32 :=
+  (Harmony.laneMask (scale % 14).toNat (key % 12).toNat (progression % 11).toNat (step % 24).toNat
+    (follow % 4).toNat).toUInt32

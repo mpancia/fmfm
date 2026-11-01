@@ -12,3 +12,4 @@ import Spec.Machine
 import Spec.Harmony
 import Spec.Delay
 import Spec.Presets
+import Spec.Tonnetz

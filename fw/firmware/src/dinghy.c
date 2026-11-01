@@ -185,9 +185,11 @@ static const char *const FEEL_LABEL[NFEEL][3] = {{"", "", ""}, {"ROTATE", "ACCEN
 #define NALGO (sizeof ALGO_NAME / sizeof ALGO_NAME[0])
 static const char *const CHORD_NAME[] = {"OFF", "7TH", "TRIAD", "COMPL"};
 static const char *const KEY_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-/* chord progressions as scale degrees, one chord a step: Harmony.degree in Firmware/Harmony.lean; 0 is no progression */
+/* chord progressions as scale degrees, one chord a step: Harmony.degree in Firmware/Harmony.lean; 0 is no progression.
+ * The last three are walks on the Tonnetz (Firmware/Tonnetz.lean): the triad moves by the word's letters in turn,
+ * L R through all 24 triads, P L round a hexatonic cycle of six, P R round an octatonic one of eight. */
 static const char *const PROGRESSION_NAME[] = {"OFF", "1-4-5-1", "1-5-6-4", "6-4-1-5", "2-5-1-1", "1-6-3-7", "1-3-4-5",
-                                               "1-6-2-5"};
+                                               "1-6-2-5", "WALK LR", "WALK PL", "WALK PR"};
 #define NPROGRESSION (sizeof PROGRESSION_NAME / sizeof PROGRESSION_NAME[0])
 static const uint8_t RATE_BARS[] = {1, 2, 4};
 static const uint16_t ATTACK_MS[4] = {2, 6, 25, 190};
@@ -232,17 +234,23 @@ static uint32_t lane_scale(uint32_t i) { return scale_lock ? scale_lock - 1u : c
 /* the current chord's root in a scale, semitones above the key: a degree of that scale (Firmware/Harmony.lean) */
 static uint32_t chord_root(uint32_t scale) { return progression ? fm1_harmony_chord_root(scale, progression, chord_index) : 0u; }
 
+#ifdef WATCHED
+static uint32_t bits12(uint32_t m) { uint32_t n = 0, k; for (k = 0; k < 12u; k++) n += (m >> k) & 1u; return n; }
+#endif
 static uint32_t lane_mask(uint32_t i)           /* the scale, turned to the key and the current chord: Firmware/Harmony.lean */
 {
     uint32_t scale = lane_scale(i);
     uint32_t follow = cfg[i].chord == 3u ? 3u : progression ? cfg[i].chord : 0u;   /* COMPL needs no progression */
-    uint32_t mask = fm1_harmony_mask(scale, key, chord_root(scale), follow);
+    uint32_t mask = fm1_harmony_mask(scale, key, progression, chord_index, follow);
 #ifdef WATCHED
     {
-        uint32_t root = chord_root(scale), in_key = fm1_harmony_mask(scale, key, 0, 0);
+        uint32_t root = chord_root(scale), in_key = fm1_harmony_mask(scale, key, 0, 0, 0);
         WATCH(W_MASK_NONEMPTY, mask != 0 && mask < 4096u);
-        WATCH(W_FOLLOW_IN_KEY, follow == 3u ? (mask & in_key) == 0 || in_key == 0xFFFu : (mask & in_key) == mask);
-        WATCH(W_CHORD_ROOT, root < 12u && ((fm1_harmony_mask(scale, 0, 0, 0) >> root) & 1u));
+        if (progression < 8u)               /* the walks leave the key by design: harmony_walk_chord_is_triad */
+            WATCH(W_FOLLOW_IN_KEY, follow == 3u ? (mask & in_key) == 0 || in_key == 0xFFFu : (mask & in_key) == mask);
+        else WATCH(W_FOLLOW_IN_KEY, follow == 3u ? (mask & in_key) == 0 || in_key == 0xFFFu : !follow || bits12(mask) == 3u);
+        if (progression < 8u) WATCH(W_CHORD_ROOT, root < 12u && ((fm1_harmony_mask(scale, 0, 0, 0, 0) >> root) & 1u));
+        else WATCH(W_CHORD_ROOT, root < 12u && (!follow || ((mask >> ((key + root) % 12u)) & 1u)));
     }
 #endif
     return mask;
@@ -1202,7 +1210,10 @@ static void draw_home_foot(void)                /* HOME: the key and the chord; 
     cv_begin(240, 40, TH.bg);
     cv_rect(8, 0, 224, 1, TH.dim);
     p = put_str(s, "KEY "); p = put_str(p, KEY_NAME[key]);
-    if (progression) { p = put_str(p, "  CHORD "); p = put_str(p, KEY_NAME[(key + chord_root(lane_scale(selected))) % 12u]); }
+    if (progression) {
+        p = put_str(p, "  CHORD "); p = put_str(p, KEY_NAME[(key + chord_root(lane_scale(selected))) % 12u]);
+        if (fm1_harmony_chord_minor(lane_scale(selected), progression, chord_index)) *p++ = 'm';
+    }
     *p = 0;
     cv_text(8, 6, &FONT_S, s, TH.mid);
     cv_text(8, 22, &FONT_S, running ? "PLAYING" : "STOPPED", running ? TH.acc : TH.mid);

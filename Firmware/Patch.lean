@@ -68,11 +68,11 @@ def PatchLane.Fits (l : PatchLane) : Prop :=
 
 instance (l : PatchLane) : Decidable l.Fits := by unfold PatchLane.Fits; infer_instance
 
-/-- The patch settings the knobs can produce: 40 to 240 bpm, 12 keys, 8 progressions, a chord rate of 1, 2 or
+/-- The patch settings the knobs can produce: 40 to 240 bpm, 12 keys, 11 progressions, a chord rate of 1, 2 or
 4 bars, a scale lock of 0 to 14, reverb settings at most 100, a delay note value below 8 with its other
 settings at most 100, and four lanes that fit. -/
 def Patch.Fits (p : Patch) : Prop :=
-  40 ≤ p.bpm ∧ p.bpm ≤ 240 ∧ p.key < 12 ∧ p.progression < 8 ∧ (p.rate = 1 ∨ p.rate = 2 ∨ p.rate = 4) ∧
+  40 ≤ p.bpm ∧ p.bpm ≤ 240 ∧ p.key < 12 ∧ p.progression < 11 ∧ (p.rate = 1 ∨ p.rate = 2 ∨ p.rate = 4) ∧
   p.scaleLock ≤ 14 ∧ p.reverbTime ≤ 100 ∧ p.reverbBright ≤ 100 ∧ p.reverbAmount ≤ 100 ∧
   p.delayTime < 8 ∧ p.delayFeedback ≤ 100 ∧ p.delayTone ≤ 100 ∧ p.delayAmount ≤ 100 ∧
   p.lane0.Fits ∧ p.lane1.Fits ∧ p.lane2.Fits ∧ p.lane3.Fits

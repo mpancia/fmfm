@@ -16,7 +16,7 @@ GROUPS = [
     ("The sequencer",
      "The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift "
      "apart, rhythms have exactly the hits asked for, and every note is in the scale and the range.",
-     ["Lane", "Run", "Rhythm", "Swing", "Divider", "Euclid", "Notes", "Quantizer", "Random", "Harmony", "Arp", "Machine", "Lfo"]),
+     ["Lane", "Run", "Rhythm", "Swing", "Divider", "Euclid", "Notes", "Quantizer", "Random", "Harmony", "Tonnetz", "Arp", "Machine", "Lfo"]),
     ("The voices",
      "Braids' engines, ported to Lean sample for sample. Every table read stays inside its table, the facts about the "
      "tables are checked rather than assumed, and each engine's sample is the exact arithmetic clipped rather than "
