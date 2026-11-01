@@ -5,21 +5,25 @@ set_option compiler.extract_closed false
 /-!
 # Delay send: the arithmetic
 
-A tempo-synced delay on the same send bus as the reverb: one delay line, read a note value behind the write
-position, fed back through a low-pass. This file holds the arithmetic of one sample as scalar functions;
-`fx/delay_glue.c` owns the line and runs it. Signals are Q15 in `Int32` as in `Firmware/Reverb.lean`, whose
-`mul` and `lowpass` are used; the line stores whole 16-bit samples (no headroom above 1.0 is needed because
-the feedback is below 1.0 and the input is saturated on the way in).
+A tempo-synced ping-pong delay on the same send bus as the reverb: two delay lines, left and right, each read a
+note value behind the write position; the send goes into the left line, each line's echo is low-passed and fed
+into the other line, so the echoes alternate sides. This file holds the arithmetic of one sample as scalar
+functions; `fx/delay_glue.c` owns the lines and runs them. Signals are Q15 in `Int32` as in
+`Firmware/Reverb.lean`, whose `mul` and `lowpass` are used; the lines store whole 16-bit samples (no headroom
+above 1.0 is needed because the feedback is below 1.0 and the input is saturated on the way in).
 -/
 
-/-- Samples in the delay line (a power of two): 743 ms at 44.1 kHz. -/
-@[inline] def Delay.ring : UInt32 := 32768
+/-- Samples in each delay line: 464 ms at 44.1 kHz. Not a power of two, so positions wrap by subtraction. -/
+@[inline] def Delay.ring : UInt32 := 20480
 
-/-- Position in the line of the sample `offset` places before the write position. -/
-@[inline] def Delay.pos (write offset : UInt32) : UInt32 := (write + offset) &&& 32767
+/-- Position in a line of the sample `offset` places before the write position, for a write position and an
+offset both below `ring`. -/
+@[inline] def Delay.pos (write offset : UInt32) : UInt32 :=
+  let p := write + offset
+  if p ≥ 20480 then p - 20480 else p
 
 /-- The write position one sample later: backwards through the line, like the reverb's. -/
-@[inline] def Delay.nextWrite (write : UInt32) : UInt32 := (write + 32767) &&& 32767
+@[inline] def Delay.nextWrite (write : UInt32) : UInt32 := if write = 0 then 20479 else write - 1
 
 /-- The note values a TIME setting can pick, as a fraction of a quarter note: 1/32, 1/16, 1/8 triplet,
 dotted 1/16, 1/8, 1/4 triplet, dotted 1/8, 1/4. This is the numerator (a pair would be a boxed constant that
@@ -34,12 +38,12 @@ needs module initialisation, which the chip has none of). -/
   | 0 => 8 | 1 => 4 | 2 => 3 | 3 => 8 | 4 => 2 | 5 => 3 | 6 => 4 | _ => 1
 
 /-- Samples for a TIME setting at `bpm` and `rate` Hz: a quarter note is `60 * rate / bpm` samples. Held to
-the line: at least 1 and at most 32767 (so slow tempos with long notes get the longest delay there is).
+the line: at least 1 and at most 20479 (so slow tempos with long notes get the longest delay there is).
 `bpm` 0 counts as 40. -/
 @[inline] def Delay.samples (time bpm rate : UInt32) : UInt32 :=
   let tempo := if bpm = 0 then 40 else bpm
   let n := 60 * rate * Delay.numerator time / (tempo * Delay.denominator time)
-  if n > 32767 then 32767 else if n = 0 then 1 else n
+  if n > 20479 then 20479 else if n = 0 then 1 else n
 
 /-- Feedback gain for a setting of 0 to 100: 0 to 0.95 in Q15. Below 1, so echoes always die away. -/
 @[inline] def Delay.feedbackGain (feedback : UInt32) : Int32 := (31129 * min feedback 100 / 100).toInt32

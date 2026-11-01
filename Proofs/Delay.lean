@@ -95,11 +95,11 @@ theorem delay_echo_shrinks (echo feedback : Int32) (nonmin : -2 ^ 31 < echo.toIn
     have lo : echo.toInt * 31129 ≤ echo.toInt * feedback.toInt := Int.mul_le_mul_of_nonpos_left neg unit
     omega
 
-/-- The clamp at the end of `Delay.samples` keeps its result between 1 and 32767. -/
+/-- The clamp at the end of `Delay.samples` keeps its result between 1 and 20479. -/
 private theorem delay_clamp_in_line (n : UInt32) :
-    1 ≤ (if n > 32767 then 32767 else if n = 0 then 1 else n).toNat ∧
-      (if n > 32767 then 32767 else if n = 0 then 1 else n).toNat ≤ 32767 := by
-  have c : (32767 : UInt32).toNat = 32767 := by decide
+    1 ≤ (if n > 20479 then 20479 else if n = 0 then 1 else n).toNat ∧
+      (if n > 20479 then 20479 else if n = 0 then 1 else n).toNat ≤ 20479 := by
+  have c : (20479 : UInt32).toNat = 20479 := by decide
   split
   · rw [c]; decide
   · split
@@ -109,30 +109,59 @@ private theorem delay_clamp_in_line (n : UInt32) :
       have nz : n.toNat ≠ 0 := fun h => notZero (UInt32.toNat.inj (by rw [h]; rfl))
       omega
 
-/-- The delay in samples is always between 1 and 32767, so the echo is read from inside the line, never
+/-- The delay in samples is always between 1 and 20479, so the echo is read from inside the line, never
 from the sample being written (an offset of 0) and never from a wrapped-round position.
-Why it matters: a TIME or TEMPO setting can never make the line read where it writes, which would be a
+Why it matters: a TIME or TEMPO setting can never make a line read where it writes, which would be a
 feedback path with no delay at all. -/
 theorem delay_samples_in_line (time bpm rate : UInt32) :
-    1 ≤ (Delay.samples time bpm rate).toNat ∧ (Delay.samples time bpm rate).toNat ≤ 32767 := by
+    1 ≤ (Delay.samples time bpm rate).toNat ∧ (Delay.samples time bpm rate).toNat ≤ 20479 := by
   unfold Delay.samples
   exact delay_clamp_in_line _
 
-/-- At 44.1 kHz and any tempo from 40 to 240, the note values up to a dotted sixteenth (TIME 0 to 3) give
-exactly `60 * 44100 * numerator / (bpm * denominator)` samples: the line is long enough that nothing is cut short.
-(Longer notes are exact too until they would pass 32767 samples, 743 ms, where they are held: a quarter note
-below 81 bpm, a dotted eighth below 61, an eighth triplet or an eighth below 41.)
-Why it matters: the echo lands on the beat the setting names, at every tempo the TEMPO knob allows. -/
-theorem delay_short_notes_exact (time bpm : UInt32) (short : time.toNat ≤ 3) (slow : 40 ≤ bpm.toNat)
-    (fast : bpm.toNat ≤ 240) :
+/-- A write position and an offset both inside a line give a read position inside it, and the write position
+moves on to one inside it.
+Why it matters: with `delay_samples_in_line`, every read and write of the two lines is in bounds; the lines
+are not a power of two, so this is the wrap by subtraction, not a mask. -/
+theorem delay_position_in_line (write offset : UInt32) (w : write.toNat < 20480) (o : offset.toNat < 20480) :
+    (Delay.pos write offset).toNat < 20480 ∧ (Delay.nextWrite write).toNat < 20480 := by
+  unfold Delay.pos Delay.nextWrite
+  have sum : (write + offset).toNat = write.toNat + offset.toNat := by
+    rw [UInt32.toNat_add, Nat.mod_eq_of_lt (by omega)]
+  have c : (20480 : UInt32).toNat = 20480 := by decide
+  have c1 : (20479 : UInt32).toNat = 20479 := by decide
+  have one : (1 : UInt32).toNat = 1 := by decide
+  constructor
+  · show (if write + offset ≥ 20480 then write + offset - 20480 else write + offset).toNat < 20480
+    split
+    · rename_i big
+      rw [GE.ge, UInt32.le_iff_toNat_le, c] at big
+      rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le, c]; omega), c, sum]
+      omega
+    · rename_i small
+      rw [GE.ge, UInt32.le_iff_toNat_le, c] at small
+      omega
+  · split
+    · rw [c1]; decide
+    · rename_i nz
+      have : write.toNat ≠ 0 := fun h => nz (UInt32.toNat.inj (by rw [h]; rfl))
+      rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le, one]; omega), one]
+      omega
+
+/-- At 44.1 kHz, the note values the lines are long enough for are exact, `60 * 44100 * numerator / (bpm *
+denominator)` samples: a 1/32 or a 1/16 at every tempo from 40 to 240; everything up to a dotted eighth from
+97 bpm; every note value from 130 bpm. (Below those tempos a longer note is held at 20479 samples, 464 ms.)
+Why it matters: the echo lands on the beat the setting names, at the tempos the setting can be played at. -/
+theorem delay_notes_exact (time bpm : UInt32) (slow : 40 ≤ bpm.toNat) (fast : bpm.toNat ≤ 240)
+    (fits : time.toNat ≤ 1 ∨ (97 ≤ bpm.toNat ∧ time.toNat ≤ 6) ∨ (130 ≤ bpm.toNat ∧ time.toNat ≤ 7)) :
     (Delay.samples time bpm 44100).toNat =
       60 * 44100 * (Delay.numerator time).toNat / (bpm.toNat * (Delay.denominator time).toNat) := by
-  have table : ∀ (t : Fin 4) (b : Fin 201),
+  have table : ∀ (t : Fin 8) (b : Fin 201),
+      t.val ≤ 1 ∨ (97 ≤ b.val + 40 ∧ t.val ≤ 6) ∨ (130 ≤ b.val + 40 ∧ t.val ≤ 7) →
       (Delay.samples t.val.toUInt32 (b.val + 40).toUInt32 44100).toNat =
         60 * 44100 * (Delay.numerator t.val.toUInt32).toNat /
           ((b.val + 40).toUInt32.toNat * (Delay.denominator t.val.toUInt32).toNat) := by
     decide +kernel
-  have := table ⟨time.toNat, by omega⟩ ⟨bpm.toNat - 40, by omega⟩
+  have := table ⟨time.toNat, by omega⟩ ⟨bpm.toNat - 40, by omega⟩ (by simp only; omega)
   simp only [Nat.sub_add_cancel slow, UInt32.ofNat_toNat] at this
   exact this
 

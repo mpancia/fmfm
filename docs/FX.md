@@ -98,15 +98,16 @@ Measured with `tools/render_web.mjs` (the simulator's output as a WAV, with its 
 
 - Not heard: the numbers say the port follows Clouds and that nothing clips, not that it sounds good.
 - Not measured on the chip: about 720 chip instructions a sample (`docs/BUDGET.md`), the price of two INIT
-  patches' voices. The memory is 64 KiB of the pool (the pool use is 300 KiB of 344 KiB).
+  patches' voices. The memory is 64 KiB of the pool (the pool use is 316 KiB of 344 KiB).
 - No delay, no chorus, no other Clouds parts (granular, pitch shifter, diffuser). The diffuser inside the reverb is
   part of it.
 
 ## Delay send
 
-A tempo-synced echo on the same send bus: one line of 32768 16-bit samples (743 ms at 44.1 kHz), read a note value
-behind the write position and fed back through a low-pass. The arithmetic is `Firmware/Delay.lean` (it reuses the
-reverb's `mul` and `lowpass`); the line is `fx/delay_glue.c`.
+A tempo-synced ping-pong echo on the same send bus: two lines of 20480 16-bit samples (464 ms at 44.1 kHz), left
+and right, each read a note value behind the write position. The send goes into the left line; each line's echo
+is low-passed and fed, times the feedback, into the other line, so the echoes alternate sides. The arithmetic is
+`Firmware/Delay.lean` (it reuses the reverb's `mul` and `lowpass`); the lines are `fx/delay_glue.c`.
 
 | Control (FX, FX, then knobs) | Does |
 |---|---|
@@ -116,18 +117,20 @@ reverb's `mul` and `lowpass`); the line is `fx/delay_glue.c`.
 | RETURN | how loud the echo is in the mix (0 to 100%; 100% is unity) |
 
 The four belong to the patch (layout version 3, 102 bytes); the echo follows the TEMPO knob and a patch's tempo,
-retuning whenever the tempo changes. Notes longer than the line allows at a slow tempo are held at 743 ms (a
-quarter note below 81 bpm, a dotted eighth below 61). With RETURN at 0 the delay does not run, and when it comes
-back the old echoes are dropped.
+retuning whenever the tempo changes. Notes longer than a line allows at a slow tempo are held at 464 ms (a
+quarter note below 130 bpm, a dotted eighth below 97, an eighth below 65; a 1/16 or 1/32 is never held). Ping-pong
+needs two periods of memory, one a side, which is why the longest echo is shorter than a single line's would be.
+With RETURN at 0 the delay does not run, and when it comes back the old echoes are dropped.
 
 What is proved (`docs/PROOFS.md`, section Delay): the feedback gain is at most 0.95 and the tone between 0.2 and
-1.0 for every setting; with nothing new on the send, what goes back into the line is at most 95% of the echo plus
+1.0 for every setting; with nothing new on the send, what goes back into a line is at most 95% of the echo plus
 one count of rounding, so a tail of echoes shrinks geometrically whatever the settings; the delay in samples is
-always between 1 and 32767, so the line never reads where it writes; note values up to a dotted sixteenth are exact
-at every tempo from 40 to 240; a send louder than full scale saturates in the line instead of wrapping. The patch
-round-trip proofs cover the four new bytes.
+always between 1 and 20479, so a line never reads where it writes, and the positions wrap inside the lines (they
+are not a power of two); a 1/32 or 1/16 is exact at every tempo from 40 to 240, everything up to a dotted eighth
+from 97 bpm, every note value from 130; a send louder than full scale saturates in the line instead of wrapping.
+The patch round-trip proofs cover the four new bytes.
 
 Tested: `make test` plays with the delay at full feedback and return, stops, and checks that the echoes ring on and
-die away. Rendered with `tools/render_web.mjs` at 64 bpm and a dotted eighth, the peaks after a stop come every
-0.7 s, as they should (703 ms). Not heard. Cost: about 85 host instructions a sample (`make perf`), a seventh of the reverb. Memory:
-64 KiB of the pool, which is 300 KiB of 344 KiB with the Lean heap at 32 KiB.
+die away. Rendered with `tools/render_web.mjs` at 64 bpm and an eighth (469 ms), the peaks after a stop come every
+0.47 s and alternate: left, right, left. Not heard. Cost: about 160 host instructions a sample (`make perf`), a
+quarter of the reverb. Memory: 80 KiB of the pool, which is 316 KiB of 344 KiB with the Lean heap at 32 KiB.

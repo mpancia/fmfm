@@ -35,7 +35,7 @@ same button again moves to the group's next page. The four knobs set the four va
 | keys, OCT- OCT+ | play the chosen lane's sound by hand |
 
 The FX button opens the sends: REVERB (Clouds' reverb, ported to Lean: SEND of the chosen lane, DECAY, BRIGHT,
-RETURN), then DELAY (a tempo-synced echo on the same send: TIME as a note value, FEEDBK, TONE, RETURN). See
+RETURN), then DELAY (a tempo-synced ping-pong echo on the same send: TIME as a note value, FEEDBK, TONE, RETURN). See
 `docs/FX.md`.
 
 Note algorithms (SEQ > NOTES), per lane: RANDOM, WALK (random steps of up to AMOUNT notes), UP, DOWN, BOUNCE, and
@@ -112,7 +112,7 @@ all accept. They do not cover:
   Lean (`Firmware/Analog.lean` to `Macro.lean`), checked sample for sample against the original by `make test-lean`;
   the per-block setup, the delay lines and the glue loops are C and unproved (`docs/LEAN-ENGINES.md`). `make audit`
   checks levels; nobody has listened to it on hardware.
-- `fx/delay_glue.c`: the delay line and its loop (the arithmetic is Lean, `Firmware/Delay.lean`); not heard.
+- `fx/delay_glue.c`: the two delay lines and their loop (the arithmetic is Lean, `Firmware/Delay.lean`); not heard.
 - `fx/reverb_glue.c`: the reverb network and its delay memory (the arithmetic is Lean; the order of operations is C, copied
   from Clouds, and checked sample for sample against `Spec/Reverb.lean` by `make test-lean`, which also checks it
   against Clouds' original); not heard (`docs/FX.md`).

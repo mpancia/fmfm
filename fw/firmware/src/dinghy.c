@@ -81,13 +81,13 @@ static void app_audio(int32_t *out, uint32_t n)
         if (voice[v].amp || voice[v].gate)
             render_voice(v, out, send_bus, n);
     if (!reverb_ready) return;
-    if (delay_return) {                         /* the echo, the same to both sides, before the reverb */
+    if (delay_return) {                         /* the echoes, left then right, before the reverb */
         const uint32_t gain = (uint32_t)delay_return;
-        fm1_delay_block(send_bus, wet_left, n);
+        fm1_delay_block(send_bus, wet_left, wet_right, n);
         for (i = 0; i < n; i++) {
-            int32_t *l = &out[2u * i], *r = l + 1, w = (int32_t)fm1_mix_wet_sample((uint32_t)wet_left[i], gain);
-            *l = (int32_t)fm1_mix_limit((uint32_t)(*l + w));
-            *r = (int32_t)fm1_mix_limit((uint32_t)(*r + w));
+            int32_t *l = &out[2u * i], *r = l + 1;
+            *l = (int32_t)fm1_mix_limit((uint32_t)(*l + (int32_t)fm1_mix_wet_sample((uint32_t)wet_left[i], gain)));
+            *r = (int32_t)fm1_mix_limit((uint32_t)(*r + (int32_t)fm1_mix_wet_sample((uint32_t)wet_right[i], gain)));
         }
     }
     if (!reverb_return) return;
