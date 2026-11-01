@@ -44,3 +44,22 @@ theorem harmony_triad_within_scale (scale key root : UInt32) :
   generalize Harmony.laneMask (scale.toNat % 14) (key.toNat % 12) (root.toNat % 12) 1 = b at *
   simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show a < 2 ^ 32 by omega),
     Nat.mod_eq_of_lt (show b < 2 ^ 32 by omega), inside]
+
+/-- Checked for every scale, progression and chord: the root is a note of the scale and below an octave. -/
+private theorem harmony_every_root_in_scale :
+    ∀ scale, scale < 14 → ∀ p, p < 8 → ∀ s, s < 4 →
+      (Harmony.scale scale).testBit (Harmony.chordRoot scale p s) = true ∧ Harmony.chordRoot scale p s < 12 := by
+  decide +kernel
+
+/-- Every chord root is a note of the key's scale: whatever the progression, scale and chord, the root the
+lanes move to (and the screen names) is a semitone step that the scale has, below an octave.
+Why it matters: progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor
+one; this is the promise that a chord never lands on a note outside the key. -/
+theorem harmony_chord_root_in_key (scale progression step : UInt32) :
+    (Harmony.scale (scale.toNat % 14)).testBit (harmonyChordRoot scale progression step).toNat = true ∧
+      (harmonyChordRoot scale progression step).toNat < 12 := by
+  unfold harmonyChordRoot
+  have ⟨inScale, small⟩ := harmony_every_root_in_scale (scale.toNat % 14) (Nat.mod_lt _ (by decide))
+    (progression.toNat % 8) (Nat.mod_lt _ (by decide)) (step.toNat % 4) (Nat.mod_lt _ (by decide))
+  generalize Harmony.chordRoot (scale.toNat % 14) (progression.toNat % 8) (step.toNat % 4) = r at *
+  simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show r < 2 ^ 32 by omega), inScale, small]

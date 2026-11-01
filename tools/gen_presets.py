@@ -206,7 +206,7 @@ ROLE_EXTRAS = {
     "bell": [(0, 80, 4, 10, 0), (4, 100, 4, 10, 0), (0, 100, 4, 10, 0), (1, 70, 2, 10, 0)],
     "kick": [(0, 100, 1, 0, 0)], "snare": [(0, 100, 1, 0, 0)], "hat": [(0, 85, 1, 0, 0), (0, 100, 1, 0, 0)],
 }
-# chord progressions (semitones above the key, one per bar or two): index into PROGRESSIONS in dinghy.c
+# chord progressions (scale degrees, one chord per bar or more): index into Harmony.degree in Firmware/Harmony.lean
 # reverb send by role, in percent
 ROLE_SEND = {"bass": 8, "pad": 45, "lead": 28, "bell": 50, "kick": 5, "snare": 15, "hat": 12}
 # reverb decay, brightness and return by mood
@@ -215,7 +215,7 @@ MOOD_REVERB = {"calm": (75, 55, 75), "dream": (80, 50, 80), "drive": (35, 65, 55
 # delay note value (0 1/32 .. 7 1/4: 2 is 1/8 triplet, 6 a dotted 1/8), feedback, tone and return by mood
 MOOD_DELAY = {"calm": (6, 35, 50, 30), "dream": (6, 50, 40, 45), "drive": (4, 30, 70, 25), "pulse": (1, 25, 80, 30),
               "drift": (7, 55, 35, 40), "shimmer": (6, 45, 90, 45), "machine": (1, 40, 70, 35), "folk": (4, 20, 60, 0)}
-PROGRESSION_NAMES = ["OFF", "I-IV-V-I", "I-V-vi-IV", "vi-IV-I-V", "ii-V-I-I", "i-VI-III-VII", "I-iii-IV-V", "i-iv-v-i"]
+PROGRESSION_NAMES = ["OFF", "I-IV-V-I", "I-V-vi-IV", "vi-IV-I-V", "ii-V-I-I", "i-VI-III-VII", "I-iii-IV-V", "I-vi-ii-V"]
 MOOD_PROGRESSIONS = {"calm": [2, 3, 6], "dream": [3, 2, 0], "drive": [5, 7, 0], "pulse": [0], "drift": [0, 4],
                      "shimmer": [2, 3, 6], "machine": [0], "folk": [1, 2, 6]}
 

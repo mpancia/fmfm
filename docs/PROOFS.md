@@ -338,6 +338,12 @@ chord-following lanes too, so a chord change can never leave a lane with nothing
 
 Why it matters: TRIAD follow narrows a lane to the chord; it can never add a note that is outside the key.
 
+**`harmony_chord_root_in_key`**: Every chord root is a note of the key's scale: whatever the progression, scale and
+chord, the root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave.
+
+Why it matters: progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor one; this
+is the promise that a chord never lands on a note outside the key.
+
 ## Lane
 
 **`lane_make_valid`**: Whatever settings are asked for, `make` gives a consistent lane.

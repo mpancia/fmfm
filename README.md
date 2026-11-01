@@ -41,8 +41,9 @@ RETURN), then DELAY (a tempo-synced ping-pong echo on the same send: TIME as a n
 
 Note algorithms (SEQ > NOTES), per lane: RANDOM, WALK (random steps of up to AMOUNT notes), UP, DOWN, BOUNCE, and
 LOOP (a memory of AMOUNT notes that replays, with MUTATE percent chance of replacing a note each time).
-Chord progressions (GLO > HARMONY) change the chord every bar or more; a lane follows them in SEQ > RANGE:
-SCALE moves its scale to the chord root, TRIAD keeps only the chord's notes.
+Chord progressions (GLO > HARMONY, written as scale degrees so 1-4-5-1 is I IV V in a major key and i iv v in a
+minor one) change the chord every bar or more; a lane follows them in SEQ > RANGE: SCALE moves its scale to the
+chord root, TRIAD keeps only the chord's notes.
 
 Each lane is a clock divider driving a Euclidean rhythm; every hit picks a random note in the lane's range and
 snaps it to the scale. That logic is Lean, and so are the sound engines, the effects and the patch format; the
@@ -57,10 +58,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-211 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+212 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 56 theorems</summary>
+<details><summary><b>The sequencer</b>: 57 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -112,6 +113,7 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `random_below_lt` | A random pick is always below its limit, so it is a valid index into a list of `limit` choices. | a pick one too big would read past the end of a note list or a step table. |
 | `harmony_mask_never_empty` | The mask handed to a lane always has at least one note and fits in 12 bits, for every scale, key, chord and follow mode the firmware offers. | `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for the chord-following lanes too, so a chord change can never leave a lane with nothing to play. |
 | `harmony_triad_within_scale` | A chord's notes are always notes of the scale it was taken from. | TRIAD follow narrows a lane to the chord; it can never add a note that is outside the key. |
+| `harmony_chord_root_in_key` | Every chord root is a note of the key's scale: whatever the progression, scale and chord, the root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave. | progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor one; this is the promise that a chord never lands on a note outside the key. |
 | `arp_note_is_held` | Every note the arpeggiator starts is a note you are holding, raised by fewer than `octaves` octaves. | the arpeggiator can only play what you play; it never adds a note of its own, whichever mode and however it is set. |
 | `arp_make_valid` | A fresh arpeggiator is consistent, for any step. | the arpeggiator starts in a state the rest of the firmware can rely on, whatever the knobs say. |
 | `arp_set_valid` | Changing the settings keeps a consistent arpeggiator consistent, whatever numbers are given. | turning the ARP knobs mid-phrase cannot leave a timer or counter out of range. |

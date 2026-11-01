@@ -57,6 +57,7 @@
     "filters_setup_cutoff_in_range",
     "harmony_mask_never_empty",
     "harmony_triad_within_scale",
+    "harmony_chord_root_in_key",
     "lane_make_valid",
     "lane_reconfigure_valid",
     "lane_set_notes_valid",

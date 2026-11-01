@@ -246,6 +246,10 @@ theorem harmony_triad_within_scale (scale key root : UInt32) :
     (harmonyMask scale key root 2).toNat &&& (harmonyMask scale key root 1).toNat =
       (harmonyMask scale key root 2).toNat := sorry
 
+theorem harmony_chord_root_in_key (scale progression step : UInt32) :
+    (Harmony.scale (scale.toNat % 14)).testBit (harmonyChordRoot scale progression step).toNat = true ∧
+      (harmonyChordRoot scale progression step).toNat < 12 := sorry
+
 -- Proofs/Lane.lean
 theorem lane_make_valid (hits steps div mask low span : Nat) (seed : UInt32) :
     Lane.Valid (Lane.make hits steps div mask low span seed) := sorry
@@ -685,12 +689,7 @@ theorem physical_bowed_body_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
     step.biquad.toInt.natAbs ≤ 2 ^ 18 := sorry
 
 theorem physical_comb_read_in_line (ptr integral : UInt32) :
-    (Physical.combRead ptr integral).toNat < 8192 := physical_masked_in_line _ _ _ (by decide)
-
-/-- The comb filter's write position after a sample is inside its 8192 line. The first position of a block
-comes from C++ as `phase_ % 8192`; this keeps every later one in the line.
-Why it matters: the write is unmasked in the glue, so the advance is what keeps it inside. -/
-theorem physical_comb_write_in_line (ptr : UInt32) : (Physical.combAdvance ptr).toNat < 8192 := sorry
+    (Physical.combRead ptr integral).toNat < 8192 := sorry
 
 theorem physical_comb_write_in_line (ptr : UInt32) : (Physical.combAdvance ptr).toNat < 8192 := sorry
 

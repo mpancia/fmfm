@@ -163,11 +163,9 @@ static const char *const FEEL_LABEL[NFEEL][3] = {{"", "", ""}, {"ROTATE", "ACCEN
 #define NALGO (sizeof ALGO_NAME / sizeof ALGO_NAME[0])
 static const char *const CHORD_NAME[] = {"OFF", "SCALE", "TRIAD"};
 static const char *const KEY_NAME[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-/* chord progressions: semitones above the key, one chord a step; index 0 is no progression */
-static const uint8_t PROGRESSION[][4] = {{0, 0, 0, 0}, {0, 5, 7, 0}, {0, 7, 9, 5}, {9, 5, 0, 7}, {2, 7, 0, 0},
-                                         {0, 8, 3, 10}, {0, 4, 5, 7}, {0, 5, 7, 0}};
+/* chord progressions as scale degrees, one chord a step: Harmony.degree in Firmware/Harmony.lean; 0 is no progression */
 static const char *const PROGRESSION_NAME[] = {"OFF", "1-4-5-1", "1-5-6-4", "6-4-1-5", "2-5-1-1", "1-6-3-7", "1-3-4-5",
-                                               "1-4-5 m"};   /* scale degrees of the chord roots; m: the minor set */
+                                               "1-6-2-5"};
 #define NPROGRESSION (sizeof PROGRESSION_NAME / sizeof PROGRESSION_NAME[0])
 static const uint8_t RATE_BARS[] = {1, 2, 4};
 static const uint16_t ATTACK_MS[4] = {2, 6, 25, 190};
@@ -207,13 +205,16 @@ static char patch_name[20] = "INIT";
 #define NUSER 8u
 #define NBROWSE (NPATCHES + NUSER)
 
-static uint32_t chord_root(void) { return progression ? PROGRESSION[progression][chord_index & 3u] : 0u; }
+static uint32_t lane_scale(uint32_t i) { return scale_lock ? scale_lock - 1u : cfg[i].scale; }
+
+/* the current chord's root in a scale, semitones above the key: a degree of that scale (Firmware/Harmony.lean) */
+static uint32_t chord_root(uint32_t scale) { return progression ? fm1_harmony_chord_root(scale, progression, chord_index) : 0u; }
 
 static uint32_t lane_mask(uint32_t i)           /* the scale, turned to the key and the current chord: Firmware/Harmony.lean */
 {
-    uint32_t scale = scale_lock ? scale_lock - 1u : cfg[i].scale;
+    uint32_t scale = lane_scale(i);
     uint32_t follow = progression ? cfg[i].chord : 0u;
-    return fm1_harmony_mask(scale, key, chord_root(), follow);
+    return fm1_harmony_mask(scale, key, chord_root(scale), follow);
 }
 
 static void lane_apply(uint32_t i)
@@ -1052,7 +1053,7 @@ static void draw_home_foot(void)                /* HOME: the key and the chord; 
     cv_begin(240, 40, TH.bg);
     cv_rect(8, 0, 224, 1, TH.dim);
     p = put_str(s, "KEY "); p = put_str(p, KEY_NAME[key]);
-    if (progression) { p = put_str(p, "  CHORD "); p = put_str(p, KEY_NAME[(key + chord_root()) % 12u]); }
+    if (progression) { p = put_str(p, "  CHORD "); p = put_str(p, KEY_NAME[(key + chord_root(lane_scale(selected))) % 12u]); }
     *p = 0;
     cv_text(8, 6, &FONT_S, s, TH.mid);
     cv_text(8, 22, &FONT_S, running ? "PLAYING" : "STOPPED", running ? TH.acc : TH.mid);

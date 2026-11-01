@@ -9,3 +9,4 @@ import Spec.Reverb
 import Spec.Arp
 import Spec.Rhythm
 import Spec.Machine
+import Spec.Harmony

@@ -33,6 +33,32 @@ def Harmony.laneMask (scale key chordRoot follow : Nat) : Nat :=
   let turned := Harmony.rotate mask root
   if follow = 2 then Harmony.triad turned root else turned
 
+/-- The chord progressions on GLO > HARMONY, as scale degrees (0 is the key's root, 4 the fifth note of the
+scale), four chords each, chord `s`: 0 is no progression, then 1-4-5-1, 1-5-6-4, 6-4-1-5, 2-5-1-1, 1-6-3-7,
+1-3-4-5 and 1-6-2-5. Degrees, not semitones, so the same progression fits every scale: 1-4-5-1 is I IV V in a
+major key and i iv v in a minor one. -/
+def Harmony.degree (p s : Nat) : Nat :=
+  match p, s % 4 with
+  | 1, 1 => 3 | 1, 2 => 4
+  | 2, 1 => 4 | 2, 2 => 5 | 2, 3 => 3
+  | 3, 0 => 5 | 3, 1 => 3 | 3, 3 => 4
+  | 4, 0 => 1 | 4, 1 => 4
+  | 5, 1 => 5 | 5, 2 => 2 | 5, 3 => 6
+  | 6, 1 => 2 | 6, 2 => 3 | 6, 3 => 4
+  | 7, 1 => 5 | 7, 2 => 1 | 7, 3 => 4
+  | _, _ => 0
+
+/-- The root of chord `s` of progression `p` in scale number `scale`, as semitones above the key: the scale's
+note at that degree, counting round for scales with fewer than seven notes. -/
+def Harmony.chordRoot (scale p s : Nat) : Nat :=
+  let tones := Harmony.tones (Harmony.scale scale) 0
+  tones.getD (Harmony.degree p s % tones.length) 0
+
+/-- C entry: the chord root for the lanes and the screen (see `Harmony.chordRoot`). -/
+@[export fm1_harmony_chord_root]
+def harmonyChordRoot (scale progression step : UInt32) : UInt32 :=
+  (Harmony.chordRoot (scale.toNat % 14) (progression.toNat % 8) (step.toNat % 4)).toUInt32
+
 /-- C entry: the mask for a lane (see `Harmony.laneMask`). -/
 @[export fm1_harmony_mask]
 def harmonyMask (scale key chordRoot follow : UInt32) : UInt32 :=
