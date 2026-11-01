@@ -521,6 +521,19 @@ Why it matters: this joins the voice, delay, reverb and mix promises into one st
 `app_audio`: whatever the lanes play and however the sends are set, the sample the master stage sees is the mix, clipped
 at the limit, and never a wrapped burst.
 
+**`mix_pan_equal_power`**: For every pan setting the two gains are between 0 and 1.0 and keep the power: their squares
+add up to 1.0 within a tenth of a percent.
+
+Why it matters: a sound panned anywhere is never louder on a side than it was, and does not dip in the middle or swell
+at the sides as it moves.
+
+**`mix_pan_never_amplifies`**: A voice's sample on one side is never larger in size than the sample, for any pan gain
+between 0 and 32767, and it is computed without a wrap for samples within 65024 (what `mix_voice_sample_never_wraps`
+gives).
+
+Why it matters: panning only ever takes level away from a side, so the stereo mix stays within the bounds
+`mix_machine_sample_bounded` was proved for.
+
 ## Noise
 
 **`noise_particle_amplitude_fades`**: Between hits, a particle burst only fades: its amplitude after a sample is at most
@@ -708,12 +721,12 @@ firmware, where it would read past a table; such a slot loads as EMPTY instead.
 Why it matters: a slot never written, or written by other software, is told apart by its first byte and treated as empty
 rather than read as a scramble of settings.
 
-**`patch_decode_rejects_wrong_size`**: A slot that is not exactly 102 bytes long never loads.
+**`patch_decode_rejects_wrong_size`**: A slot that is not exactly 106 bytes long never loads.
 
 Why it matters: a slot written by a firmware with a different patch layout is rejected whole instead of being read field
 by field in the wrong places.
 
-**`patch_encode_size`**: Every saved patch is 102 bytes long.
+**`patch_encode_size`**: Every saved patch is 106 bytes long.
 
 Why it matters: the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a different count
 would make every saved patch unloadable.
@@ -1176,6 +1189,20 @@ below. The target must be at least `size` so the falling case stays in range.
 
 Why it matters: after every block the pitch is within 16 units of 2^32 per sample of the note asked for, so a note
 settles on pitch within one block and never ends up sharp.
+
+## Swing
+
+**`swing_tick_in_range`**: Every tick is between a third and five thirds of a straight tick, at every swing setting.
+
+Why it matters: swing can never make a tick vanish (a zero-length tick would fire two steps at once) or stretch one past
+the next eighth.
+
+**`swing_keeps_time`**: A tick of the first eighth and a tick of the second add up to exactly two straight ticks, so the
+twelve ticks of a pair of eighths take exactly 24 straight ticks, whatever the swing.
+
+Why it matters: swing moves notes inside each pair of eighths and nothing else: a bar is as long as it was, the four
+lanes stay in phase with each other and with a MIDI clock, and `run_clock_never_drifts` still holds for the swung clock,
+tick for tick.
 
 ## Tables
 

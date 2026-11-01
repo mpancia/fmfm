@@ -5,12 +5,13 @@ set_option compiler.extract_closed false
 /-- C entry: one lane's settings, in the order of `PatchLane`. -/
 @[export fm1_patch_lane_make]
 def patchLaneMake (hits steps speed scale sound low span algo chance amount mutate chord level send seed
-    feel rotate accents rule ratchet subHits : UInt32) : PatchLane :=
+    feel rotate accents rule ratchet subHits pan : UInt32) : PatchLane :=
   { hits := hits.toNat, steps := steps.toNat, speed := speed.toNat, scale := scale.toNat,
     sound := sound.toNat, low := low.toNat, span := span.toNat, algo := algo.toNat, chance := chance.toNat,
     amount := amount.toNat, mutate := mutate.toNat, chord := chord.toNat, level := level.toNat,
     send := send.toNat, seed := seed.toNat, feel := feel.toNat, rotate := rotate.toNat,
-    accents := accents.toNat, rule := rule.toNat, ratchet := ratchet.toNat, subHits := subHits.toNat }
+    accents := accents.toNat, rule := rule.toNat, ratchet := ratchet.toNat, subHits := subHits.toNat,
+    pan := pan.toNat }
 
 /-- C entry: a patch from the global settings and its four lanes. -/
 @[export fm1_patch_make]
@@ -57,7 +58,8 @@ def patchLane (p : Patch) (index : UInt32) : PatchLane :=
   | _ => p.lane3
 
 /-- C entry: lane setting `index`, in the order of `PatchLane`: hits, steps, speed, scale, sound, low, span,
-algo, chance, amount, mutate, chord, level, send, seed, then feel, rotate, accents, rule, ratchet, sub-hits. -/
+algo, chance, amount, mutate, chord, level, send, seed, then feel, rotate, accents, rule, ratchet, sub-hits,
+pan. -/
 @[export fm1_patch_lane_field]
 def patchLaneField (l : PatchLane) (index : UInt32) : UInt32 :=
   match index with
@@ -81,4 +83,5 @@ def patchLaneField (l : PatchLane) (index : UInt32) : UInt32 :=
   | 17 => l.accents.toUInt32
   | 18 => l.rule.toUInt32
   | 19 => l.ratchet.toUInt32
-  | _ => l.subHits.toUInt32
+  | 20 => l.subHits.toUInt32
+  | _ => l.pan.toUInt32

@@ -8,6 +8,7 @@ import Proofs.Rhythm
 import Proofs.Analog
 import Proofs.Reverb
 import Proofs.Delay
+import Proofs.Swing
 import Proofs.Lfo
 import Proofs.Harmony
 import Proofs.Run

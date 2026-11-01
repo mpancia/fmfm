@@ -386,6 +386,16 @@ theorem mix_machine_sample_bounded (voices : List Int32) (echo delayGain wet rev
       out.toInt.natAbs ≤ 524287 ∧ out.toInt.natAbs * 4088 < 2 ^ 31 ∧
       (out.toInt.natAbs < 524287 → out.toInt = withDelay.toInt + wet.toInt * reverbGain.toInt / 32768) := sorry
 
+theorem mix_pan_equal_power (pan : UInt32) :
+    0 ≤ (Mix.panLeft pan).toInt ∧ (Mix.panLeft pan).toInt ≤ 32767 ∧
+      0 ≤ (Mix.panRight pan).toInt ∧ (Mix.panRight pan).toInt ≤ 32767 ∧
+      1073000000 ≤ (Mix.panLeft pan).toInt ^ 2 + (Mix.panRight pan).toInt ^ 2 ∧
+      (Mix.panLeft pan).toInt ^ 2 + (Mix.panRight pan).toInt ^ 2 ≤ 1074500000 := sorry
+
+theorem mix_pan_never_amplifies (s gain : Int32) (sample : s.toInt.natAbs ≤ 65024) (nonneg : 0 ≤ gain.toInt)
+    (unit : gain.toInt ≤ 32767) :
+    (Mix.panSample s gain).toInt = s.toInt * gain.toInt / 32768 ∧ (Mix.panSample s gain).toInt.natAbs ≤ 65024 := sorry
+
 -- Proofs/Noise.lean
 theorem noise_particle_amplitude_fades (noise : UInt32) (amplitude : UInt16)
     (s1 c1 s2 c2 s3 c3 y11 y12 y21 y22 y31 y32 : Int32) :
@@ -528,10 +538,10 @@ theorem patch_decode_only_fits (bytes : ByteArray) (p : Patch) (loaded : Patch.d
 theorem patch_decode_rejects_wrong_marker (bytes : ByteArray) (nonEmpty : 0 < bytes.size)
     (wrong : bytes[0] ≠ 0xA7) : Patch.decode bytes = none := sorry
 
-theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 102) :
+theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 106) :
     Patch.decode bytes = none := sorry
 
-theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 102 := sorry
+theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 106 := sorry
 
 -- Proofs/Percussion.lean
 theorem percussion_excite_decays (state decay counter level : Int32)
@@ -912,6 +922,13 @@ theorem smooth_step_lands_near_target (previous target size : UInt32) (notEmpty 
     (room : size.toNat ≤ target.toNat) :
     target.toNat - size.toNat ≤ (Smooth.stepAfter previous target size size.toNat).toNat ∧
       (Smooth.stepAfter previous target size size.toNat).toNat ≤ target.toNat := sorry
+
+-- Proofs/Swing.lean
+theorem swing_tick_in_range (phase swing : UInt32) :
+    3334 ≤ (Swing.tickLength phase swing).toNat ∧ (Swing.tickLength phase swing).toNat ≤ 16666 := sorry
+
+theorem swing_keeps_time (phase swing : UInt32) (first : phase.toNat < 12) :
+    (Swing.tickLength phase swing).toNat + (Swing.tickLength (phase + 12) swing).toNat = 20000 := sorry
 
 -- Proofs/Tables.lean
 theorem tables_phase_reads_inside_257 (phase : UInt32) :

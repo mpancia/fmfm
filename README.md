@@ -20,8 +20,8 @@ same button again moves to the group's next page. The four knobs set the four va
 |---|---|
 | HOME | overview of the four lanes: hits, steps, speed, chance |
 | SEQ | RHYTHM: hits, steps, speed, chance, with the bar drawn as a circle (the hits joined, the current step bright). FEEL: the rhythm source (Euclid, rotate with accents, cellular automaton, ratchet) and its knobs. NOTES: the note source (random, walk, up, down, bounce, loop, turing, step, markov, grammar, chord) and its knobs, range. RANGE: scale, low note, chord follow. See `docs/SEQUENCERS.md` |
-| EDIT | SOUND: shape, timbre, colour, level. ENVELOPE: attack, release, envelope-to-timbre. MIX: the four lane levels |
-| GLO | HARMONY: key, scale lock, chord progression, bars per chord. SYSTEM: tempo, keys octave, LOOK (seven looks; CATALOGUE, the site's paper and ink, is the default). MIDI: in and out channels. BANKS: patch, save slot, DEMO (the demo songs), AUTO (the device performs on its own: the demo songs in turn, 32 bars each, a lane varied every 8 bars; PLAY stopping ends it) |
+| EDIT | SOUND: shape, timbre, colour, level. ENVELOPE: attack, release, envelope-to-timbre. MIX: the four lane levels. PAN: the four lanes left to right (equal power: `mix_pan_equal_power`) |
+| GLO | HARMONY: key, scale lock, chord progression, bars per chord. SYSTEM: tempo, keys octave, LOOK (seven looks; CATALOGUE, the site's paper and ink, is the default), SWING (0 to 100: the first eighth of each pair stretched, the second shortened, the pair kept exact: `swing_keeps_time`). MIDI: in and out channels, CLOCK (INT, or EXT: the lanes step on an incoming MIDI clock, start and stop follow it, the tempo it implies is shown). BANKS: patch, save slot, DEMO (the demo songs), AUTO (the device performs on its own: the demo songs in turn, 32 bars each, a lane varied every 8 bars; PLAY stopping ends it) |
 
 | Control | Does |
 |---|---|
@@ -59,10 +59,10 @@ screen, keys, buttons, knobs, audio and (in Chrome/Edge) MIDI in. No FM-1 needed
 ## What is proved
 
 <!-- proofs:begin -->
-215 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
+219 theorems, every one checked by Lean's kernel and by `make comparator`. Generated from the
 docstrings in `Proofs/` by `make proofs`; the full statements and reasons are in `docs/PROOFS.md`.
 
-<details><summary><b>The sequencer</b>: 58 theorems</summary>
+<details><summary><b>The sequencer</b>: 60 theorems</summary>
 
 The four lanes and what they play. Over a whole performance no note is left sounding, the clocks never drift apart,
 rhythms have exactly the hits asked for, and every note is in the scale and the range.
@@ -91,6 +91,8 @@ rhythms have exactly the hits asked for, and every note is in the scale and the 
 | `rhythm_rule_zero_dies` | Rule 0 kills the row: after one generation nothing plays. | the automaton has a rule that is silence, and the reseed on a dead row is what brings the bar back. |
 | `rhythm_rule_full_fills` | Rule 255 fills the bar: after one generation every step plays. | the other end of the rule knob is a wall of hits, so the circle shows the whole range from silence (rule 0) to everything (rule 255). |
 | `rhythm_rule_204_freezes` | Rule 204 freezes the bar: a row that fits the bar comes back unchanged every generation. | there is a rule on which the automaton is exactly the Euclidean bar it was seeded with, so turning RULE from 204 is the way to make it move. |
+| `swing_tick_in_range` | Every tick is between a third and five thirds of a straight tick, at every swing setting. | swing can never make a tick vanish (a zero-length tick would fire two steps at once) or stretch one past the next eighth. |
+| `swing_keeps_time` | A tick of the first eighth and a tick of the second add up to exactly two straight ticks, so the twelve ticks of a pair of eighths take exactly 24 straight ticks, whatever the swing. | swing moves notes inside each pair of eighths and nothing else: a bar is as long as it was, the four lanes stay in phase with each other and with a MIDI clock, and `run_clock_never_drifts` still holds for the swung clock, tick for tick. |
 | `divider_pulse_count` | A divide-by-`div` counter that starts at 0 and gets `ticks` ticks gives exactly `ticks / div` pulses. | a divide-by-4 clock never drops or doubles a beat, however long it runs. |
 | `divider_count_bounded` | The count never reaches `div`: it always stays between 0 and `div - 1`. | the counter is a small number for good, so it can never grow into a big number the chip's Lean runtime cannot handle. |
 | `euclid_hit_count` | A bar of `steps` steps with `hits` hits (`hits ≤ steps`) plays exactly `hits` notes. | the pattern has the density you asked for, with no missing or extra notes. |
@@ -278,7 +280,7 @@ reads its tables inside their bounds.
 
 </details>
 
-<details><summary><b>The mix and the effects</b>: 25 theorems</summary>
+<details><summary><b>The mix and the effects</b>: 27 theorems</summary>
 
 The mix cannot wrap, the reverb's and the delay's memory is read and written inside the lines, their gains are below one
 so tails die away, and their filters and interpolation cannot overshoot.
@@ -291,6 +293,8 @@ so tails die away, and their filters and interpolation cannot overshoot.
 | `mix_limit_fits_master` | After the limiter the mix is within 524287, so `platform.c`'s product with the master gain (at most 4088) fits in 32 bits for any input; and a mix already within that range passes through unchanged. | the dry mix never reaches the limit (`mix_bus_never_wraps`), so the limiter only acts on an extreme wet return, where it keeps the master stage from wrapping to a burst of the opposite sign. |
 | `mix_in_never_wraps` | One effect's return into a mix that is already within the limit: the sum is exact (no wrap), and the result is the sum clipped to 524287, for a wet sample within 2^29 + 2^21 and a gain up to 65500 (twice the largest RETURN). | this is the step `app_audio` takes for the delay and then for the reverb; however loud a return, it can only clip, never wrap. |
 | `mix_machine_sample_bounded` | The sample the master stage sees, from the six voices through both sends: the dry sum of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives), then the delay's echo (a stored 16-bit sample), then the reverb's wet sample (within 2^29 + 2^21, as `reverb_wet_never_overflows` gives), each with a return gain up to 65500. | this joins the voice, delay, reverb and mix promises into one statement about the whole audio path of `app_audio`: whatever the lanes play and however the sends are set, the sample the master stage sees is the mix, clipped at the limit, and never a wrapped burst. |
+| `mix_pan_equal_power` | For every pan setting the two gains are between 0 and 1.0 and keep the power: their squares add up to 1.0 within a tenth of a percent. | a sound panned anywhere is never louder on a side than it was, and does not dip in the middle or swell at the sides as it moves. |
+| `mix_pan_never_amplifies` | A voice's sample on one side is never larger in size than the sample, for any pan gain between 0 and 32767, and it is computed without a wrap for samples within 65024 (what `mix_voice_sample_never_wraps` gives). | panning only ever takes level away from a side, so the stereo mix stays within the bounds `mix_machine_sample_bounded` was proved for. |
 | `reverb_position_in_ring` | A sample position is always inside the shared delay memory, whatever the write position, line start and offset. | a read or write can never land outside the memory, so no setting of a knob can crash the reverb. |
 | `reverb_lines_fit_and_do_not_overlap` | At every scale up to 400 (353 is the shipped one), each delay line ends inside the memory, and each line starts one sample after the previous one ends. | the ten lines never overlap, so one line cannot overwrite another, and none runs off the end. |
 | `reverb_gains_below_one` | For every decay-time setting, the loop gain is positive and below 1.0 (at most 0.98), and for every brightness setting the low-pass amount is too (at most 0.97). | the tail always dies away; no knob position makes the reverb feed back on itself and grow. |
@@ -322,8 +326,8 @@ A saved patch loads back exactly as saved, and a slot holding anything else is r
 | `patch_decode_encode_round_trip` | Saving a patch and loading the bytes back gives the same patch, for every patch the knobs can produce. | a user slot restores exactly what was saved, every lane setting and every global, with no field lost, swapped or rounded on the way through flash. |
 | `patch_decode_only_fits` | A patch that loads from a slot is one the knobs could have produced: every setting is in range. | a corrupt or foreign slot can never put an out-of-range sound index, scale or step count into the firmware, where it would read past a table; such a slot loads as EMPTY instead. |
 | `patch_decode_rejects_wrong_marker` | A slot whose first byte is not the patch marker 0xA7 never loads. | a slot never written, or written by other software, is told apart by its first byte and treated as empty rather than read as a scramble of settings. |
-| `patch_decode_rejects_wrong_size` | A slot that is not exactly 102 bytes long never loads. | a slot written by a firmware with a different patch layout is rejected whole instead of being read field by field in the wrong places. |
-| `patch_encode_size` | Every saved patch is 102 bytes long. | the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a different count would make every saved patch unloadable. |
+| `patch_decode_rejects_wrong_size` | A slot that is not exactly 106 bytes long never loads. | a slot written by a firmware with a different patch layout is rejected whole instead of being read field by field in the wrong places. |
+| `patch_encode_size` | Every saved patch is 106 bytes long. | the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a different count would make every saved patch unloadable. |
 
 </details>
 <!-- proofs:end -->

@@ -34,6 +34,7 @@ static struct {
     volatile int32_t pitch, timbre, color;      /* the voice's pitch (1/128 semitone) and its two timbre values */
     volatile uint16_t gain;                     /* levels the shapes out, 256 = 1 */
     volatile uint16_t send;                     /* how much goes to the reverb, 256 = all */
+    volatile int32_t pan_left, pan_right;       /* Q15 gains of the lane's pan (Mix.panLeft, Mix.panRight) */
     volatile uint8_t shape, attack, release, env, strike;
     int32_t amp;                                /* the level now: glides to gate, no clicks */
     uint32_t age;
@@ -58,8 +59,8 @@ static void render_voice(uint32_t v, int32_t *out, int32_t *bus, uint32_t n)
             int32_t s;                                                    /* the arithmetic is Lean: Firmware/Mix.lean */
             amp = (int32_t)fm1_mix_envelope_step((uint32_t)amp, (uint32_t)g, (uint32_t)up, (uint32_t)down);
             s = (int32_t)fm1_mix_voice_sample((uint16_t)block[j], voice[v].gain, (uint32_t)amp);
-            out[2u * (i + j)] += s;
-            out[2u * (i + j) + 1u] += s;
+            out[2u * (i + j)] += (int32_t)fm1_mix_pan_sample((uint32_t)s, (uint32_t)voice[v].pan_left);
+            out[2u * (i + j) + 1u] += (int32_t)fm1_mix_pan_sample((uint32_t)s, (uint32_t)voice[v].pan_right);
             bus[i + j] += (int32_t)fm1_mix_send_sample((uint32_t)s, voice[v].send);   /* the send bus is left plus right */
         }
     }
@@ -103,7 +104,7 @@ static void app_audio(int32_t *out, uint32_t n)
 /* ---- notes (main loop) */
 static uint32_t ages;
 
-static void play(uint32_t note, uint32_t vel, const sound_t *sound, uint32_t send)
+static void play(uint32_t note, uint32_t vel, const sound_t *sound, uint32_t send, uint32_t pan)
 {
     uint32_t v, pick = 0, best = 0xFFFFFFFFu;
     if (note > 127u || !vel) return;
@@ -123,6 +124,7 @@ static void play(uint32_t note, uint32_t vel, const sound_t *sound, uint32_t sen
     voice[pick].release = sound->release;
     voice[pick].env = sound->env;
     voice[pick].send = (uint16_t)(send * 256u / 100u);
+    voice[pick].pan_left = (int32_t)fm1_mix_pan_left(pan); voice[pick].pan_right = (int32_t)fm1_mix_pan_right(pan);
     voice[pick].strike = 1;
     voice[pick].gate = (int32_t)(vel * 64u * 16u);   /* 127 at the top: six voices stay under full scale */
 }
@@ -178,7 +180,7 @@ static const char *const TYPE_NAME[] = {"ALL", "TONE", "PLUCK", "PAD", "DRUM"}; 
 
 static lean_object *lane[NL];
 static struct {
-    uint8_t hits, steps, speed, scale, low, span, preset, muted, algo, chance, amount, mutate, chord, level, send;
+    uint8_t hits, steps, speed, scale, low, span, preset, muted, algo, chance, amount, mutate, chord, level, send, pan;
     uint8_t feel, rotate, accents, rule, ratchet, subhits;   /* the rhythm source: not in patches yet */
     uint16_t seed;
     sound_t sound;                              /* the lane's sound: a preset, then whatever the knobs changed */
@@ -231,7 +233,7 @@ static void lane_report(uint32_t i)             /* play what the lane just start
     if (on < 128u && !cfg[i].muted && lfo[i].level) {
         uint32_t vel = lfo[i].level;
         if (cfg[i].feel == 1u && cfg[i].accents) vel = fm1_lane_loud_of(lane[i]) ? vel : vel * 5u / 8u;   /* accents stand out */
-        play(on, vel ? vel : 1u, &lfo[i].sound, cfg[i].send);
+        play(on, vel ? vel : 1u, &lfo[i].sound, cfg[i].send, cfg[i].pan);
         midi_send(0x90u | (midi_out_base + i), on, vel ? vel : 1u);
     }
 }
@@ -310,7 +312,7 @@ static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint
         cfg[i].hits = src[i].hits; cfg[i].steps = src[i].steps; cfg[i].speed = src[i].speed; cfg[i].scale = src[i].scale;
         cfg[i].low = src[i].low; cfg[i].span = src[i].span; cfg[i].seed = src[i].seed; cfg[i].algo = src[i].algo;
         cfg[i].chance = src[i].chance; cfg[i].amount = src[i].amount; cfg[i].mutate = src[i].mutate;
-        cfg[i].chord = src[i].chord; cfg[i].level = src[i].level; cfg[i].send = src[i].send; cfg[i].muted = 0;
+        cfg[i].chord = src[i].chord; cfg[i].level = src[i].level; cfg[i].send = src[i].send; cfg[i].pan = src[i].pan; cfg[i].muted = 0;
         cfg[i].feel = src[i].feel; cfg[i].rotate = src[i].rotate; cfg[i].accents = src[i].accents; cfg[i].rule = src[i].rule;
         cfg[i].ratchet = src[i].ratchet; cfg[i].subhits = src[i].subhits;
         set_sound(i, src[i].sound);
@@ -368,6 +370,7 @@ static void patch_load(uint32_t index)
             d->feel = (uint8_t)fm1_patch_lane_field_of(l, 15); d->rotate = (uint8_t)fm1_patch_lane_field_of(l, 16);
             d->accents = (uint8_t)fm1_patch_lane_field_of(l, 17); d->rule = (uint8_t)fm1_patch_lane_field_of(l, 18);
             d->ratchet = (uint8_t)fm1_patch_lane_field_of(l, 19); d->subhits = (uint8_t)fm1_patch_lane_field_of(l, 20);
+            d->pan = (uint8_t)fm1_patch_lane_field_of(l, 21);
             lean_dec(l);
         }
         for (i = 0; i < 3u; i++) reverb[i] = (uint8_t)fm1_patch_field_of(user, 5u + i);
@@ -390,7 +393,7 @@ static void patch_save(uint32_t slot)
         lanes[i] = fm1_patch_lane_make(cfg[i].hits, cfg[i].steps, cfg[i].speed, cfg[i].scale, cfg[i].preset, cfg[i].low,
                                        cfg[i].span, cfg[i].algo, cfg[i].chance, cfg[i].amount, cfg[i].mutate, cfg[i].chord,
                                        cfg[i].level, cfg[i].send, cfg[i].seed, cfg[i].feel, cfg[i].rotate, cfg[i].accents,
-                                       cfg[i].rule, cfg[i].ratchet, cfg[i].subhits);
+                                       cfg[i].rule, cfg[i].ratchet, cfg[i].subhits, cfg[i].pan);
     patch = fm1_patch_make(bpm, key, progression, rate_bars, scale_lock, reverb_time, reverb_bright, reverb_amount,
                            delay_time, delay_feedback, delay_tone, delay_amount, lanes[0], lanes[1], lanes[2], lanes[3]);
     bytes = fm1_patch_encode(patch);
@@ -436,7 +439,7 @@ static void arp_report(void)                    /* play what the arpeggiator jus
 {
     uint32_t off = fm1_arp_off_of(arp), on = fm1_arp_on_of(arp);
     if (off < 128u) { stop(off); midi_send(0x80u | 15u, off, 0); }
-    if (on < 128u) { play(on, 100, &cfg[selected].sound, cfg[selected].send); midi_send(0x90u | 15u, on, 100); }
+    if (on < 128u) { play(on, 100, &cfg[selected].sound, cfg[selected].send, cfg[selected].pan); midi_send(0x90u | 15u, on, 100); }
 }
 
 static void arp_apply(void)                     /* the ARP knobs into the arpeggiator */
@@ -451,13 +454,19 @@ static void arp_silence(void)
     arp_report();
 }
 
+static struct { uint8_t oct, ch, look, swing, clock; } set = {0, 0, ALFRED_LOOK, 0, 0};   /* what survives a power-off */
+static uint32_t ext_ticks, ext_ms, ext_bpm, ext_stop;   /* CLOCK EXT: MIDI clocks seen, when the tempo was measured, the tempo, a stop seen */
+
 static void clock_poll(void)                    /* 24 ticks a quarter note: bpm * 4 hundred-thousandths of a tick a ms */
 {
     uint32_t dt = fm1_ms - tick_ms, i;
     tick_ms = fm1_ms;
-    tick_acc += dt * bpm * 4u;
-    while (tick_acc >= 10000u) {
-        tick_acc -= 10000u;
+    if (set.clock) {                            /* CLOCK EXT: a MIDI clock is a tick; midi_in counts them */
+        if (fm1_ms - ext_ms >= 2000u) { ext_bpm = 0; ext_ms = fm1_ms; }   /* nothing for 2 s: no clock */
+        tick_acc = 0;
+    } else tick_acc += dt * bpm * 4u;
+    while (set.clock ? ext_ticks > 0 : tick_acc >= fm1_swing_tick_length(tick_count % 24u, set.swing)) {
+        if (set.clock) ext_ticks--; else tick_acc -= fm1_swing_tick_length(tick_count % 24u, set.swing);
         arp = fm1_arp_tick(arp);                /* the arpeggiator keeps time whether the lanes run or not */
         arp_report();
         if (!running) continue;
@@ -507,23 +516,24 @@ static void demo_poll(void)
 
 /* ---- pages: four values on screen, four knobs under them */
 enum { G_HOME, G_SEQ, G_EDIT, G_GLO, G_FX, G_LFO, G_ARP };
-enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_REVERB, P_DELAY, P_HARMONY, P_SYSTEM, P_MIDI,
-       P_BANKS, P_LFO, P_ARP, NPAGES };
+enum { P_HOME, P_RHYTHM, P_FEEL, P_NOTES, P_RANGE, P_SOUND, P_ENVELOPE, P_MIX, P_PAN, P_REVERB, P_DELAY, P_HARMONY, P_SYSTEM,
+       P_MIDI, P_BANKS, P_LFO, P_ARP, NPAGES };
 #define NGROUPS 7u
 static const char *const GROUP_NAME[NGROUPS] = {"HOME", "SEQ", "EDIT", "GLO", "FX", "LFO", "ARP"};
 static const uint8_t GROUP_PAGE[NGROUPS][4] = {{P_HOME, 255, 255, 255}, {P_RHYTHM, P_FEEL, P_NOTES, P_RANGE},
-                                               {P_SOUND, P_ENVELOPE, P_MIX, 255}, {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS},
+                                               {P_SOUND, P_ENVELOPE, P_MIX, P_PAN}, {P_HARMONY, P_SYSTEM, P_MIDI, P_BANKS},
                                                {P_REVERB, P_DELAY, 255, 255}, {P_LFO, 255, 255, 255}, {P_ARP, 255, 255, 255}};
-static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_FX, G_FX, G_GLO, G_GLO, G_GLO,
-                                           G_GLO, G_LFO, G_ARP};
-static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "REVERB", "DELAY",
-                                              "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS"};
+static const uint8_t PAGE_GROUP[NPAGES] = {G_HOME, G_SEQ, G_SEQ, G_SEQ, G_SEQ, G_EDIT, G_EDIT, G_EDIT, G_EDIT, G_FX, G_FX, G_GLO,
+                                           G_GLO, G_GLO, G_GLO, G_LFO, G_ARP};
+static const char *const PAGE_NAME[NPAGES] = {"OVERVIEW", "RHYTHM", "FEEL", "NOTES", "RANGE", "SOUND", "ENVELOPE", "MIX", "PAN", "REVERB",
+                                              "DELAY", "HARMONY", "SYSTEM", "MIDI", "BANKS", "LANE", "KEYS"};
 static const char *const PAGE_LABEL[NPAGES][4] = {
     {"HITS", "STEPS", "SPEED", "CHANCE"}, {"HITS", "STEPS", "SPEED", "CHANCE"}, {"FEEL", "", "", ""}, {"ALGO", "AMOUNT", "MUTATE", "RANGE"},
     {"SCALE", "LOW", "CHORD", ""}, {"SHAPE", "TIMBRE", "COLOUR", "LEVEL"}, {"ATTACK", "RELEASE", "ENV", ""},
-    {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"}, {"TIME", "FEEDBK", "TONE", "RETURN"},
-    {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", ""},
-    {"IN", "OUT", "", ""}, {"PATCH", "SLOT", "DEMO", "AUTO"}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"}};
+    {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"LANE 1", "LANE 2", "LANE 3", "LANE 4"}, {"SEND", "DECAY", "BRIGHT", "RETURN"},
+    {"TIME", "FEEDBK", "TONE", "RETURN"},
+    {"KEY", "LOCK", "CHORDS", "BARS"}, {"TEMPO", "OCTAVE", "LOOK", "SWING"},
+    {"IN", "OUT", "CLOCK", ""}, {"PATCH", "SLOT", "DEMO", "AUTO"}, {"TARGET", "RATE", "DEPTH", ""}, {"MODE", "RATE", "OCTAVES", "GATE"}};
 static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO, P_ARP};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
 static uint32_t browse_by, browse_type;                                  /* sounds grouped by engine (0) or by type (1) */
@@ -535,7 +545,6 @@ static const char *const PATCH_GROUP[] = {"ALL", "DEMOS", "SONGS", "CALM", "DREA
 static uint32_t browse_patch_group;
 static uint32_t browse_count;
 
-static struct { uint8_t oct, ch, look; } set = {0, 0, ALFRED_LOOK};   /* what survives a power-off */
 #define TH (THEMES[set.look < NTHEMES ? set.look : 0])
 
 static int32_t clamp(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -637,6 +646,11 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
         if (cfg[k].muted) p = put_str(p, " MUTE");
         *fill = frac(cfg[k].level, 100);
         break;
+    case P_PAN:                                 /* L50 .. MID .. R50 */
+        if (cfg[k].pan == 50u) p = put_str(p, "MID");
+        else { *p++ = cfg[k].pan < 50u ? 'L' : 'R'; p = put_num(p, cfg[k].pan < 50u ? 50u - cfg[k].pan : cfg[k].pan - 50u); }
+        *fill = frac(cfg[k].pan, 100);
+        break;
     case P_REVERB:
         if (k == 0) { p = put_num(p, cfg[selected].send); *p++ = '%'; *fill = frac(cfg[selected].send, 100); }
         if (k == 1) { p = put_num(p, reverb_time); *p++ = '%'; *fill = frac(reverb_time, 100); }
@@ -658,11 +672,18 @@ static void param_text(uint32_t pg, uint32_t k, char *out, uint32_t *fill)
     case P_SYSTEM:
         if (k == 0) { p = put_num(p, bpm); p = put_str(p, " BPM"); *fill = frac((int32_t)bpm - 40, 200); }
         if (k == 2) { p = put_str(p, TH.name); CHOICE(set.look, NTHEMES); }
+        if (k == 3) { p = put_num(p, set.swing); *p++ = '%'; *fill = frac(set.swing, 100); }
         if (k == 1) { *p++ = set.oct & 0x80u ? '-' : '+'; p = put_num(p, (int8_t)set.oct < 0 ? (uint32_t)-(int8_t)set.oct : set.oct); *fill = frac((int8_t)set.oct + 2, 4); }
         break;
     case P_MIDI:
         if (k == 0) { if (set.ch) { p = put_str(p, "CH "); p = put_num(p, set.ch); } else p = put_str(p, "OMNI"); *fill = frac(set.ch, 16); }
         if (k == 1) { p = put_str(p, "CH "); p = put_num(p, midi_out_base + 1u); p = put_str(p, "-"); p = put_num(p, midi_out_base + 4u); *fill = frac(midi_out_base, 12); }
+        if (k == 2) {                           /* CLOCK: INT, or EXT with the tempo the MIDI clock runs at (none: no clock) */
+            if (!set.clock) p = put_str(p, "INT");
+            else if (ext_bpm) { p = put_str(p, "EXT "); p = put_num(p, ext_bpm); }
+            else p = put_str(p, "EXT ...");
+            CHOICE(set.clock, 2);
+        }
         break;
     case P_LFO:
         if (k == 0) { p = put_str(p, LFO_TARGET[lfo[selected].target]); CHOICE(lfo[selected].target, NLFO_TARGET); }
@@ -746,6 +767,9 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
     case P_MIX:
         cfg[k].level = (uint8_t)clamp(cfg[k].level + 5 * d, 0, 100);
         break;
+    case P_PAN:
+        cfg[k].pan = (uint8_t)clamp(cfg[k].pan + 5 * d, 0, 100);
+        break;
     case P_REVERB:
         if (k == 0) cfg[selected].send = (uint8_t)clamp(cfg[selected].send + 5 * d, 0, 100);
         if (k == 1) reverb_time = (uint32_t)clamp((int32_t)reverb_time + 5 * d, 0, 100);
@@ -775,10 +799,12 @@ static void param_turn(uint32_t pg, uint32_t k, int32_t d)
         if (k == 0) bpm = (uint32_t)clamp((int32_t)bpm + 2 * d, 40, 240);
         if (k == 1) set.oct = (uint8_t)clamp((int8_t)set.oct + d, -2, 2);
         if (k == 2) set.look = (uint8_t)clamp(set.look + d, 0, (int32_t)NTHEMES - 1);
+        if (k == 3) set.swing = (uint8_t)clamp(set.swing + 5 * d, 0, 100);
         break;
     case P_MIDI:
         if (k == 0) set.ch = (uint8_t)clamp(set.ch + d, 0, 16);
         if (k == 1) midi_out_base = (uint32_t)clamp((int32_t)midi_out_base + d, 0, 12);
+        if (k == 2) { set.clock = (uint8_t)clamp(set.clock + d, 0, 1); ext_ticks = 0; tick_acc = 0; }
         break;
     case P_LFO:
         if (k == 0) lfo[selected].target = (uint8_t)clamp(lfo[selected].target + d, 0, (int32_t)NLFO_TARGET - 1);
@@ -1040,7 +1066,7 @@ static void draw_columns(void)                  /* the page's four values: a met
     cv_begin(240, 64, TH.bg);                   /* the canvas holds 64 rows (CV_MAX): the meters are 62 tall */
     for (k = 0; k < 4u; k++) {
         int32_t x = 10 + (int32_t)k * 58;
-        uint16_t col = page == P_MIX ? LANE_COLOUR(k) : LANE_COLOUR(selected);
+        uint16_t col = page == P_MIX || page == P_PAN ? LANE_COLOUR(k) : LANE_COLOUR(selected);
         if (!page_label(page, k)[0]) continue;
         if ((page == P_RHYTHM || page == P_FEEL) && k < 2u) continue;           /* the circle stands in for these two meters */
         param_text(page, k, value, &fill);
@@ -1151,8 +1177,21 @@ static void midi_in(void)
     uint8_t st, d1, d2;
     while (midi_get(&st, &d1, &d2) != 0) {
         uint32_t ty = st & 0xF0u;
+        if (st == 0xF8u) {                      /* MIDI clock: a tick when CLOCK is EXT; the tempo it implies either way */
+            static uint32_t beat_ms, beat_ticks;
+            if (set.clock) ext_ticks++;
+            if (++beat_ticks >= 24u) {          /* a quarter note: bpm from its length */
+                uint32_t ms = fm1_ms - beat_ms;
+                beat_ticks = 0; beat_ms = fm1_ms; ext_ms = fm1_ms;
+                if (ms >= 200u && ms <= 1500u) ext_bpm = 60000u / ms;
+            }
+            continue;
+        }
+        if (st == 0xFAu || st == 0xFBu) { if (set.clock && !running) play_start(); continue; }   /* start, continue */
+        if (st == 0xFCu) { if (set.clock && running) ext_stop = 1; continue; }
+        if (st >= 0xF0u) continue;
         if (set.ch && (st & 15u) != set.ch - 1u) continue;
-        if (ty == 0x90u && d2) play(d1, d2, &cfg[selected].sound, cfg[selected].send);
+        if (ty == 0x90u && d2) play(d1, d2, &cfg[selected].sound, cfg[selected].send, cfg[selected].pan);
         else if (ty == 0x80u || ty == 0x90u) stop(d1);
     }
 }
@@ -1170,7 +1209,7 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
     uint32_t g[] = {page, selected, patch_index, bpm, key, progression, rate_bars, scale_lock, running, browse_mode, browse_pos,
                     arp_cfg.mode | arp_cfg.rate << 8 | arp_cfg.octaves << 16 | arp_cfg.gate << 24, arp_cfg.latch,
                     browse_family, browse_by, browse_type, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
-                    reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount, demo_auto};
+                    reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount, demo_auto, set.swing, set.clock, ext_bpm};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
     for (i = 0; i < NL; i++) h = (h ^ (lfo[i].target | lfo[i].rate << 8 | lfo[i].depth << 16)) * 16777619u;
     for (i = 0; i < sizeof g / sizeof g[0]; i++) h = (h ^ g[i]) * 16777619u;
@@ -1259,7 +1298,8 @@ static void app_main(void)
     uint32_t prev = 0, k, t_change = 0, dirty = 0, shown = 0, shown_layout = ~0u, alfred_shown = ~0u, stopped_ms = 0;
     uint32_t row_sig[NL];
     uint8_t held[27] = {0};                     /* the note each key plays */
-    if (settings_load(&set, sizeof set) || (int8_t)set.oct < -2 || (int8_t)set.oct > 2 || set.ch > 16u || set.look >= NTHEMES)
+    if (settings_load(&set, sizeof set) || (int8_t)set.oct < -2 || (int8_t)set.oct > 2 || set.ch > 16u || set.look >= NTHEMES ||
+        set.swing > 100u || set.clock > 1u)
         set.oct = 0, set.ch = 0, set.look = ALFRED_LOOK;
     for (k = 0; k < NV; k++) braids_voice_init(vmem[k]);
     for (k = 0; k < NL; k++) lane[k] = fm1_lane_make(1, 1, 1, 1, 36, 1, 1u);
@@ -1302,7 +1342,7 @@ static void app_main(void)
                     if (arp_cfg.latch && !arp_cfg.physical) arp = fm1_arp_clear(arp);
                     arp_cfg.physical |= 1u << k;
                     arp = fm1_arp_press(arp, held[k]);
-                } else { play(held[k], 100, &cfg[selected].sound, cfg[selected].send); midi_send(0x90u | 15u, held[k], 100); }
+                } else { play(held[k], 100, &cfg[selected].sound, cfg[selected].send, cfg[selected].pan); midi_send(0x90u | 15u, held[k], 100); }
                 if (cfg[selected].algo == 7u || cfg[selected].algo == 8u) lane[selected] = fm1_lane_learn(lane[selected], held[k]);   /* STEP writes it, MARKOV counts it */
             }
             if (up >> k & 1u) {
@@ -1316,6 +1356,7 @@ static void app_main(void)
         if (b & ~(1u << BTN_PLAY)) browse_mode = 0;
         if (b & (1u << BTN_OCT_DOWN) && oct > -2) { set.oct = (uint8_t)(oct - 1); dirty = 1; t_change = fm1_ms; }
         if (b & (1u << BTN_OCT_UP) && oct < 2) { set.oct = (uint8_t)(oct + 1); dirty = 1; t_change = fm1_ms; }
+        if (ext_stop) { ext_stop = 0; b |= 1u << BTN_PLAY; }   /* a MIDI stop is PLAY */
         if (b & (1u << BTN_PLAY)) { if (running) { running = 0; demo_auto = 0; stopped_ms = fm1_ms; silence_lanes(); arp_silence(); arp = fm1_arp_clear(arp); arp_cfg.latch = 0; } else play_start(); }
         if (b & (1u << BTN_HOME)) goto_group(G_HOME);
         if (b & (1u << BTN_SEQ)) goto_group(G_SEQ);

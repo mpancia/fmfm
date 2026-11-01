@@ -318,3 +318,60 @@ theorem mix_machine_sample_bounded (voices : List Int32) (echo delayGain wet rev
       · omega
       · rename_i notHigh notLow
         rw [ite_eq_right notHigh, ite_eq_right notLow]
+
+/-- Checked for every pan setting: both gains are between 0 and 32767, and the two squared add up to 32768
+squared within a tenth of a percent (equal power). -/
+private theorem mix_every_pan_ok :
+    ∀ pan : Fin 101, 0 ≤ (Mix.panLeft pan.val.toUInt32).toInt ∧ (Mix.panLeft pan.val.toUInt32).toInt ≤ 32767 ∧
+      0 ≤ (Mix.panRight pan.val.toUInt32).toInt ∧ (Mix.panRight pan.val.toUInt32).toInt ≤ 32767 ∧
+      1073000000 ≤ (Mix.panLeft pan.val.toUInt32).toInt ^ 2 + (Mix.panRight pan.val.toUInt32).toInt ^ 2 ∧
+      (Mix.panLeft pan.val.toUInt32).toInt ^ 2 + (Mix.panRight pan.val.toUInt32).toInt ^ 2 ≤ 1074500000 := by
+  decide +kernel
+
+/-- A pan setting above 100 counts as 100 in both gains. -/
+private theorem mix_pan_clamped (pan : UInt32) :
+    Mix.panLeft pan = Mix.panLeft (min pan 100) ∧ Mix.panRight pan = Mix.panRight (min pan 100) := by
+  have m : min (min pan 100) 100 = min pan 100 := by
+    by_cases h : pan ≤ 100
+    · simp [UInt32.min_def, h]
+    · simp [UInt32.min_def, h]
+  constructor
+  · unfold Mix.panLeft; rw [m]
+  · unfold Mix.panRight; rw [m]
+
+/-- For every pan setting the two gains are between 0 and 1.0 and keep the power: their squares add up to
+1.0 within a tenth of a percent.
+Why it matters: a sound panned anywhere is never louder on a side than it was, and does not dip in the middle
+or swell at the sides as it moves. -/
+theorem mix_pan_equal_power (pan : UInt32) :
+    0 ≤ (Mix.panLeft pan).toInt ∧ (Mix.panLeft pan).toInt ≤ 32767 ∧
+      0 ≤ (Mix.panRight pan).toInt ∧ (Mix.panRight pan).toInt ≤ 32767 ∧
+      1073000000 ≤ (Mix.panLeft pan).toInt ^ 2 + (Mix.panRight pan).toInt ^ 2 ∧
+      (Mix.panLeft pan).toInt ^ 2 + (Mix.panRight pan).toInt ^ 2 ≤ 1074500000 := by
+  obtain ⟨l, r⟩ := mix_pan_clamped pan
+  rw [l, r]
+  have small : (min pan 100).toNat ≤ 100 := by
+    rw [UInt32.min_def]; split <;> simp_all [UInt32.le_iff_toNat_le]
+  have := mix_every_pan_ok ⟨(min pan 100).toNat, by omega⟩
+  simpa [UInt32.ofNat_toNat] using this
+
+/-- A voice's sample on one side is never larger in size than the sample, for any pan gain between 0 and
+32767, and it is computed without a wrap for samples within 65024 (what `mix_voice_sample_never_wraps` gives).
+Why it matters: panning only ever takes level away from a side, so the stereo mix stays within the bounds
+`mix_machine_sample_bounded` was proved for. -/
+theorem mix_pan_never_amplifies (s gain : Int32) (sample : s.toInt.natAbs ≤ 65024) (nonneg : 0 ≤ gain.toInt)
+    (unit : gain.toInt ≤ 32767) :
+    (Mix.panSample s gain).toInt = s.toInt * gain.toInt / 32768 ∧ (Mix.panSample s gain).toInt.natAbs ≤ 65024 := by
+  unfold Mix.panSample
+  have product := mix_product_bound s.toInt gain.toInt 65024 32767 sample nonneg unit
+  have exact := mix_mul_exact s gain (by omega)
+  rw [mix_shift15, exact]
+  constructor
+  · rfl
+  · rcases Int.le_total 0 s.toInt with pos | neg
+    · have := Int.mul_le_mul_of_nonneg_left unit pos
+      have := Int.mul_nonneg pos nonneg
+      omega
+    · have := Int.mul_le_mul_of_nonpos_left neg unit
+      have := Int.mul_nonpos_of_nonpos_of_nonneg neg nonneg
+      omega

@@ -209,6 +209,9 @@ ROLE_EXTRAS = {
 # chord progressions (scale degrees, one chord per bar or more): index into Harmony.degree in Firmware/Harmony.lean
 # reverb send by role, in percent
 ROLE_SEND = {"bass": 8, "pad": 45, "lead": 28, "bell": 50, "kick": 5, "snare": 15, "hat": 12}
+# pan by role (0 left, 50 middle, 100 right): the low things stay in the middle, the rest spread a little
+HAND_PANS = (50, 40, 62, 50)                   # the hand-written patches: bass middle, lead a little left, bell right, pad middle
+ROLE_PAN = {"bass": 50, "pad": 50, "lead": 40, "bell": 62, "kick": 50, "snare": 45, "hat": 60}
 # reverb decay, brightness and return by mood
 MOOD_REVERB = {"calm": (75, 55, 75), "dream": (80, 50, 80), "drive": (35, 65, 55), "pulse": (30, 70, 50), "drift": (90, 45, 85),
                "shimmer": (70, 80, 80), "machine": (30, 75, 50), "folk": (55, 60, 65)}
@@ -244,7 +247,8 @@ def generated_patches(count):
             algo, chance, amount, mutate, _ = rng.choice(ROLE_EXTRAS[role])
             chord = (2 if role == "bass" else 1 if role == "pad" else 0) if progression else 0
             cells.append((min(rng.choice(hits), st), st, rng.choice(speeds), scale if role not in ("kick", "snare", "hat") else 7,
-                          sound, low, span, rng.randrange(1, 1000), (algo, chance, amount, mutate, chord, 100, ROLE_SEND[role])))
+                          sound, low, span, rng.randrange(1, 1000), (algo, chance, amount, mutate, chord, 100, ROLE_SEND[role]),
+                          (0, 0, 0, 90, 1, 1), ROLE_PAN[role]))
         out.append((name, rng.randrange(lo, hi + 1), rng.randrange(12), cells, progression, rate, MOOD_REVERB[mood_name],
                     MOOD_DELAY[mood_name]))
     return out
@@ -329,6 +333,7 @@ def render(measurements):
            "    uint8_t algo, chance, amount, mutate, chord, level, send; /* note algorithm, chord follow (0 off 1 scale 2 triad), reverb send */",
            "    uint16_t seed;",
            "    uint8_t feel, rotate, accents, rule, ratchet, subhits;   /* the rhythm source: 0 euclid 1 rotate 2 automaton 3 ratchet */",
+    "    uint8_t pan;                                             /* 0 left, 50 middle, 100 right */",
            "} patch_lane_t;",
            "typedef struct {",
            "    const char *name; uint8_t bpm, key, progression, rate, scale_lock;",
@@ -355,8 +360,9 @@ def render(measurements):
             h, st, sp, sc, snd_name, low, span, seed = lane[:8]
             extra = lane[8] if len(lane) > 8 else HAND_EXTRAS[pos] if span > 1 else (0, 100, 1, 0, 0, 100, ROLE_SEND['hat'])
             feel = lane[9] if len(lane) > 9 else (0, 0, 0, 90, 1, 1)      # feel, rotate, accents, rule, ratchet, sub-hits
+            pan = lane[10] if len(lane) > 10 else HAND_PANS[pos]
             cells.append(f"{{{h}, {st}, {sp}, {sc}, {resolve(snd_name, index)}, {low}, {span}, {', '.join(map(str, extra))}, {seed}, "
-                         f"{', '.join(map(str, feel))}}}")
+                         f"{', '.join(map(str, feel))}, {pan}}}")
         group = 0 if patch in DEMOS else 1 if patch in PATCHES else 2 + (allp.index(patch) - len(DEMOS) - len(PATCHES)) % len(MOODS)
         out.append(f'    {{"{name}", {bpm}, {key}, {progression}, {rate}, 0, {group}, {{{", ".join(map(str, reverb))}}}, {{{", ".join(map(str, delay))}}}, {{{", ".join(cells)}}}}},')
     out.append("};")

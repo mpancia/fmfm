@@ -62,9 +62,9 @@ theorem patch_decode_rejects_wrong_marker (bytes : ByteArray) (nonEmpty : 0 < by
   have head : bytes.data.toList[0]? = some bytes[0] := by simp [ByteArray.getElem_eq_getElem_data]
   rw [patch_ofBytes_wrong_marker _ (by rw [head]; simpa using wrong)]
 
-/-- A lane takes exactly 22 bytes off the front. -/
+/-- A lane takes exactly 23 bytes off the front. -/
 private theorem patchLane_ofBytes_length (l rest : List UInt8) (lane : PatchLane)
-    (parsed : PatchLane.ofBytes l = some (lane, rest)) : l.length = rest.length + 22 := by
+    (parsed : PatchLane.ofBytes l = some (lane, rest)) : l.length = rest.length + 23 := by
   unfold PatchLane.ofBytes at parsed
   split at parsed
   · simp only [Option.some.injEq, Prod.mk.injEq] at parsed
@@ -72,9 +72,9 @@ private theorem patchLane_ofBytes_length (l rest : List UInt8) (lane : PatchLane
     simp
   · simp at parsed
 
-/-- Bytes that read as a patch are exactly 102 long. -/
+/-- Bytes that read as a patch are exactly 106 long. -/
 private theorem patch_ofBytes_length (l : List UInt8) (p : Patch) (parsed : Patch.ofBytes l = some p) :
-    l.length = 102 := by
+    l.length = 106 := by
   unfold Patch.ofBytes at parsed
   split at parsed
   · rename_i marker version bpm key prog rate lock time bright amount dTime dFeedback dTone dAmount lanes
@@ -92,10 +92,10 @@ private theorem patch_ofBytes_length (l : List UInt8) (p : Patch) (parsed : Patc
     omega
   · simp at parsed
 
-/-- A slot that is not exactly 102 bytes long never loads.
+/-- A slot that is not exactly 106 bytes long never loads.
 Why it matters: a slot written by a firmware with a different patch layout is rejected whole instead of
 being read field by field in the wrong places. -/
-theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 102) :
+theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 106) :
     Patch.decode bytes = none := by
   unfold Patch.decode
   split
@@ -105,8 +105,8 @@ theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size 
     exact absurd length wrong
   · rfl
 
-/-- Every saved patch is 102 bytes long.
+/-- Every saved patch is 106 bytes long.
 Why it matters: the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a
 different count would make every saved patch unloadable. -/
-theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 102 := by
+theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 106 := by
   simp [Patch.encode, Patch.bytes, PatchLane.bytes, ByteArray.size]

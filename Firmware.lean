@@ -35,6 +35,8 @@ import Firmware.MacroApi
 import Firmware.Reverb
 import Firmware.ReverbApi
 import Firmware.Delay
+import Firmware.Swing
+import Firmware.SwingApi
 import Firmware.DelayApi
 import Firmware.Mix
 import Firmware.Smooth
