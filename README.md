@@ -20,7 +20,8 @@ same button again moves to the group's next page. The four knobs set the four va
 |---|---|
 | HOME | overview of the four lanes: hits, steps, speed, chance |
 | SEQ | RHYTHM: hits, steps, speed, chance, with the bar drawn as a circle (the hits joined, the current step bright). FEEL: the rhythm source (Euclid, rotate with accents, cellular automaton, ratchet) and its knobs. NOTES: the note source (random, walk, up, down, bounce, loop, turing, step, markov, grammar, chord) and its knobs, range. RANGE: scale, low note, chord follow. See `docs/SEQUENCERS.md` |
-| EDIT | SOUND: shape, timbre, colour, level. ENVELOPE: attack, release, envelope-to-timbre. MIX: the four lane levels. PAN: the four lanes left to right (equal power: `mix_pan_equal_power`) |
+| EDIT | SOUND: shape (48 Braids, 8 FM, 10 drums), timbre, colour, level (on an FM shape the knobs read DEPTH and FEEDBK). FILTER: the per-voice filter, cutoff, resonance, envelope amount, type (`Firmware/Filter.lean`). ENVELOPE: attack, release, envelope-to-timbre. MIX: the four lane levels. PAN: the four lanes left to right (equal power: `mix_pan_equal_power`) |
+| ARP, REC | ARP: the arpeggiator, then QUANT (the keys quantized to the scale or the chord). REC: PUNCH, the keys as momentary effects (see the buttons below) |
 | GLO | HARMONY: key, scale lock, chord progression, bars per chord. SYSTEM: tempo, keys octave, LOOK (seven looks; CATALOGUE, the site's paper and ink, is the default), SWING (0 to 100: the first eighth of each pair stretched, the second shortened, the pair kept exact: `swing_keeps_time`). MIDI: in and out channels, CLOCK (INT, or EXT: the lanes step on an incoming MIDI clock, start and stop follow it, the tempo it implies is shown). BANKS: patch, save slot, DEMO (the demo songs), AUTO (the device performs on its own: the demo songs in turn, 32 bars each, a lane varied every 8 bars; PLAY stopping ends it) |
 
 | Control | Does |
