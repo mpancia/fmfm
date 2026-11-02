@@ -45,11 +45,9 @@ private theorem fm_mul_add (a b c : UInt32) : a * (b + c) = a * b + a * c := by
   rw [UInt32.toNat_add, UInt32.toNat_mul, UInt32.toNat_mul, UInt32.toNat_mul, UInt32.toNat_add]
   rw [Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod, Nat.mul_add, Nat.add_mod]
 
-/-- With both operators starting at phase 0, an operator at integer ratio `r` (Q8 value `r * 256`) has phase
-exactly `r` times the carrier's after every number of samples, modulo 2^32 as the voice counts phase.
-Why it matters: a harmonic ratio is not approximately harmonic but exactly: the operator's phase is a
-fixed multiple of the carrier's at every sample, so there is no drift and no beating between them, however
-long the note sounds. -/
+/-- With both starting at phase 0, an operator at integer ratio `r` (Q8 value `r * 256`) has phase exactly
+`r` times the carrier's after any number of samples, modulo 2^32.
+Why it matters: an integer ratio is exactly harmonic; the two phases never drift apart or beat. -/
 theorem fm_harmonic_ratios_lock (voiceInc r : UInt32) (small : voiceInc.toNat * r.toNat < 2 ^ 31)
     (fits : r.toNat < 256) (n : Nat) :
     Fm.phaseAfter 0 (Fm.increment voiceInc (r * 256)) n = r * Fm.phaseAfter 0 voiceInc n := by
@@ -61,20 +59,18 @@ theorem fm_harmonic_ratios_lock (voiceInc r : UInt32) (small : voiceInc.toNat * 
     rw [ih, fm_mul_add, UInt32.mul_comm voiceInc r]
 
 /-- The operator's waveform at integer ratio `r` is a function of the carrier's phase alone.
-Why it matters: the sum of a carrier and an operator at an integer ratio is exactly periodic with the
-carrier, so the spectrum is exactly harmonic: the overtones sit on whole multiples of the fundamental and the
-ear hears one pitch, forever. -/
+Why it matters: carrier plus operator is then periodic with the carrier, so the spectrum is exactly
+harmonic. -/
 theorem fm_integer_ratio_periodic (voiceInc r : UInt32) (small : voiceInc.toNat * r.toNat < 2 ^ 31)
     (fits : r.toNat < 256) (n : Nat) :
     Fm.sineAt (Fm.phaseAfter 0 (Fm.increment voiceInc (r * 256)) n) =
       Fm.sineAt (r * Fm.phaseAfter 0 voiceInc n) := by
   rw [fm_harmonic_ratios_lock voiceInc r small fits n]
 
-/-- FM ORGAN (shape 54) and FM BASS (shape 50) use integer ratios on every operator; FM BELL (shape 49) does
-not.
-Why it matters: the organ and bass lock to the carrier by `fm_harmonic_ratios_lock`, so their partials are
-exactly harmonic and the note is one steady pitch; the bell's ratios of 3.5, 7.2 and 1.4 are chosen not to
-lock, and the inharmonic, slowly beating partials that follow are what make it sound like a bell. -/
+/-- FM ORGAN (shape 54) and FM BASS (shape 50) use integer ratios on every operator; FM BELL (shape 49)
+does not.
+Why it matters: the organ and bass are exactly harmonic by `fm_harmonic_ratios_lock`; the bell's ratios of
+3.5, 7.2 and 1.4 are inharmonic by design. -/
 theorem fm_organ_and_bass_lock :
     (∀ op : Fin 4, (Fm.ratio 54 (op.val + 1).toUInt32) % 256 = 0) ∧
     (∀ op : Fin 4, (Fm.ratio 50 (op.val + 1).toUInt32) % 256 = 0) ∧

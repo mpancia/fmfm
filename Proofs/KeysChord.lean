@@ -38,9 +38,8 @@ private theorem keys_triad_mask_roundtrip (t key : UInt32) :
   omega
 
 /-- With CHORD on a Tonnetz walk the lane's mask is a triad, and white key `w + 3` plays white key `w` an
-octave up: C E G are the three chord tones and F A B C repeat them an octave higher.
-Why it matters: with CHORD and a walk, the white keys are the chord of the moment, three to the octave, and
-the fourth white key is the first an octave up: what the player feels under the fingers. -/
+octave up.
+Why it matters: the white keys are the chord of the moment, three to the octave. -/
 theorem keys_triad_three_an_octave (t key : UInt32) (triad : t < 24) (k12 : key < 12) :
     let mask := (Harmony.rotate (Tonnetz.mask t.toNat) key.toNat).toUInt32
     ∀ w : Fin 7, Keys.degree mask.toNat key.toNat (w.val + 3) =
@@ -66,9 +65,8 @@ private theorem keys_degree_in_mask (mask root k : Nat) (some : (Keys.offsets ma
   rw [← Nat.add_assoc, Nat.add_mul_mod_self_left]
   exact inScale
 
-/-- With CHORD on a Tonnetz walk, each of the three white keys C E G plays a note of the walk's triad.
-Why it matters: with CHORD and a walk, the white keys are the chord of the moment; the first three are its
-notes and nothing else can sound. -/
+/-- With CHORD on a Tonnetz walk, each of the white keys C E G plays a note of the walk's triad.
+Why it matters: the first three white keys can only sound chord tones. -/
 theorem keys_triad_is_the_chord (t key : UInt32) (triad : t < 24) (k12 : key < 12) :
     ∀ w : Fin 3, (Harmony.rotate (Tonnetz.mask t.toNat) key.toNat).testBit
       ((key.toNat + Keys.degree (Harmony.rotate (Tonnetz.mask t.toNat) key.toNat) key.toNat w.val) % 12) =
@@ -76,11 +74,9 @@ theorem keys_triad_is_the_chord (t key : UInt32) (triad : t < 24) (k12 : key < 1
   intro w
   exact keys_degree_in_mask _ _ _ (by rw [keys_triad_three t key triad k12]; decide)
 
-/-- With CHORD on a Tonnetz walk, the three white keys C E G together are exactly the walk's triad: the
-pitch classes they play, as a mask, are the lane's mask, in rising order from the key's root (so degree 0 is
-the lowest chord tone above the key, which is the triad's root only when the walk is on the key's tonic).
-Why it matters: with CHORD and a walk, the white keys are the chord of the moment, the whole of it and
-nothing but it, laid out low to high under the first three fingers. -/
+/-- With CHORD on a Tonnetz walk, the pitch classes of white keys C E G together are exactly the walk's triad,
+in rising order from the key's root (so degree 0 is the triad's root only when the walk is on the tonic).
+Why it matters: the first three white keys are the whole chord and nothing else, laid out low to high. -/
 theorem keys_triad_white_keys_are_the_chord (t key : UInt32) (triad : t < 24) (k12 : key < 12) :
     let mask := Harmony.rotate (Tonnetz.mask t.toNat) key.toNat
     (1 <<< ((key.toNat + Keys.degree mask key.toNat 0) % 12)) |||

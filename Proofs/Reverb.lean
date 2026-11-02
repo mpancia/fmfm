@@ -33,10 +33,8 @@ private theorem reverb_small_stays (x : UInt32) (h : x.toNat < 2 ^ 31) : x.toInt
   rw [Int32.toInt, UInt32.toBitVec_toInt32, BitVec.toInt_eq_toNat_cond]
   simp only [small, ↓reduceIte, same]
 
-/-- A sample position is always inside the shared delay memory, whatever the write position, line start and
-offset.
-Why it matters: a read or write can never land outside the memory, so no setting of a knob can crash the
-reverb. -/
+/-- A sample position is inside the shared delay memory for any write position, line start and offset.
+Why it matters: no knob setting can make a read or write land outside the memory. -/
 theorem reverb_position_in_ring (write base offset : UInt32) :
     (Reverb.pos write base offset).toNat < 32768 := by
   unfold Reverb.pos
@@ -45,10 +43,9 @@ theorem reverb_position_in_ring (write base offset : UInt32) :
   rw [this]
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by omega)
 
-/-- At every scale up to 400 (353 is the shipped one), each delay line ends inside the memory, and each line
-starts one sample after the previous one ends.
-Why it matters: the ten lines never overlap, so one line cannot overwrite another, and none runs off the
-end. -/
+/-- At every scale up to 400 (353 shipped), each delay line ends inside the memory and each line starts one
+sample after the previous one ends.
+Why it matters: the ten lines never overlap and none runs off the end. -/
 theorem reverb_lines_fit_and_do_not_overlap (scale : UInt32) (small : scale.toNat ≤ 400) (line : UInt32)
     (exists_ : line.toNat < 10) :
     (Reverb.start scale line).toNat + (Reverb.length scale line).toNat < 32768 ∧
@@ -63,10 +60,10 @@ theorem reverb_lines_fit_and_do_not_overlap (scale : UInt32) (small : scale.toNa
   have := table ⟨scale.toNat, by omega⟩ ⟨line.toNat, exists_⟩
   simpa using this
 
-/-- For every decay-time setting, the loop gain is positive and below 1.0 (at most 0.98), and for every
-brightness setting the low-pass amount is too (at most 0.97).
-Why it matters: the tail always dies away; no knob position makes the reverb feed back on itself and grow.
-This is about the gain settings, not a proof that the whole network is stable. -/
+/-- For every decay-time setting the loop gain is positive and at most 0.98, and for every brightness setting
+the low-pass amount is positive and at most 0.97.
+Why it matters: no knob position gives a gain of 1.0 or more. This is about the settings only, not stability
+of the whole network. -/
 theorem reverb_gains_below_one (setting : UInt32) :
     0 < (Reverb.timeGain setting).toInt ∧ (Reverb.timeGain setting).toInt < 32768 ∧
       0 < (Reverb.brightGain setting).toInt ∧ (Reverb.brightGain setting).toInt < 32768 := by
@@ -77,11 +74,10 @@ theorem reverb_gains_below_one (setting : UInt32) :
   rw [reverb_small_stays _ (by omega), reverb_small_stays _ (by omega), t, b]
   omega
 
-/-- The signal stored in the delay memory is the signal divided by 8, rounded towards zero, and it saturates
-at the ends of the 16-bit range instead of wrapping around: from 262144 up it stores 32767, from -262152
-down it stores -32768, and in between it is within 7 of the signal (times 8).
-Why it matters: a loud signal in the loops clips like an overdriven analogue stage; it never wraps to the
-opposite sign, which is the harsh noise a digital reverb is known for. -/
+/-- The value stored in the delay memory is the signal divided by 8, rounded towards zero, saturated at the
+16-bit ends: from 262144 up it stores 32767, from -262152 down it stores -32768, and in between it is within
+7 of the signal (times 8).
+Why it matters: a loud signal in the loops clips instead of wrapping to the opposite sign. -/
 theorem reverb_compress_saturates (signal : Int32) :
     (262144 ≤ signal.toInt → (Reverb.compress signal).toInt = 32767) ∧
     (signal.toInt ≤ -262152 → (Reverb.compress signal).toInt = -32768) ∧
@@ -178,10 +174,10 @@ private theorem reverb_mul_value (s g : Int32) (nonmin : -2 ^ 31 < s.toInt) (uni
   clear e1 e2
   exact Int.bmod_eq_of_le (by omega) (by omega)
 
-/-- A signal times a gain between 0 and 1.0 keeps its sign and never grows: the result lies between zero and
-the signal. (The one most negative 32-bit number is left out; no signal in the reverb comes near it.)
-Why it matters: the loop gain and the low-pass amount are such gains, so each pass round a loop cannot make
-a sample louder than it went in, rounding included. -/
+/-- A signal times a gain between 0 and 1.0 lies between zero and the signal. (The most negative 32-bit
+number is excluded; nothing in the reverb comes near it.)
+Why it matters: the loop gain and the low-pass amount are such gains, so a pass round a loop cannot make a
+sample louder, rounding included. -/
 theorem reverb_gain_never_amplifies (signal gain : Int32) (nonmin : -2 ^ 31 < signal.toInt)
     (nonneg : 0 ≤ gain.toInt) (unit : gain.toInt ≤ 32768) :
     (0 ≤ signal.toInt →
@@ -200,8 +196,8 @@ theorem reverb_gain_never_amplifies (signal gain : Int32) (nonmin : -2 ^ 31 < si
     omega
 
 /-- One step of the low-pass lands between its old state and the new signal, for any amount from 0 to 1.0,
-when both are within a quarter of the 32-bit range (the loops hold at most 8.0, which is 1/8192 of it).
-Why it matters: the filter in each loop can only smooth; it cannot overshoot, ring or add level of its own. -/
+when both are within a quarter of the 32-bit range (the loops hold at most 8.0).
+Why it matters: the filter in each loop cannot overshoot or add level. -/
 theorem reverb_lowpass_stays_between (state signal amount : Int32) (hs : state.toInt.natAbs < 2 ^ 30)
     (hx : signal.toInt.natAbs < 2 ^ 30) (nonneg : 0 ≤ amount.toInt) (unit : amount.toInt ≤ 32768) :
     min state.toInt signal.toInt ≤ (Reverb.lowpass state signal amount).toInt ∧
@@ -213,10 +209,9 @@ theorem reverb_lowpass_stays_between (state signal amount : Int32) (hs : state.t
   rw [reverb_add_exact _ _ (by omega)]
   omega
 
-/-- A point read between two stored neighbours lies between them, for any fraction below 1.0, when both are
-within a quarter of the 32-bit range.
-Why it matters: a modulated delay reads between samples; the interpolation can only blend, never add a
-spike. -/
+/-- A read between two stored neighbours lies between them, for any fraction below 1.0, when both are within
+a quarter of the 32-bit range.
+Why it matters: the interpolation of a modulated delay cannot add a spike. -/
 theorem reverb_interpolation_stays_between (a b fraction : Int32) (ha : a.toInt.natAbs < 2 ^ 30)
     (hb : b.toInt.natAbs < 2 ^ 30) (nonneg : 0 ≤ fraction.toInt) (unit : fraction.toInt < 65536) :
     min a.toInt b.toInt ≤ (Reverb.interpolate a b fraction).toInt ∧
@@ -270,8 +265,7 @@ private theorem reverb_sine_bounded (phase : UInt32) : (Reverb.sine phase).toInt
   exact reverb_clamp_bounded _
 
 /-- The LFO's wobble is between 0 and 32767 (0 and 1.0 in Q15) at every phase.
-Why it matters: the delay modulation below relies on the wobble never going negative or past 1.0, so a
-modulated delay can only be between its base time and its base plus its depth. -/
+Why it matters: a modulated delay stays between its base time and its base plus its depth. -/
 theorem reverb_lfo_in_range (phase : UInt32) :
     0 ≤ (Reverb.lfo phase).toInt ∧ (Reverb.lfo phase).toInt ≤ 32767 := by
   unfold Reverb.lfo
@@ -309,13 +303,12 @@ private theorem reverb_length_value (scale line : UInt32) (hs : scale.toNat ≤ 
   rw [Nat.mod_eq_of_lt (by omega : (Reverb.baseLength line).toNat * scale.toNat < 4294967296)]
   rw [Nat.mod_eq_of_lt (by omega)]
 
-/-- The two modulated reads in the glue, the first diffuser (10 samples plus up to 60, line 0 of 113) and the
-long delay of the second loop (4680 plus up to 100, line 9 of 4782), read a sample and its older neighbour
-that are both inside their own line, whatever the LFO does, at every scale from 192 to 400 (353 is the
-shipped one; below 192 the long delay's margin of two samples at Clouds' size is lost to rounding).
-Why it matters: a modulated read that ran past the end of its line would read the next line's samples, a
-quiet bug the differential test could miss. With `reverb_position_in_ring` and the line layout, every read
-is in the memory and in its line. -/
+/-- The two modulated reads, the first diffuser (10 samples plus up to 60, line 0 of 113) and the long delay
+of the second loop (4680 plus up to 100, line 9 of 4782), read a sample and its older neighbour that are both
+inside their own line, for any LFO value, at every scale from 192 to 400 (353 shipped; below 192 the long
+delay's two-sample margin is lost to rounding).
+Why it matters: a modulated read past the end of its line would read the next line's samples, which the
+differential test could miss. -/
 theorem reverb_modulated_read_stays_in_line (scale lfo : UInt32) (lo : 192 ≤ scale.toNat)
     (hi : scale.toNat ≤ 400) (wobble : lfo.toNat ≤ 32767) :
     (Reverb.modOffset 10 60 scale lfo >>> 16).toNat + 1 < (Reverb.length scale 0).toNat ∧
@@ -493,14 +486,12 @@ private theorem reverb_half_trip_decays (tail decay bright diffusion : Int32) (r
   rw [eight]
   exact Nat.le_trans (Nat.mul_le_mul_right 32768 chain) round
 
-/-- One trip round the undriven tank (through both loops) scales a sample's size by the decay gain squared,
-plus at most one unit of rounding: in Q15, the sample read from a long delay comes back to that delay as at
-most `tail · decay² / 2^30 + 1`. Each loop applies the decay gain once, so a round trip applies it twice.
-The loop gain is at most 0.98 (`reverb_gains_below_one`), so the squared gain is at most 0.96. This follows
-one sample's direct path with the rest of the tank quiet: what the low-passes and the allpass lines hold
-comes out on later samples and is bounded by the same gains on its own trips.
-Why it matters: with nothing fed in, the tail gets quieter on every trip round the tank until it is within a
-rounding step of silence; no decay setting can make the reverb ring on or build up. -/
+/-- One trip round the undriven tank (through both loops) scales a sample by the decay gain squared plus at
+most one unit of rounding: in Q15, a sample read from a long delay comes back to it as at most
+`tail · decay² / 2^30 + 1`. With the gain at most 0.98 the squared gain is at most 0.96. This follows one
+sample's direct path with the rest of the tank quiet; what the low-passes and allpasses hold comes out on
+later samples under the same gains.
+Why it matters: with nothing fed in, every trip makes the tail quieter, at any decay setting. -/
 theorem reverb_round_trip_decays (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
     (decayUnit : decay.toInt.natAbs ≤ 32768) (brightNonneg : 0 ≤ bright.toInt)
     (brightUnit : bright.toInt ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) :
@@ -585,15 +576,12 @@ private theorem reverb_loop_bounded (input tail state oldestA oldestB decay brig
 private theorem reverb_within_of_natAbs (p : Int) (n : Nat) (small : p.natAbs ≤ n) : -n ≤ p ∧ p ≤ n := by
   constructor <;> omega
 
-/-- The wet sample a loop hands to the mixer is exactly twice the sum the loop stores (no wrap in the
-doubling or in any addition before it), it is at most 16448.0 in size (2^29 + 2^21, a quarter of the 32-bit
-range), the low-pass's new state stays within 8192.0 (2^28), and the mixer's return gain of up to 2.0
-(`Mix.wetSample`) then scales it with no wrap either. This holds for a send of at most 4096.0 (2^27; six
-voices put far less on the bus), a low-pass state of at most 8192.0 (which the third claim keeps true from
-one sample to the next, starting from a cleared state), gains of at most 1.0 in size, and samples read from
-the memory (at most 8.0 each, by its 16-bit format).
-Why it matters: the reverb's output can never wrap round to the opposite sign on its way into the mix, which
-would turn a loud tail into full-scale noise. -/
+/-- The wet sample a loop hands to the mixer is exactly twice the sum the loop stores (no wrap in the doubling
+or in any addition before it), at most 16448.0 in size (2^29 + 2^21), the low-pass's new state stays within
+8192.0 (2^28), and the mixer's return gain of up to 2.0 (`Mix.wetSample`) scales it with no wrap. Holds for
+a send of at most 4096.0 (2^27), a low-pass state of at most 8192.0 (kept by the third claim from one sample
+to the next, starting cleared), gains of at most 1.0 in size, and memory samples of at most 8.0.
+Why it matters: the reverb's output cannot wrap to the opposite sign on its way into the mix. -/
 theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state returnGain : Int32)
     (oldest1 oldest2 oldest3 oldest4 tail oldestA oldestB : Int32)
     (sendFits : send.toInt.natAbs ≤ 2 ^ 27) (stateFits : state.toInt.natAbs ≤ 2 ^ 28)
@@ -649,10 +637,9 @@ theorem reverb_wet_never_overflows (send inputGain diffusion decay bright state 
   exact Int.bmod_eq_of_le (by simp only [Nat.reducePow]; omega)
     (by simp only [Nat.reducePow]; omega)
 
-/-- A sample read back from the memory after any number of trips round an undriven tank is still a memory
-sample, at most 8.0 in size.
-Why it matters: however many times a tail goes round, and whatever the gains, the 16-bit memory format caps
-it; it cannot grow without bound or wrap. -/
+/-- A sample read from the memory after any number of trips round an undriven tank is a memory sample, at
+most 8.0 in size.
+Why it matters: the 16-bit memory format caps a tail at any number of trips and any gains. -/
 theorem reverb_tail_stays_in_memory (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
     (n : Nat) : Reverb.fromMemory (Reverb.trips tail decay bright diffusion n) := by
   cases n with
@@ -688,13 +675,12 @@ private theorem reverb_share_step (t d n : Nat) :
     _ = a * d * d / b := by ac_rfl
 
 /-- After `n` trips round an undriven tank, a sample is at most its starting size times the decay gain to
-the power `2n` (in Q15, so divided by `2^30` per trip), plus 16385 (half a unit in Q15). The decay gain
-must be at most 32767, strictly below 1.0, so the geometric part really shrinks. A plain geometric bound
-with no constant is false: each trip rounds by up to one unit (`reverb_round_trip_decays`), and those
-roundings add up over the trips to a sum that the gain keeps below 16385, like a geometric series. The
-16-bit memory stores steps of 8, so in practice the tail settles to within a few steps of silence.
-Why it matters: a tail started at any level dies down towards silence and cannot creep back up: no number
-of trips lets the rounding pile up into audible noise or a tone that never ends. -/
+the power `2n` (Q15, so divided by `2^30` per trip), plus 16385 (half a unit in Q15). The decay gain must
+be at most 32767. The constant is needed: each trip rounds by up to one unit (`reverb_round_trip_decays`),
+and the gain keeps the sum of those roundings below 16385. The memory stores steps of 8, so the tail settles
+within a few steps of silence.
+Why it matters: a tail at any level decays towards silence; rounding cannot accumulate into noise or a tone
+that never ends. -/
 theorem reverb_tail_dies_away (tail decay bright diffusion : Int32) (read : Reverb.fromMemory tail)
     (decayBelowOne : decay.toInt.natAbs ≤ 32767) (brightNonneg : 0 ≤ bright.toInt)
     (brightUnit : bright.toInt ≤ 32768) (diffusionUnit : diffusion.toInt.natAbs ≤ 32768) (n : Nat) :

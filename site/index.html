@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="FORMALFRED: generative sequencer firmware for the M-VAVE FM-1. The sequencer, the voices and the effects are Lean 4, with theorems about them.">
+<meta name="description" content="FORMALFRED: generative music firmware for the M-VAVE FM-1, written in Lean 4 with 313 theorems about it.">
 <title>formalfred</title>
 <link rel="icon" href="alfred.svg">
 <link rel="stylesheet" href="style.css">
@@ -15,6 +15,7 @@
   <nav>
     <a href="sim/">simulator</a>
     <a href="installer.html">install</a>
+    <a href="pitch/">pitch</a>
     <a href="#proved">proofs</a>
     <a href="https://github.com/mpancia/fmfm">source</a>
   </nav>
@@ -28,25 +29,23 @@
 
 <section class="ruled"><div class="wrap">
   <div>
-    <h1>A sequencer that plays by itself, for the M-VAVE FM-1, with the things it promises proved in Lean.</h1>
+    <h1>A generative music box for the M-VAVE FM-1, written in Lean, with theorems about what it plays.</h1>
   </div>
   <div>
-    <p>The FM-1 is a pocket keyboard with a 240-pixel screen, seven encoders and a speaker, and this firmware
-    replaces what it came with by four lanes that each divide the clock into a rhythm and then choose, note by
-    note, something to play from a scale, so that a bar of sixteenths in C minor and a slower bar on the same
-    chord can sit next to each other for an hour without either one falling behind. The voice is Braids, the
-    Mutable Instruments oscillator, every one of its 48 shapes, with a reverb and a ping-pong delay hanging off a
-    send. There are 128 patches to start from. Alfred the butler bows when the unit boots and goes to stand in the
-    corner of the screen whenever you stop the clock.</p>
-    <p>Most of what runs is Lean 4: the lanes, the arithmetic of every Braids engine, the two effects, the mix and
-    the patch format are compiled from Lean to C and then to the chip, and {{theorems}} theorems about that code go
-    through Lean's kernel on every build. What is left in C (the screen, the drivers, the loops that call the Lean)
-    the README lists as trusted rather than proved. It runs on an FM-1.</p>
+    <p>The FM-1 is a pocket keyboard with a 240-pixel screen, seven encoders and a speaker. This firmware replaces
+    the stock one with four lanes that each divide the clock into a rhythm and pick notes from a scale: Euclidean
+    patterns, cellular automata and ratchets on one side, random walks, Markov chains, grammars and Tonnetz chord
+    walks on the other. The voices are all 48 Braids shapes, a four-operator FM voice and a synthesized 808, each
+    with a filter, plus a reverb and a ping-pong delay. 136 patches and 15 demo songs to start from. Alfred bows at
+    boot and stands in the corner when you stop the clock.</p>
+    <p>The lanes, the voices, the effects, the mix and the patch format are Lean 4, compiled to C and then to the
+    chip, and {{theorems}} theorems about that code go through Lean's kernel on every build. What stays C (the
+    screen, the drivers, the loops that call the Lean) the README lists as trusted. It runs on a real FM-1.</p>
     <p>
       <a class="button solid" href="sim/">Try it in the browser</a>
       <a class="button" href="installer.html">Install on an FM-1</a>
     </p>
-    <p class="label">The simulator is the same firmware compiled to WebAssembly, so what you hear there is what the chip would play. Chrome or Edge if you want MIDI in.</p>
+    <p class="label">The simulator is the same firmware compiled to WebAssembly. Chrome or Edge for MIDI in.</p>
   </div>
 </div></section>
 
@@ -55,24 +54,23 @@
   <div class="cols">
     <div>
       <p class="label">Rhythm</p>
-      <p>A lane's bar is Euclidean by default, 1 to 32 steps with the hits spread as evenly as they can be, at any
-      of eight clock divisions; or it can be a rotated bar with accents, a one-dimensional cellular automaton, or
-      ratchets. Since where a lane stands in its bar is a function of the tick count alone, four lanes at four
-      speeds come back into line on the bar whatever their notes did in between
-      (<code>run_clock_never_drifts</code>).</p>
+      <p>A lane's bar is Euclidean by default, 1 to 32 steps with the hits spread as evenly as possible, at any
+      of eight clock divisions; or a rotated bar with accents, a cellular automaton, or ratchets. A lane's position
+      in its bar depends only on the tick count, so four lanes at four speeds stay in phase
+      (<code>run_clock_never_drifts</code>), and a bar plays exactly the hits you set (<code>run_bar_plays_every_hit</code>).</p>
     </div>
     <div>
       <p class="label">Notes</p>
-      <p>Eleven ways to choose the next note, from a plain random draw through walks, bounces and a mutating loop to
-      a Turing machine, a Markov chain and a small grammar, all of them kept inside a range and a scale. A chord
-      progression can move the whole scale a few semitones or hold a lane to the triad. Whichever you pick, the note
-      that comes out is in the scale (<code>lane_note_in_scale</code>), and that one is a theorem.</p>
+      <p>Eleven note sources, from a random draw through walks, a mutating loop, a Turing register, a Markov chain
+      that learns from the keys and a grammar. Chord progressions are written as degrees and a lane can follow the
+      chord, its seventh, or the notes outside the key. The last three progressions walk the Tonnetz by P, L and R.
+      Whatever you pick, the note that comes out is in the scale (<code>lane_note_in_scale</code>).</p>
     </div>
     <div>
       <p class="label">Sound</p>
-      <p>199 sounds, drawn from Braids' analog, digital, physical, percussion, vowel, wavetable and noise engines,
-      each with an envelope and a timbre knob. Every lane has an LFO. The keys have an arpeggiator. Both effects are
-      sends, so a lane can be dry while another swims.</p>
+      <p>255 sounds: Braids' analog, digital, physical, percussion, vowel, wavetable and noise engines, eight FM
+      shapes, ten 808 drums, each with an envelope and a filter. Every lane has an LFO. The keys have an arpeggiator,
+      a scale or chord quantizer, and a page of punch-in effects. The reverb and the delay are sends.</p>
     </div>
   </div>
 </div></section>
@@ -83,34 +81,35 @@
     <tr><th>Group</th><th>Pages</th></tr>
     <tr><td>HOME</td><td>the four lanes: hits, steps, speed, chance; Alfred when stopped</td></tr>
     <tr><td>SEQ</td><td>RHYTHM, FEEL, NOTES, RANGE</td></tr>
-    <tr><td>EDIT</td><td>SOUND, ENVELOPE, MIX</td></tr>
+    <tr><td>EDIT</td><td>SOUND, FILTER, ENVELOPE, MIX, PAN</td></tr>
     <tr><td>FX</td><td>REVERB (send, decay, bright, return), DELAY (time, feedback, tone, return)</td></tr>
     <tr><td>LFO</td><td>target, rate, depth, for the chosen lane</td></tr>
-    <tr><td>ARP</td><td>mode, rate, octaves, gate; ARP again latches</td></tr>
+    <tr><td>ARP</td><td>mode, rate, octaves, gate; ARP again latches; then QUANT</td></tr>
+    <tr><td>REC</td><td>PUNCH: the keys as momentary effects on the mix</td></tr>
     <tr><td>GLO</td><td>HARMONY, SYSTEM, MIDI, BANKS</td></tr>
     <tr><td>SELECT</td><td>the lane; in a browser, the group</td></tr>
     <tr><td>PRESETS</td><td>the sound or patch browser</td></tr>
     <tr><td>ALGORITHM</td><td>tempo</td></tr>
-    <tr><td>PLAY · SEL · REC · SAVE</td><td>start or stop; mute the lane; roll a variation; keep the patch</td></tr>
+    <tr><td>PLAY · SEL · SAVE</td><td>start or stop; mute the lane; save the patch</td></tr>
   </table>
 </div></section>
 
 <section class="ruled" id="proved"><div class="wrap">
   <div>
     <h2>What is proved</h2>
-    <p class="label">{{theorems}} theorems, on the three standard axioms and nothing else, checked by Lean's kernel and replayed by five independent checkers under <code>lake comparator</code>.</p>
+    <p class="label">{{theorems}} theorems on the three standard axioms, checked by Lean's kernel and by <code>lake comparator</code>; every one is also instantiated on concrete inputs.</p>
   </div>
   <div>
     <table class="ledger">
       <tr><th>Area</th><th class="num">Theorems</th><th>What is promised</th></tr>
       {{groups}}
     </table>
-    <p style="margin-top: 22px">Every theorem is listed in
-    <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a> with its statement and a
-    sentence on why anyone should care, and the README says which parts are trusted instead: the screen, the drivers,
-    the one-line accessors that read Braids' tables, and the C loops that call the Lean. The proofs are about the
-    code the chip runs, generated from the same Lean, with the arithmetic of every engine checked sample for sample
-    against the original Braids. They are not about the hardware, on which the firmware runs but which nothing here models.</p>
+    <p style="margin-top: 22px">Every theorem is in
+    <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a> with its statement, why it
+    matters and the definitions it depends on. The README says what is trusted instead: the screen, the drivers, the
+    accessors that read Braids' tables, and the C loops that call the Lean. The proofs are about the code the chip
+    runs; the engine arithmetic is also checked sample for sample against the original Braids. Nothing here models
+    the hardware.</p>
   </div>
 </div></section>
 
@@ -121,7 +120,7 @@
       <li>Put the unit on the official V15 firmware first, and take a full-flash backup.
         Steps in <a href="https://github.com/mpancia/fmfm/blob/main/docs/FM1.md">docs/FM1.md</a>.</li>
       <li>The installer works over USB from Chrome or Edge and keeps the update path and the OCT- rescue.</li>
-      <li>Nothing here has been run on a physical FM-1. Use at your own risk.</li>
+      <li>Tested on one FM-1, installed over the stock firmware and over itself. Use at your own risk.</li>
     </ul>
   </div>
 </div></section>

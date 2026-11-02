@@ -66,10 +66,8 @@ private theorem blend_between (a b t N : Int) (pos : 0 < N) (ht : 0 ≤ t ∧ t 
     have u' := Int.ediv_nonpos_of_nonpos_of_neg u pos
     omega
 
-/-- Blending two 16-bit entries by an 8-bit fraction (`Interpolate88`, `Analog.blend88`) lands between the
-two.
-Why it matters: a wave shaper can never put out more than its table holds, whatever the index; its output is
-16-bit without relying on the cut. -/
+/-- Blending two 16-bit entries by an 8-bit fraction (`Interpolate88`, `Analog.blend88`) lands between them.
+Why it matters: a wave shaper's output stays within its table's range without relying on the 16-bit cut. -/
 theorem blend_eight_between (a b : Int32) (index : UInt32)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
     min a.toInt b.toInt ≤ (Analog.blend88 a b index).toInt ∧
@@ -98,10 +96,10 @@ theorem blend_eight_between (a b : Int32) (index : UInt32)
   rw [blend_keep16 _ (by omega) (by omega), inner]
   exact bt
 /-- Blending two 16-bit values by a 16-bit fraction (`Interpolate824`) lands between them, for any two values.
-The product inside can wrap in 32 bits (Braids' own C++ does so for steep comb and wave tables), but the wrap is
-a multiple of 2^16 and the cut to 16 bits cancels it exactly, so the result is the intended value.
-Why it matters: this is the blend inside every table read and every wave crossfade; the result can never
-exceed what it blends, and the overflow in the original is proved harmless rather than assumed. -/
+The product inside can wrap in 32 bits (Braids' C++ does so for steep comb and wave tables), but the wrap is
+a multiple of 2^16 and the cut to 16 bits cancels it exactly.
+Why it matters: every table read and wave crossfade uses this blend; the overflow in the original is proved
+harmless. -/
 theorem blend_sixteen_between (a b : Int32) (frac : UInt32)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
     min a.toInt b.toInt ≤ (a + (((b - a) * (frac &&& 0xFFFF).toInt32) >>> 16)).toInt16.toInt32.toInt ∧

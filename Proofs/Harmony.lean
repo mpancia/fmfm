@@ -144,10 +144,10 @@ private theorem harmony_args (scale key progression step follow : UInt32) :
   simp [Nat.toUInt32, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (show a < 2 ^ 32 by omega),
     Nat.mod_eq_of_lt (show r < 2 ^ 32 by omega)]
 
-/-- The mask handed to a lane always has at least one note and fits in 12 bits, for every scale, key,
-progression, chord and follow mode the firmware offers, the Tonnetz walks included.
-Why it matters: `lane_note_in_scale` needs a non-empty 12-bit scale; this is what makes that promise hold for
-the chord-following lanes too, so a chord change can never leave a lane with nothing to play. -/
+/-- The mask handed to a lane is non-empty and fits in 12 bits, for every scale, key, progression, chord step
+and follow mode, Tonnetz walks included.
+Why it matters: `lane_note_in_scale` needs a non-empty 12-bit mask; a chord change can never leave a lane
+with nothing to play. -/
 theorem harmony_mask_never_empty (scale key progression step follow : UInt32) :
     (harmonyMask scale key progression step follow).toNat ≠ 0 ∧
       (harmonyMask scale key progression step follow).toNat < 4096 := by
@@ -155,12 +155,10 @@ theorem harmony_mask_never_empty (scale key progression step follow : UInt32) :
   exact harmony_mask_ok _ _ _ _ _ (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide))
     (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide)) (Nat.mod_lt _ (by decide))
 
-/-- On a table progression with chord follow, 7TH or TRIAD, every note a lane may play is a note of the key's
-scale, whatever chord it is on: the chord is stacked from the key's scale at the chord root, not a shape moved
-to the root.
-Why it matters: a chord progression played with chord follow stays in the key. (The ii chord of C major is
-D F A, not D F# A; the second is what a transposed shape gave, and trying to prove this is what caught it.)
-The Tonnetz walks are the exception on purpose: `harmony_walk_chord_is_triad` says where they go. -/
+/-- On a table progression with chord follow 7TH or TRIAD, every note a lane may play is in the key's scale:
+the chord is stacked from the key's scale at the chord root, not a transposed shape. (The ii chord of C major
+is D F A, not D F# A.) Tonnetz walks are excluded on purpose; see `harmony_walk_chord_is_triad`.
+Why it matters: chord follow on a table progression stays in key. -/
 theorem harmony_follow_in_key (scale key progression step follow : UInt32)
     (table : progression.toNat % 11 < 8) (chordal : follow.toNat % 4 < 3) :
     (harmonyMask scale key progression step follow).toNat &&& (harmonyMask scale key 0 0 0).toNat =
@@ -172,13 +170,9 @@ theorem harmony_follow_in_key (scale key progression step follow : UInt32)
   exact (harmony_every_table_chord_ok ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, table⟩
     ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, chordal⟩).1
 
-/-- With chord follow, 7TH or TRIAD, the chord's root is among the lane's notes, in every scale and key,
-    on the
-tables and on the walks alike.
-Why it matters: joined with `harmony_chord_root_in_key`,
-    a table progression's chord is a chord of the key with
-its root present, and a walk's chord is the triad the screen names; a lane following either can play the root,
-not only upper notes of some other chord. -/
+/-- With chord follow 7TH or TRIAD the chord's root is among the lane's notes, for every scale and key, on
+tables and walks alike.
+Why it matters: a following lane can play the root, not only upper notes of the chord. -/
 theorem harmony_progression_chord_has_root (scale key progression step follow : UInt32)
     (chordal : 1 ≤ follow.toNat % 4 ∧ follow.toNat % 4 ≤ 2) :
     (harmonyMask scale key progression step follow).toNat.testBit
@@ -196,10 +190,9 @@ theorem harmony_progression_chord_has_root (scale key progression step follow : 
     rw [harmony_walk_mask _ _ _ _ _ walk chordal, Nat.mod_mod]
     exact (harmony_every_walk_mask_ok ⟨_, harmony_walk_chord_lt _ _ _⟩ ⟨_, Nat.mod_lt _ (by decide)⟩).2.2.2
 
-/-- On a table progression, every chord root is a note of the key's scale: whatever the scale and chord, the
-root the lanes move to (and the screen names) is a semitone step that the scale has, below an octave.
-Why it matters: progressions are written as degrees, so 1-4-5-1 is I IV V in a major key and i iv v in a minor
-one; this is the promise that a chord never lands on a note outside the key. A walk's root can and does. -/
+/-- On a table progression every chord root is a note of the key's scale (below an octave).
+Why it matters: progressions are written as degrees, so 1-4-5-1 is I IV V in major and i iv v in minor; a
+table chord never lands outside the key. A walk's root can. -/
 theorem harmony_chord_root_in_key (scale progression step : UInt32) (table : progression.toNat % 11 < 8) :
     (Harmony.scale (scale.toNat % 14)).testBit (harmonyChordRoot scale progression step).toNat = true ∧
       (harmonyChordRoot scale progression step).toNat < 12 := by
@@ -210,11 +203,9 @@ theorem harmony_chord_root_in_key (scale progression step : UInt32) (table : pro
   rw [(harmony_table_period (scale.toNat % 14) 0 _ _ 0 table).2]
   exact harmony_every_root_in_scale ⟨_, Nat.mod_lt _ (by decide)⟩ ⟨_, table⟩ ⟨_, Nat.mod_lt _ (by decide)⟩
 
-/-- On a Tonnetz walk (progressions 8 and up) with chord follow, 7TH or TRIAD, a lane plays exactly the walk's
-triad turned to the key: three notes, and the chord the screen names.
-Why it matters: the walks leave the key on purpose, one note at a time (`harmony_walk_keeps_two_notes`); this
-is the promise that what the lane plays is that triad and nothing else, so the screen's chord name is the
-truth about the notes. -/
+/-- On a Tonnetz walk (progressions 8 and up) with chord follow 7TH or TRIAD, a lane plays exactly the walk's
+triad transposed to the key: three notes, the chord the screen names.
+Why it matters: walks leave the key on purpose, and the lane plays exactly the named triad. -/
 theorem harmony_walk_chord_is_triad (scale key progression step follow : UInt32)
     (walk : 8 ≤ progression.toNat % 11) (chordal : 1 ≤ follow.toNat % 4 ∧ follow.toNat % 4 ≤ 2) :
     (harmonyMask scale key progression step follow).toNat = Harmony.rotate
@@ -226,11 +217,8 @@ theorem harmony_walk_chord_is_triad (scale key progression step follow : UInt32)
   exact ⟨rfl, (harmony_every_walk_mask_ok ⟨_, harmony_walk_chord_lt _ _ _⟩ ⟨_,
       Nat.mod_lt _ (by decide)⟩).2.2.1⟩
 
-/-- Every move of a Tonnetz walk keeps two of the triad's three notes and changes one: consecutive chords of
-any walk share exactly two pitch classes.
-Why it matters: this is what makes the walks sound like voice leading rather than jumps: P, L and R are the
-three ways to change one note of a triad and get another triad, so a lane on a walk moves one note at a
-time, through all 24 triads if the word is L R. -/
+/-- Consecutive chords of any Tonnetz walk share exactly two pitch classes.
+Why it matters: P, L and R each change one note of a triad, so a walk moves one note at a time. -/
 theorem harmony_walk_keeps_two_notes (word start count : Nat) :
     Harmony.size (Tonnetz.mask (Tonnetz.walk word start count) &&&
       Tonnetz.mask (Tonnetz.walk word start (count + 1))) = 2 := by
@@ -248,11 +236,9 @@ private theorem harmony_every_complement_outside :
             0xFFF) := by
   decide +kernel
 
-/-- COMPL (chord follow 3) plays the notes outside the key's scale and nothing else, for every scale and key,
-whatever chord is on; the chromatic scale, which leaves nothing out, plays whole.
-Why it matters: COMPL is a second voice that never collides with a lane in the key, the black keys to its
-white; with `harmony_complement_interval_content` it has the key's intervals, so it belongs to the same music
-while sharing no note with it. -/
+/-- COMPL (chord follow 3) plays exactly the notes outside the key's scale, for every scale, key and chord;
+the chromatic scale plays whole.
+Why it matters: a COMPL lane never shares a note with a lane in the key. -/
 theorem harmony_complement_outside_key (scale key progression step follow : UInt32)
     (compl : follow.toNat % 4 = 3) :
     let inKey := (harmonyMask scale key 0 0 0).toNat
@@ -317,15 +303,10 @@ private theorem harmony_count_turn (n : Nat) (positive : 0 < n) (f : Nat → Boo
     intro k _
     rw [Nat.mod_add_mod, show k + 1 + d = k + (d + 1) by omega]
 
-/-- Babbitt's hexachord theorem in its general form, any cycle `Z_n` and any set: the pairs at distance `d` in
-the complement are the pairs at that distance in the set, plus `n - 2 * size` (an ordered count, each
-unordered pair seen from both ends). With `size = n / 2`, a hexachord in `Z_12`, the two are equal: a
-six-note set and the six notes it leaves out have the same interval content.
-Why it matters: it is why COMPL sounds like the scale it was cut from: the black keys have the white keys'
-intervals, two fewer of each, and the whole-tone scale's complement has exactly its own. The theorem is the
-reason Babbitt could build twelve-tone rows from a hexachord and its complement and have both halves sound
-alike; here it is proved for every `n` and every set, by counting, with the twelve-note instance checked
-note by note as `harmony_hexachord_theorem`. -/
+/-- Babbitt's hexachord theorem for any cycle `Z_n` and any set: the ordered count of pairs at distance `d` in
+the complement equals the count in the set plus `n - 2 * size`. For `size = n / 2` the two are equal.
+Why it matters: a hexachord and its complement have the same interval content, which is why COMPL sounds like
+the scale it was cut from. -/
 theorem harmony_complement_interval_content (n d : Nat) (positive : 0 < n) (S : Nat → Bool) :
     Harmony.pairs n d (fun k => !S k) + 2 * Harmony.count n S = Harmony.pairs n d S + n := by
   unfold Harmony.pairs Harmony.count
@@ -348,11 +329,10 @@ theorem harmony_complement_interval_content (n d : Nat) (positive : 0 < n) (S : 
   show (List.filter (fun k => !S k && !S ((k + d) % n)) (List.range n)).length + 2 * _ = _
   omega
 
-/-- Babbitt's hexachord theorem on the firmware's own masks: every six-note set of the twelve pitch classes has
-the interval vector of the six it leaves out, checked for all 4096 masks.
-Why it matters: the instance the name comes from, on the 12-bit masks the lanes play from: a hexachord and its
-complement are indistinguishable by interval content, which is the general theorem above at `n = 12`,
-`size = 6`, where the difference `n - 2 * size` is zero. -/
+/-- Babbitt's hexachord theorem on the 12-bit masks: every six-note mask has the interval vector of its
+complement, checked for all 4096 masks.
+Why it matters: the `n = 12`, `size = 6` instance of `harmony_complement_interval_content` on the masks the
+lanes play from. -/
 theorem harmony_hexachord_theorem (mask : Nat) (small : mask < 4096) (six : Harmony.size mask = 6) :
     Harmony.intervalVector mask = Harmony.intervalVector (0xFFF ^^^ mask) := by
   have checked : ∀ high : Fin 64, ∀ low : Fin 64, Harmony.size (high.val * 64 + low.val) = 6 →

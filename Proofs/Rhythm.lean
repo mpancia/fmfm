@@ -24,10 +24,8 @@ private theorem rhythm_fold_fits (width : Nat) (small : width ≤ 32) (f : Nat �
         exact Nat.pow_lt_pow_right (by decide) (below i (List.mem_cons_self))
       · exact h
 
-/-- One generation of the automaton stays inside the bar: the new row has no bit at or beyond `steps` (a bar
-has at most 32 steps).
-Why it matters: the row is a `steps`-bit pattern however long the automaton runs; a hit can never appear on a
-step that does not exist, and the row stays the size the circle draws. -/
+/-- One automaton generation stays inside the bar: the new row has no bit at or beyond `steps` (`steps ≤ 32`).
+Why it matters: a hit can never land on a step that does not exist, however long the automaton runs. -/
 theorem rhythm_automaton_row_fits (rule steps : Nat) (row : UInt32) (small : steps ≤ 32) :
     (Automaton.step rule steps row).toNat < 2 ^ steps := by
   unfold Automaton.step
@@ -36,7 +34,7 @@ theorem rhythm_automaton_row_fits (rule steps : Nat) (row : UInt32) (small : ste
   · exact Nat.two_pow_pos steps
 
 /-- An accent only falls on a hit.
-Why it matters: accents shape the rhythm's hits; they can never add a note where the pattern has a rest. -/
+Why it matters: accents cannot add a note on a rest. -/
 theorem rhythm_accent_only_on_hit (r : Rhythm) (hits steps step : Nat)
     (accented : Rhythm.accent r hits steps step = true) : Rhythm.hit r hits steps step = true := by
   unfold Rhythm.accent at accented
@@ -89,9 +87,8 @@ private theorem rhythm_turn_keeps_count (f : Nat → Bool) (n s : Nat) (small : 
   rw [first, second]
   omega
 
-/-- Turning the bar (ROTATE) keeps the number of hits: a turned bar has exactly `hits` hits, like the plain
-one (`euclid_hit_count`).
-Why it matters: ROTATE moves the pattern round the circle without adding or losing a note. -/
+/-- A rotated bar (ROTATE) has exactly `hits` hits, like the plain one.
+Why it matters: ROTATE never adds or loses a note. -/
 theorem rhythm_rotate_keeps_hits (r : Rhythm) (hits steps : Nat) (kind : r.kind = 1) (positive : 0 < steps) :
     Rhythm.count (Rhythm.hit r hits steps) steps = Rhythm.count (Euclid.hit hits steps) steps := by
   have e : Rhythm.hit r hits steps = fun i => Euclid.hit hits steps ((i + steps - r.rotate % steps) % steps) := by
@@ -150,8 +147,7 @@ private theorem rhythm_bit_eq (row : UInt32) (i : Nat) (inside : i < 32) : Rhyth
     simp [this, one]
 
 /-- Rule 0 kills the row: after one generation nothing plays.
-Why it matters: the automaton has a rule that is silence, and the reseed on a dead row is what brings the
-bar back. -/
+Why it matters: rule 0 is silence; the reseed on a dead row is what brings the bar back. -/
 theorem rhythm_rule_zero_dies (steps : Nat) (row : UInt32) (small : steps ≤ 32) : Automaton.step 0 steps row = 0 := by
   rw [← UInt32.toNat_inj]
   apply Nat.eq_of_testBit_eq
@@ -172,8 +168,7 @@ private theorem rhythm_high_bit (row : UInt32) (i : Nat) (outside : 32 ≤ i) : 
   exact Nat.testBit_lt_two_pow (by omega)
 
 /-- Rule 255 fills the bar: after one generation every step plays.
-Why it matters: the other end of the rule knob is a wall of hits, so the circle shows the whole range from
-silence (rule 0) to everything (rule 255). -/
+Why it matters: the RULE knob spans from silence (0) to every step (255). -/
 theorem rhythm_rule_full_fills (steps : Nat) (row : UInt32) (small : steps ≤ 32) :
     (Automaton.step 255 steps row).toNat = 2 ^ steps - 1 := by
   apply Nat.eq_of_testBit_eq
@@ -211,8 +206,7 @@ private theorem rhythm_cut_testBit (steps : Nat) (row : UInt32) (i : Nat) (small
     · rw [rhythm_high_bit _ i (by omega)]; simp
 
 /-- Rule 204 freezes the bar: a row that fits the bar comes back unchanged every generation.
-Why it matters: there is a rule on which the automaton is exactly the Euclidean bar it was seeded with, so
-turning RULE from 204 is the way to make it move. -/
+Why it matters: at rule 204 the automaton plays exactly the Euclidean bar it was seeded with. -/
 theorem rhythm_rule_204_freezes (steps : Nat) (row : UInt32) (small : steps ≤ 32) :
     Automaton.step 204 steps row = Rhythm.cut steps row := by
   rw [← UInt32.toNat_inj]

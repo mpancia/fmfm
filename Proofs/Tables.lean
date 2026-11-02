@@ -32,10 +32,9 @@ private theorem tables_index_lt (phase : UInt32) : (Analog.tableIndex phase).toN
   have := phase.toNat_lt
   omega
 
-/-- A phase reads two neighbouring entries of a 257-entry table, both inside it, whatever the phase.
+/-- A phase reads two neighbouring entries of a 257-entry table, both inside it, for any phase.
 Why it matters: the sine, bell, cutoff, damping and comb tables all have 257 entries, so every blend of them
-(`Analog.sineAt`, `Digital.lutAt`, `Analog.buzz`) stays inside its table at any phase, with no check
-needed. -/
+(`Analog.sineAt`, `Digital.lutAt`, `Analog.buzz`) stays inside without a check. -/
 theorem tables_phase_reads_inside_257 (phase : UInt32) :
     (Analog.tableIndex phase).toNat ≤ 256 ∧ (Analog.tableIndex phase + 1).toNat ≤ 256 := by
   have := tables_index_lt phase
@@ -43,8 +42,8 @@ theorem tables_phase_reads_inside_257 (phase : UInt32) :
   omega
 
 /-- A 16-bit index reads two neighbouring entries of a 257-entry wave shaper, both inside it.
-Why it matters: the overdrive and fold shapers are 257 entries; `Analog.shape` is safe for any index below
-65536, which is why its callers mask or bound what they pass. -/
+Why it matters: the overdrive and fold shapers have 257 entries; `Analog.shape` is safe for any index
+below 65536, which is why its callers mask or bound what they pass. -/
 theorem tables_shape_reads_inside_257 (index : UInt32) (small : index.toNat ≤ 65535) :
     (Analog.shapeIndex index + 1).toNat ≤ 256 := by
   unfold Analog.shapeIndex
@@ -56,8 +55,7 @@ theorem tables_shape_reads_inside_257 (index : UInt32) (small : index.toNat ≤ 
   omega
 
 /-- A pitch, after the resonator's clamp, reads inside the 129-entry resonator tables.
-Why it matters: these are the only 129-entry tables; without the clamp to 16383 a high note would read past
-them. The clamp is what makes the particle and twin-peaks resonators safe. -/
+Why it matters: without the clamp to 16383 a high note would read past them. -/
 theorem tables_resonator_reads_inside_129 (pitch : Int32) :
     (Analog.tableIndex ((if pitch < 0 then 0 else if pitch > 16383 then 16383 else pitch).toUInt32 <<< 17)
       + 1).toNat ≤ 128 := by
@@ -87,8 +85,8 @@ theorem tables_resonator_reads_inside_129 (pitch : Int32) :
   omega
 
 /-- A wave phase, halved as the wavetable engines do, reads inside a 129-byte wave.
-Why it matters: Braids' waves are 129 bytes, half the table size the phase could address; the halving in every
-wavetable engine is what keeps the read inside the wave. -/
+Why it matters: Braids' waves are 129 bytes, half what the phase could address; the halving keeps the read
+inside. -/
 theorem tables_wave_reads_inside_129 (phase : UInt32) :
     (Analog.tableIndex (phase >>> 1) + 1).toNat ≤ 128 := by
   unfold Analog.tableIndex
@@ -101,10 +99,10 @@ theorem tables_wave_reads_inside_129 (phase : UInt32) :
   rw [tables_succ_toNat _ (by omega), shifted]
   omega
 
-/-- A wave phase, halved and then masked to fewer steps as the wave line's rough reading does, reads inside a
-129-byte wave.
-Why it matters: the mask can only lower the phase, so the rough reading stays inside the wave like the plain
-one (`tables_wave_reads_inside_129`), whatever mask the wave line uses. -/
+/-- A wave phase, halved and then masked to fewer steps as the wave line's rough reading does, reads inside
+a 129-byte wave.
+Why it matters: the mask can only lower the phase, so the rough reading stays inside like the plain one
+(`tables_wave_reads_inside_129`), for any mask. -/
 theorem tables_wave_line_reads_inside_129 (phase mask : UInt32) :
     (Analog.tableIndex ((phase >>> 1) &&& mask) + 1).toNat ≤ 128 := by
   unfold Analog.tableIndex
@@ -126,8 +124,8 @@ theorem tables_wave_line_reads_inside_129 (phase mask : UInt32) :
 
 /-- A formant phase and an amplitude of 0 to 15 read inside the 256-entry formant tables (16 phases by 16
 amplitudes).
-Why it matters: the vowel's formant amplitudes are 4-bit by construction of its data; with any such
-amplitude, no phase can read past the formant sine or square table. -/
+Why it matters: the vowel's formant amplitudes are 4-bit by construction of its data, so no phase can read
+past the formant sine or square table. -/
 theorem tables_formant_reads_inside_256 (phase amp : UInt32) (nibble : amp.toNat ≤ 15) :
     (((phase >>> 24) &&& 0xF0) ||| amp).toNat ≤ 255 := by
   rw [UInt32.toNat_or, UInt32.toNat_and, UInt32.toNat_shiftRight]

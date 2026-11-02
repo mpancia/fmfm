@@ -7,11 +7,9 @@ private theorem machine_fold4 (f : Fin 4 → Nat) :
     (List.finRange 4).foldl (fun n i => n + f i) 0 = f 0 + f 1 + f 2 + f 3 := by
   simp [List.finRange, List.ofFn, Fin.foldr, Fin.foldr.loop]
 
-/-- Over any performance, every note any part starts is stopped: across the four lanes and the arpeggiator,
-however long the lists of ticks, knob changes and keys, the note-ons equal the note-offs plus what is still
-sounding, and PLAY stopping leaves nothing sounding anywhere.
-Why it matters: this is the no-stuck-notes promise for the whole instrument, every part together, not one
-part at a time: whatever you do, stop is silence. -/
+/-- Across the four lanes and the arpeggiator, after any lists of ticks, knob changes and keys from a quiet
+machine, note-ons equal note-offs plus what is still sounding, and `stop` leaves nothing sounding.
+Why it matters: no stuck notes for the whole instrument, not one part at a time. -/
 theorem machine_every_note_on_has_a_note_off (m : Machine) (quiet : m.Quiet) (laneOps : Fin 4 → List Lane.Op)
     (arpOps : List Arp.Op) :
     m.noteOns laneOps arpOps = m.noteOffs laneOps arpOps + (m.run laneOps arpOps).soundingCount ∧

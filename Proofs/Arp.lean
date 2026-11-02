@@ -92,9 +92,8 @@ private theorem arp_step_inside (a : Arp) (len : Nat) (positive : 0 < len) (smal
   · exact arp_draw_below a.rng len positive small
   · exact this
 
-/-- Every note the arpeggiator starts is a note you are holding, raised by fewer than `octaves` octaves.
-Why it matters: the arpeggiator can only play what you play; it never adds a note of its own, whichever mode
-and however it is set. -/
+/-- Every note the arpeggiator starts is a held note raised by fewer than `octaves` octaves.
+Why it matters: the arpeggiator never adds a note of its own, in any mode. -/
 theorem arp_note_is_held (a : Arp) (valid : Arp.Valid a) (note : Nat) (starts : a.tick.on = some note) :
     ∃ h ∈ a.held, ∃ o, o < max 1 a.octaves ∧ note = h + 12 * o := by
   unfold Arp.tick at starts
@@ -124,14 +123,14 @@ theorem arp_note_is_held (a : Arp) (valid : Arp.Valid a) (note : Nat) (starts : 
     exact List.getElem_mem inside
   · split at starts <;> simp at starts
 
-/-- A fresh arpeggiator is consistent, for any step.
-Why it matters: the arpeggiator starts in a state the rest of the firmware can rely on, whatever the knobs say. -/
+/-- `Arp.make` gives a valid arpeggiator for any `div`.
+Why it matters: the arpeggiator starts in a state the rest of the firmware can rely on. -/
 theorem arp_make_valid (div : Nat) (seed : UInt32) : Arp.Valid (Arp.make div seed) := by
   unfold Arp.make Arp.clamp
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp <;> omega
 
-/-- Changing the settings keeps a consistent arpeggiator consistent, whatever numbers are given.
-Why it matters: turning the ARP knobs mid-phrase cannot leave a timer or counter out of range. -/
+/-- `Arp.set` keeps a valid arpeggiator valid for any settings.
+Why it matters: turning the ARP knobs mid-phrase cannot push a timer or counter out of range. -/
 theorem arp_set_valid (a : Arp) (valid : Arp.Valid a) (mode octaves div gate : Nat) :
     Arp.Valid (a.set mode octaves div gate) := by
   have timer := valid.soundingHasTimer
@@ -140,8 +139,8 @@ theorem arp_set_valid (a : Arp) (valid : Arp.Valid a) (mode octaves div gate : N
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, held, few, ?_, ?_, ?_⟩ <;> simp_all <;>
     first | omega | exact Nat.mod_lt _ (by omega)
 
-/-- Pressing, releasing or clearing keys keeps a consistent arpeggiator consistent.
-Why it matters: whatever you play, and however many keys, the held set stays playable and small. -/
+/-- Pressing, releasing or clearing keys keeps a valid arpeggiator valid.
+Why it matters: the held set stays playable and bounded however many keys are pressed. -/
 theorem arp_keys_valid (a : Arp) (valid : Arp.Valid a) (note : Nat) :
     Arp.Valid (a.press note) ∧ Arp.Valid (a.release note) ∧ Arp.Valid a.clear := by
   obtain ⟨m, o1, o2, d, g1, g2, held, few, c, t, w⟩ := valid
@@ -165,8 +164,8 @@ theorem arp_keys_valid (a : Arp) (valid : Arp.Valid a) (note : Nat) :
   · unfold Arp.clear
     exact ⟨m, o1, o2, d, g1, g2, by simp, by simp, c, t, w⟩
 
-/-- A tick keeps a consistent arpeggiator consistent.
-Why it matters: however long it runs, the counters stay in range and the sounding note and its timer agree. -/
+/-- A tick keeps a valid arpeggiator valid.
+Why it matters: counters stay in range and the sounding note and its timer agree for any number of ticks. -/
 theorem arp_tick_valid (a : Arp) (valid : Arp.Valid a) : Arp.Valid a.tick := by
   have timer := valid.soundingHasTimer
   obtain ⟨m, o1, o2, d, g1, g2, held, few, c, t, w⟩ := valid
@@ -248,9 +247,9 @@ private theorem arp_balance (ops : List Arp.Op) : ∀ a : Arp,
       rw [show a.soundingCount = (a.apply (.set m o d g)).soundingCount by simp [Arp.soundingCount, keep]]
       exact ih _
 
-/-- Every note the arpeggiator starts during a run is stopped: after any sequence of ticks, keys and setting
-changes, note-ons equal note-offs plus the one note still sounding, which `silence` stops.
-Why it matters: letting go of the keys, or stopping, never leaves an arpeggio note hanging. -/
+/-- After any sequence of ticks, keys and setting changes from a fresh arpeggiator, note-ons equal note-offs
+plus the one note still sounding, which `silence` stops.
+Why it matters: releasing the keys or stopping never leaves an arpeggio note hanging. -/
 theorem arp_every_note_on_has_a_note_off (a : Arp) (fresh : a.playing = none) (ops : List Arp.Op) :
     Arp.noteOns (a.trace ops) = Arp.noteOffs (a.trace ops) + (a.run ops).soundingCount ∧
       (a.run ops).silence.playing = none := by
@@ -304,10 +303,10 @@ private theorem arp_up_played (n : Nat) : ∀ (a : Arp), a.mode = 1 → a.div = 
     congr 1
     rw [Nat.mod_add_mod, Nat.add_assoc, Nat.mod_add_mod, Nat.add_comm 1 k]
 
-/-- UP with a step a tick, from the start of the pattern, plays the pattern through note for note: as many
-ticks as the pattern has notes start exactly the pattern, in order.
-Why it matters: UP is a rising run over exactly what you hold, each note once, in order, before it comes round;
-the same reading gives every later lap, since the position comes back to the start. -/
+/-- UP with `div = 1` from position 0 plays the pattern through in order: as many ticks as the pattern has
+notes start exactly the pattern.
+Why it matters: UP plays each held note once, in order, per lap; the position returns to 0 so later laps read
+the same. -/
 theorem arp_up_plays_pattern (a : Arp) (mode : a.mode = 1) (div : a.div = 1) (start : a.pos = 0)
     (held : a.held ≠ []) : a.played a.pattern.length = a.pattern := by
   rw [arp_up_played a.pattern.length a mode div held, start]

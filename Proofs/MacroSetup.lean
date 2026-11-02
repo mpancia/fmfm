@@ -110,11 +110,11 @@ private theorem macro_setup_morph_parameter_range (p0 : Int16) (nonneg : 0 ≤ p
     rw [macro_setup_keep16 _ (by rw [m]; omega) (by rw [m]; omega), m]
     omega
 
-/-- Every parameter the macro oscillator hands an analog oscillator is between 0 and 32767, given a first
-parameter that is not negative (Braids' parameters are 0 to 32767): morph's pulse width and the sine and
-triangle fold amounts.
-Why it matters: the analog oscillators' pulse widths and fold tables are built for 0 to 32767; a negative or
-oversized parameter would put a pulse edge outside the cycle or read a shaper past its end. -/
+/-- Every parameter the macro oscillator hands an analog oscillator (morph's pulse width, the sine and
+triangle fold amounts) is between 0 and 32767, given a non-negative first parameter (Braids' parameters are
+0 to 32767).
+Why it matters: the pulse widths and fold tables are built for 0 to 32767; an out-of-range parameter would
+put a pulse edge outside the cycle or read a shaper past its end. -/
 theorem macro_setup_parameters_in_range (pitch p0 : Int16) (nonneg : 0 ≤ p0) :
     (0 ≤ (MacroSetup.morphParameter p0).toInt ∧ (MacroSetup.morphParameter p0).toInt ≤ 32767) ∧
       (0 ≤ (MacroSetup.sineTriangleSineParameter pitch p0).toInt ∧
@@ -131,8 +131,8 @@ theorem macro_setup_parameters_in_range (pitch p0 : Int16) (nonneg : 0 ≤ p0) :
     have ⟨aLo, aHi⟩ := macro_setup_attenuation_range (32767 - 7 * (pitch.toInt32 - 10240))
     exact macro_setup_attenuated_range _ _ lo hi aLo aHi
 
-/-- Morph's low-pass cutoff, as a pitch, is 0 to 32767 whatever the pitch and parameter, and its two reads of
-the 257-entry cutoff table are inside it.
+/-- Morph's low-pass cutoff, as a pitch, is 0 to 32767 for any pitch and parameter, and its two reads of the
+257-entry cutoff table are inside it.
 Why it matters: the filter table is C data read without a check, once per block for the morph engine. -/
 theorem macro_setup_cutoff_in_table (pitch p1 : Int16) :
     (0 ≤ (MacroSetup.morphLpCutoff pitch p1).toInt ∧ (MacroSetup.morphLpCutoff pitch p1).toInt ≤ 32767) ∧
@@ -168,9 +168,9 @@ private theorem macro_setup_triple_indexes_le (p : Int16) (nonneg : 0 ≤ p) :
   have b := macro_setup_nonneg_toUInt32 (((p.toInt32 >>> 8) + 1) >>> 1) (by rw [one]; omega)
   omega
 
-/-- A triple oscillator's parameter, when not negative, reads two entries of the 65-entry interval table, both
-inside it. Braids' parameters are 0 to 32767, so `nonneg` holds for every block; a negative one would read
-before the table, which is why the limit is stated.
+/-- A triple oscillator's non-negative parameter reads two entries of the 65-entry interval table, both inside
+it. Braids' parameters are 0 to 32767, so `nonneg` holds for every block; a negative one would read before
+the table.
 Why it matters: the interval table is C data read without a check, twice per block for the four triple
 engines. -/
 theorem macro_setup_triple_intervals_in_table (p : Int16) (nonneg : 0 ≤ p) :

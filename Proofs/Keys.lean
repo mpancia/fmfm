@@ -1,7 +1,7 @@
 import Firmware.Keys
 
-/-- QUANT off plays the key as it is (held to the MIDI range).
-Why it matters: the setting's OFF is exactly the keyboard you had. -/
+/-- QUANT off returns the key unchanged (clamped to 127).
+Why it matters: OFF is exactly the plain keyboard. -/
 theorem keys_off_is_itself (mask key note : UInt32) (midi : note ≤ 127) :
     Keys.quantize 0 mask key note = note := by
   unfold Keys.quantize
@@ -19,8 +19,8 @@ private theorem keys_quantize_toNat (mode mask key note : UInt32) (on : mode ≠
     Keys.degree (mask % 4096).toNat (key % 12).toNat (Keys.white note).toNat) 127
   omega
 
-/-- A quantized note is a MIDI note, whatever the mode, mask, key and note.
-Why it matters: a degree high in the scale from the top of the keyboard is held at 127, not wrapped. -/
+/-- A quantized note is at most 127, for any mode, mask, key and note.
+Why it matters: a high degree from the top of the keyboard is clamped at 127, not wrapped. -/
 theorem keys_in_range (mode mask key note : UInt32) : Keys.quantize mode mask key note ≤ 127 := by
   by_cases on : mode = 0
   · subst on; unfold Keys.quantize; rw [ite_eq_left rfl, UInt32.min_def]; split
@@ -66,10 +66,8 @@ private theorem keys_offsets_some (mask root : Nat) (small : mask < 4096) (some 
       _ = 2 ^ 12 := by rfl
       _ ≤ 2 ^ i := Nat.pow_le_pow_right (by decide) (by omega)
 
-/-- With QUANT on and a non-empty mask, every quantized note below the top is a note of the mask: the pitch
-class of what plays is in the scale or the chord.
-Why it matters: SCALE and CHORD keep you in: whatever key you press, the note that sounds is in the lane's
-scale (or on the chord of the moment); the keyboard cannot play a wrong note. -/
+/-- With QUANT on and a non-empty mask, every quantized note below 127 has its pitch class in the mask.
+Why it matters: in SCALE or CHORD mode the keyboard cannot play a note outside the scale or chord. -/
 theorem keys_in_scale (mode mask key note : UInt32) (on : mode ≠ 0) (some : (mask % 4096).toNat ≠ 0)
     (below : (Keys.quantize mode mask key note).toNat < 127) :
     (mask % 4096).toNat.testBit ((Keys.quantize mode mask key note).toNat % 12) = true := by
@@ -139,10 +137,9 @@ private theorem keys_white_mono : ∀ a : Fin 12, ∀ b : Fin 12, a.val ≤ b.va
     (Keys.white a.val.toUInt32).toNat ≤ (Keys.white b.val.toUInt32).toNat := by
   decide +kernel
 
-/-- Within an octave the keyboard stays in order: a higher key never plays a lower note, in any mode.
-Why it matters: a run up the white keys is a run up the scale; quantizing cannot turn a rising line into a
-falling one. (Across an octave it can, by design, for a scale of fewer than seven notes: the white keys past
-its last degree go round into the next octave.) -/
+/-- Within an octave a higher key never plays a lower note, in any mode.
+Why it matters: quantizing cannot turn a rising line into a falling one. (Across octaves it can, by design,
+for a scale of fewer than seven notes: keys past its last degree wrap into the next octave.) -/
 theorem keys_keep_order (mode mask key a b : UInt32) (order : a ≤ b) (midi : b ≤ 127)
     (sameOctave : a / 12 = b / 12) :
     Keys.quantize mode mask key a ≤ Keys.quantize mode mask key b := by

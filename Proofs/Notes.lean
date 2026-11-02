@@ -24,8 +24,7 @@ private theorem notes_fill_shape (span : Nat) (positive : 0 < span) (small : spa
     · exact first
     · exact below x mem
 
-/-- A fresh note memory is consistent for any range from 1 to 65535 positions and any loop length from 1 to
-16.
+/-- A fresh note memory is valid for any span from 1 to 65535 and any loop length from 1 to 16.
 Why it matters: the lane starts in a state the algorithms can rely on, whatever the seed. -/
 theorem notes_start_valid (span amount : Nat) (seed : UInt32) (positive : 0 < span) (small : span ≤ 65535)
     (loopLength : 0 < amount) : NoteState.Valid span amount (Notes.start span seed) := by
@@ -43,9 +42,8 @@ private theorem notes_set_keeps_memory (span : Nat) (s : NoteState) (valid : s.r
   · exact below x old
   · exact inside
 
-/-- Whichever algorithm picks, the pitch is inside the range and the memory stays consistent.
-Why it matters: the note can never land outside the range the lane was given, and no algorithm can corrupt
-the memory the next pick depends on, however long it runs. -/
+/-- Whichever algorithm picks, the offset is below `span` and the memory stays valid.
+Why it matters: no algorithm can pick outside the range or corrupt the memory the next pick depends on. -/
 theorem notes_choose_stays_in_range (rule : NoteRule) (span mask low : Nat) (s : NoteState) (any step chance : Nat)
     (positive : 0 < span) (loopLength : 0 < rule.amount) (fits : rule.amount ≤ Notes.regLen)
     (valid : NoteState.Valid span rule.amount s) (anyBelow : any < span) :
@@ -82,10 +80,9 @@ theorem notes_choose_stays_in_range (rule : NoteRule) (span mask low : Nat) (s :
   · refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only <;> first | omega | exact Nat.mod_lt _ loopLength | exact full | exact below
   · exact ⟨anyBelow, anyBelow, slot, full, below⟩
 
-/-- UP climbs one position a note and wraps at the top, so from position `p` the `i`-th note is at
-`(p + i) % span`: the first `span` notes visit every position once.
-Why it matters: an UP lane is a rising scale that covers its whole range with no position skipped or
-repeated. -/
+/-- UP climbs one position a note and wraps: from position `p` the `i`-th note is at `(p + i) % span`, so the
+first `span` notes visit every position once.
+Why it matters: an UP lane covers its whole range with no position skipped or repeated. -/
 theorem notes_up_visits_every_position (span p : Nat) (positive : 0 < span) (start : p < span) (s : NoteState)
     (atStart : s.pos = p) (n : Nat) :
     (Notes.picks ⟨2, 1, 0⟩ span n s).1 = (List.range n).map (fun i => (p + i + 1) % span) := by
@@ -101,9 +98,9 @@ theorem notes_up_visits_every_position (span p : Nat) (positive : 0 < span) (sta
     rw [Nat.add_assoc ((p + 1) % span), Nat.mod_add_mod]
     congr 1; omega
 
-/-- DOWN falls one position a note and wraps at the bottom: from `p` the `i`-th note is at
+/-- DOWN falls one position a note and wraps: from `p` the `i`-th note is at
 `(p + (span - 1) * (i + 1)) % span`, so the first `span` notes visit every position once.
-Why it matters: a DOWN lane is a falling scale over its whole range with no position skipped or repeated. -/
+Why it matters: a DOWN lane covers its whole range with no position skipped or repeated. -/
 theorem notes_down_visits_every_position (span p : Nat) (positive : 0 < span) (start : p < span)
     (s : NoteState)
     (atStart : s.pos = p) (n : Nat) :
@@ -125,8 +122,8 @@ theorem notes_down_visits_every_position (span p : Nat) (positive : 0 < span) (s
       rw [grow]
       omega
 
-/-- BOUNCE never jumps: each note is at most one position from the last, in a range of at least two.
-Why it matters: a BOUNCE lane is a smooth up-and-down line; it can never leap across its range. -/
+/-- BOUNCE moves at most one position a note, for a span of at least 2.
+Why it matters: a BOUNCE lane never leaps. -/
 theorem notes_bounce_moves_one (span mask low : Nat) (s : NoteState) (wide : 2 ≤ span) (inside : s.pos < span)
     (any step chance : Nat) :
     (Notes.choose ⟨4, 1, 0⟩ span mask low s any step chance).offset + 1 = s.pos ∨
@@ -134,9 +131,8 @@ theorem notes_bounce_moves_one (span mask low : Nat) (s : NoteState) (wide : 2 �
   simp only [Notes.choose]
   split <;> (try split) <;> (try dsimp only) <;> omega
 
-/-- WALK moves at most `amount` positions a note (the lane draws its step below `2 * amount + 1`, and the
-position is inside the range).
-Why it matters: the AMOUNT knob is a real limit on how far a WALK lane can jump between two notes. -/
+/-- WALK moves at most `amount` positions a note (the step is drawn below `2 * amount + 1`).
+Why it matters: AMOUNT bounds how far a WALK lane can jump between notes. -/
 theorem notes_walk_bounded (amount span mask low : Nat) (s : NoteState) (step any chance : Nat) (inside : s.pos < span)
     (drawn : step ≤ 2 * amount) :
     (Notes.choose ⟨1, amount, 0⟩ span mask low s any step chance).offset ≤ s.pos + amount ∧
@@ -144,9 +140,8 @@ theorem notes_walk_bounded (amount span mask low : Nat) (s : NoteState) (step an
   simp only [Notes.choose]
   split <;> (try dsimp only) <;> omega
 
-/-- LOOP with no mutation plays the same note again every `amount` picks: the memory never changes, and the
-slot goes round.
-Why it matters: MUTATE at zero is an exact loop, the hook a listener can hold on to. -/
+/-- LOOP with MUTATE at 0 repeats the same `amount` notes: the memory never changes and the slot wraps.
+Why it matters: MUTATE 0 is an exact loop. -/
 theorem notes_loop_repeats (amount span mask low : Nat) (s : NoteState)
     (fits : amount ≤ s.reg.length) (slot : s.slot < amount) (any step chance : Nat) :
     (Notes.choose ⟨5, amount, 0⟩ span mask low s any step chance).state.reg = s.reg ∧
@@ -163,10 +158,9 @@ private theorem notes_pick_move_bounded (weights : List Nat) (base pick : Nat) :
   simp only
   omega
 
-/-- MARKOV moves at most three positions a note, jump or no jump (the move classes are -3 to +3, and a doubled
-move is cut to that range).
-Why it matters: a markov lane walks; whatever it learnt from the keys or the style says, it never leaps across
-its range. -/
+/-- MARKOV moves at most three positions a note, jump or not (move classes are -3 to +3; a doubled move is
+clamped to that range).
+Why it matters: a MARKOV lane never leaps, whatever it learnt from the keys or the style. -/
 theorem notes_markov_moves_at_most_three (amount mutate span mask low : Nat) (s : NoteState)
     (any step chance : Nat) (inside : s.pos < span) :
     (Notes.choose ⟨8, amount, mutate⟩ span mask low s any step chance).offset ≤ s.pos + 3 ∧
@@ -181,7 +175,7 @@ theorem notes_markov_moves_at_most_three (amount mutate span mask low : Nat) (s 
   split <;> split <;> (try split) <;> omega
 
 /-- GRAMMAR moves at most two positions a note: its symbols step or skip, up or down.
-Why it matters: the grammar shapes a line of steps and thirds, never a leap, whatever grammar and depth. -/
+Why it matters: a GRAMMAR lane never leaps, for any grammar and depth. -/
 theorem notes_grammar_moves_at_most_two (amount mutate span mask low : Nat) (s : NoteState)
     (any step chance : Nat) (inside : s.pos < span) :
     (Notes.choose ⟨9, amount, mutate⟩ span mask low s any step chance).offset ≤ s.pos + 2 ∧
@@ -191,9 +185,9 @@ theorem notes_grammar_moves_at_most_two (amount mutate span mask low : Nat) (s :
   unfold Notes.moveBy Notes.grammarMove
   split <;> split <;> omega
 
-/-- A key the player presses leaves the memory consistent, for any note: the step sequencer writes it into
-the range, the markov chain counts it.
-Why it matters: nothing you play can corrupt the memory the lane plays from. -/
+/-- `learn` (a key press) keeps the memory valid for any note: the step sequencer stores it in range, the
+markov chain counts it.
+Why it matters: nothing played on the keys can corrupt the memory. -/
 theorem notes_learn_keeps_valid (rule : NoteRule) (span : Nat) (s : NoteState) (offset : Nat)
     (positive : 0 < span) (valid : NoteState.Valid span rule.amount s) :
     NoteState.Valid span rule.amount (Notes.learn rule span s offset) := by
@@ -268,11 +262,10 @@ private theorem notes_turing_pick_is_shift (len span : Nat) (s : NoteState) (n :
     rw [ih]
     rfl
 
-/-- TURING with FLIP at 0 is a locked loop: after `len` picks the register's `len`-bit window is exactly what it
-was, so the notes repeat every `len` picks (once the bits above the window, which the first picks still read,
-have been pushed out).
-Why it matters: FLIP at zero is a promise of an exact loop of LENGTH notes, the hook a listener can hold on to;
-turning FLIP up is the only way the loop changes. -/
+/-- TURING with FLIP at 0 is a locked loop: after `len` picks the register's `len`-bit window is unchanged, so
+the notes repeat every `len` picks (once the bits above the window, which the first picks still read, have
+been shifted out).
+Why it matters: FLIP 0 is an exact loop of LENGTH notes; only FLIP changes it. -/
 theorem notes_turing_locked_repeats (len span : Nat) (s : NoteState) (lenPos : 0 < len) (lenMax : len ≤ 16) :
     (Notes.picks ⟨6, len, 0⟩ span len s).2.shift % 2 ^ len = s.shift % 2 ^ len := by
   rw [notes_turing_pick_is_shift]
@@ -302,16 +295,14 @@ private theorem notes_expand_nonempty (g : Nat) : ∀ (d : Nat) (syms : List Nat
       simp only [List.flatMap_cons, ne_eq, List.append_eq_nil_iff, not_and]
       intro bad; exact absurd bad (notes_rewrite_nonempty g s)
 
-/-- A grammar always has a phrase: at every depth it holds at least one symbol.
-Why it matters: the GRAMMAR source never falls back to a default symbol; every note it plays comes from the
-phrase the grammar wrote. -/
+/-- A grammar's phrase is non-empty at every depth.
+Why it matters: the GRAMMAR source never has to fall back to a default symbol. -/
 theorem notes_grammar_phrase_never_empty (g depth : Nat) : Notes.phraseOf g depth ≠ [] :=
   notes_expand_nonempty g depth (Notes.axiom g) (notes_axiom_nonempty g)
 
-/-- CHORD's tones are notes of the scale: the `n`-th tone above `low` is in the scale whenever the scale has
-more than `n` notes in the five octaves above `low`.
-Why it matters: the CHORD source climbs real scale (or chord) tones, not positions that the snap then has to
-mend; with chord follow on, those are the chord's notes. -/
+/-- The `n`-th scale tone above `low` is in the scale whenever the scale has more than `n` notes in the five
+octaves above `low`.
+Why it matters: the CHORD source climbs real scale (or chord) tones; the snap has nothing to fix. -/
 theorem notes_scale_tone_in_scale (mask low n : Nat)
     (enough : n < ((List.range 60).filter (fun k => Quantizer.inScale mask (low + k))).length) :
     Quantizer.inScale mask (Notes.scaleTone mask low n) = true := by

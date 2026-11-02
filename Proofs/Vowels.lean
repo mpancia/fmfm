@@ -56,10 +56,10 @@ private theorem vowels_contribution (band amp : Int32) (band16 : -32767 ≤ band
   rw [Int32.toInt_mul]
   exact ⟨Int.bmod_eq_of_le (by omega) (by omega), by omega, by omega⟩
 
-/-- Each formant filter of the FOF vowel contributes exactly its band-pass state scaled by the amplitude (a
-16-bit value) and divided by 131072: between -8192 and 8191, with nothing wrapping.
-Why it matters: the five contributions are added in C as a 32-bit sum, which therefore never passes 40960, so
-the clip after it is the only thing that limits the FOF vowel. -/
+/-- Each formant filter of the FOF vowel contributes exactly its band-pass state times the amplitude (a 16-bit
+value) divided by 131072, between -8192 and 8191, with nothing wrapping.
+Why it matters: the five contributions are summed in 32 bits in C and never pass 40960, so the clip after
+them is the only limit. -/
 theorem vowels_fof_contribution_never_wraps (lp bp f amp input : Int32)
     (amp16 : -32768 ≤ amp.toInt ∧ amp.toInt ≤ 32767) :
     (Vowels.fofFilter lp bp f amp input).contribution.toInt =
@@ -79,8 +79,7 @@ theorem vowels_fof_contribution_never_wraps (lp bp f amp input : Int32)
 
 /-- The FOF vowel writes exactly its clipped filter sum, and the in-between sample exactly the average of that
 with the last sample.
-Why it matters: the FOF vowel is limited by its clip and only its clip; the half-rate smoothing cannot wrap,
-so the engine cannot click from an overflow. -/
+Why it matters: the sum is limited by the clip only and the half-rate smoothing cannot wrap. -/
 theorem vowels_fof_out_never_wraps (sum previous : Int32)
     (previous16 : -32768 ≤ previous.toInt ∧ previous.toInt ≤ 32767) :
     (Vowels.fofOut sum previous).out.toInt = (Digital.clip sum).toInt ∧
@@ -120,9 +119,8 @@ private theorem vowels_driven (square parameter : Int) (hs : 0 ≤ square ∧ sq
   exact ⟨Int.bmod_eq_of_le (by omega) (by omega), by omega, by omega⟩
 
 /-- The question mark's distortion term is exactly the square-law formula, between 0 and 65535, for a clipped
-sample and a drive of 0 to 32767: neither product wraps.
-Why it matters: at full drive the distortion cannot overflow and flip the sample's sign; the clip after it is
-the only thing that limits the question mark. -/
+sample and a drive of 0 to 32767; neither product wraps.
+Why it matters: full drive cannot overflow and flip the sample's sign; the clip after it is the only limit. -/
 theorem vowels_question_drive_never_wraps (sample parameter : Int32)
     (clipped : -32767 ≤ sample.toInt ∧ sample.toInt ≤ 32767)
     (drive : 0 ≤ parameter.toInt ∧ parameter.toInt ≤ 32767) :

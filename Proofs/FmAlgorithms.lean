@@ -37,11 +37,10 @@ private theorem no_idle_fin : ∀ a : Fin 8, ∀ op : Fin 4,
         Fm.modulates a.val.toUInt32 (target.val + 1).toUInt32 (op.val + 1).toUInt32 = true := by
   decide +kernel
 
-/-- In every algorithm, every operator either carries (is heard) or modulates some operator: none of the
-four is wired to nothing.
-Why it matters: the voice has four operators and no more; an operator that neither sounds nor shapes
-another would be a quarter of the voice's budget computed every sample for no audible result. No algorithm
-on the knob wastes one. -/
+/-- In every algorithm every operator either carries or modulates some operator; none of the four is wired
+to nothing.
+Why it matters: an operator that neither sounds nor modulates would be a quarter of the voice computed
+every sample for nothing. -/
 theorem fm_no_operator_idle (alg : UInt32) (op : Fin 4) :
     Fm.carries alg (op.val + 1).toUInt32 = true ∨
       ∃ target : Fin 4, Fm.modulates alg (target.val + 1).toUInt32 (op.val + 1).toUInt32 = true := by
@@ -58,22 +57,18 @@ theorem fm_no_operator_idle (alg : UInt32) (op : Fin 4) :
   · exact no_idle_fin ⟨6, by decide⟩ op
   · exact no_idle_fin ⟨7, by decide⟩ op
 
-/-- The eight algorithms are eight different routings: any two differ in some modulation link or in which
+/-- The eight algorithms are pairwise different: any two differ in some modulation link or in which
 operators carry.
-Why it matters: the algorithm knob offers eight positions; if two of them wired the operators the same way
-the player would have a dead position that changes nothing. Each position is a genuinely different
-sound-shaping structure. -/
+Why it matters: no two positions of the algorithm knob wire the operators the same way. -/
 theorem fm_algorithms_distinct : ∀ a b : Fin 8, a ≠ b → ∃ op src : Fin 4,
     Fm.modulates a.val.toUInt32 (op.val + 1).toUInt32 (src.val + 1).toUInt32 ≠
         Fm.modulates b.val.toUInt32 (op.val + 1).toUInt32 (src.val + 1).toUInt32 ∨
       Fm.carries a.val.toUInt32 (op.val + 1).toUInt32 ≠ Fm.carries b.val.toUInt32 (op.val + 1).toUInt32 := by
   decide +kernel
 
-/-- In every shape, every operator is either heard as a carrier of the shape's algorithm, or has a nonzero
-depth and modulates some operator in that algorithm: no shape has a silent modulator.
-Why it matters: a modulator with depth zero would run its sine and envelope every sample while pushing
-nothing, and a carrier-less, modulation-less operator would be pure waste. The tables for all eight shapes
-give every operator a job that reaches the output. -/
+/-- In every shape every operator is either a carrier of the shape's algorithm or has nonzero depth and
+modulates some operator in it; no shape has a silent modulator.
+Why it matters: a modulator with depth zero would run its sine and envelope every sample for nothing. -/
 theorem fm_every_shape_uses_four_operators (shape : Fin 8) : ∀ op : Fin 4,
     Fm.carries (Fm.algorithm shape.val.toUInt32) (op.val + 1).toUInt32 = true ∨
       (0 < (Fm.depth shape.val.toUInt32 (op.val + 1).toUInt32).toNat ∧

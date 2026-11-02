@@ -41,10 +41,10 @@ private theorem percussion_setup_small_toUInt32 (p : Int32) (lo : 0 ≤ p.toInt)
   have := BitVec.isLt p.toBitVec
   split at e <;> omega
 
-/-- Every bell and drum partial's two decays are 16-bit, the short one at most the long one. These are the
-`decayFits` hypotheses of `percussion_decay_never_grows`, so each partial only ever gets quieter.
+/-- Every bell and drum partial's two decays are 16-bit, the short one at most the long one; these are the
+`decayFits` hypotheses of `percussion_decay_never_grows`.
 Why it matters: a decay above 65535, or a short one above the long one, would make `Percussion.decay` a gain
-and the partials would grow without bound. -/
+and the partials would grow. -/
 theorem percussion_setup_partial_decay_in_table (i : UInt32) :
     (0 ≤ (PercussionSetup.bellDecayShort i).toInt ∧
       (PercussionSetup.bellDecayShort i).toInt ≤ (PercussionSetup.bellDecayLong i).toInt ∧
@@ -59,9 +59,9 @@ theorem percussion_setup_partial_decay_in_table (i : UInt32) :
 /-- Every bell and drum partial starts within 16 bits, and the drum's second partial starts at or below 4096
 and its fourth at or below 8192. The first is the `amplitudeFits` hypothesis of
 `percussion_bell_partial_never_wraps` and `percussion_drum_partial_never_wraps`; the second, halved by the
-sine, gives the 2048 and 4096 bounds `percussion_drum_mix_never_wraps` puts on those two partials.
+sine, gives the 2048 and 4096 bounds `percussion_drum_mix_never_wraps` assumes.
 Why it matters: the drum ring-modulates its second and fourth partials by the noise and then by a gain; a
-louder start on either would pass 32 bits in the mix. -/
+louder start would pass 32 bits in the mix. -/
 theorem percussion_setup_amplitudes_in_range (i : UInt32) :
     (0 ≤ (PercussionSetup.bellAmplitude i).toInt ∧ (PercussionSetup.bellAmplitude i).toInt ≤ 32767) ∧
     (0 ≤ (PercussionSetup.drumAmplitude i).toInt ∧ (PercussionSetup.drumAmplitude i).toInt ≤ 32767) ∧
@@ -90,10 +90,10 @@ private theorem percussion_setup_drum_cutoff_clamped (pitch param1 : Int32) :
       rw [c32767] at b
       omega
 
-/-- The drum's noise filter reads its two cutoff entries inside the 257-entry cutoff table: the clamped
+/-- The drum's noise filter reads its two cutoff entries inside the 257-entry cutoff table; the clamped
 cutoff, shifted by 16, has a top byte of at most 127.
-Why it matters: the drum is the one filter whose cutoff comes from the pitch and a parameter added together,
-and the clamp is what keeps that sum's table read inside the data. -/
+Why it matters: the drum's cutoff is the pitch plus a parameter, and the clamp keeps that sum's table read
+inside the data. -/
 theorem percussion_setup_drum_cutoff_in_table (pitch param1 : Int32) :
     (Analog.tableIndex ((PercussionSetup.drumCutoff pitch param1).toUInt32 <<< 16) + 1).toNat ≤ 128 := by
   have ⟨lo, hi⟩ := percussion_setup_drum_cutoff_clamped pitch param1
@@ -112,11 +112,11 @@ theorem percussion_setup_drum_cutoff_in_table (pitch param1 : Int32) :
   simp
   omega
 
-/-- The gains the drum and snare mixes are handed are the ranges their sample theorems assume: the drum's
-noise gain is 0 to 12888 and its harmonics gain 0 to 16983 (`percussion_drum_mix_never_wraps`), the snare's
-two gains 0 to 22000 and 0 to 38383 (`percussion_snare_never_wraps`), for parameters from 0 to 32767.
-Why it matters: the mixes multiply a signal by these gains and then add; a gain outside its range would let
-the sum pass 32 bits, so the ranges are the whole reason those mixes cannot wrap. -/
+/-- The gains handed to the drum and snare mixes are in the ranges their sample theorems assume: the drum's
+noise gain 0 to 12888 and harmonics gain 0 to 16983 (`percussion_drum_mix_never_wraps`), the snare's two
+gains 0 to 22000 and 0 to 38383 (`percussion_snare_never_wraps`), for parameters from 0 to 32767.
+Why it matters: the mixes multiply a signal by these gains and add; a gain outside its range could push the
+sum past 32 bits. -/
 theorem percussion_setup_gains_in_range (param0 param1 : Int32)
     (param0Fits : 0 ≤ param0.toInt ∧ param0.toInt ≤ 32767)
     (param1Fits : 0 ≤ param1.toInt ∧ param1.toInt ≤ 32767) :

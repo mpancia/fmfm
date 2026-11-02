@@ -5,11 +5,10 @@ performance exactly; a transposed note stays a MIDI note; the clock never stops 
 half the time and its gain glides within bounds; the crush only ever repeats a sample; the re-strikes line up
 with the beat. -/
 
-/-- With no key held, every effect hands back what it was given: the tempo is 100 percent, nothing re-strikes,
-a note is itself, the gate is open and aims at full gain, the crush holds nothing (every sample its own), the
-reverb and delay amounts are the settings, no lane is muted.
-Why it matters: there is no effect state, only the keys: when the last key goes up, or the page is left, the
-performance is exactly as it was, with nothing left to undo. -/
+/-- With no key held every effect is the identity: tempo 100 percent, no re-strike, note unchanged, gate open
+at full gain, crush holding nothing, reverb and delay at their settings, no lane muted.
+Why it matters: there is no effect state beyond the keys; releasing the last key restores the performance
+exactly. -/
 theorem punch_nothing_held_changes_nothing (choice shift note base lane factor tick : UInt32) (midi : note
     ≤ 127) :
     Punch.tempoPercent 0 = 100 ∧ Punch.restrike 0 choice tick = false ∧ Punch.note 0 shift note = note ∧
@@ -48,9 +47,9 @@ theorem punch_nothing_held_changes_nothing (choice shift note base lane factor t
   · simp [Punch.delayAmount, none]
   · simp [Punch.laneMuted, none]
 
-/-- A punched note is a MIDI note, 0 to 127, whatever the keys, the shift and the note.
-Why it matters: OCTAVE and SHIFT can never push a lane's note past the keyboard into a pitch the voices
-reject (`play` drops notes above 127); the top and bottom notes are held at the edge instead. -/
+/-- A punched note is at most 127, for any keys, shift and note.
+Why it matters: OCTAVE and SHIFT cannot push a note past the range the voices accept (`play` drops notes above
+127); edge notes are clamped instead. -/
 theorem punch_note_in_range (keys shift note : UInt32) : Punch.note keys shift note ≤ 127 := by
   simp only [Punch.note]
   split
@@ -74,9 +73,8 @@ theorem punch_note_in_range (keys shift note : UInt32) : Punch.note keys shift n
       have l : (127 : UInt32).toNat = 127 := by decide
       omega
 
-/-- The clock's speed is 50, 100 or 200 percent: it never stops and never runs away.
-Why it matters: HALF and DOUBLE are exactly those, so a tick still comes and a bar still ends, and the
-swing and the chord changes keep their place in it. -/
+/-- The clock speed is 50, 100 or 200 percent.
+Why it matters: HALF and DOUBLE cannot stop the clock or run it away. -/
 theorem punch_tempo_in_range (keys : UInt32) :
     Punch.tempoPercent keys = 50 ∨ Punch.tempoPercent keys = 100 ∨ Punch.tempoPercent keys = 200 := by
   unfold Punch.tempoPercent
@@ -105,10 +103,9 @@ private theorem punch_shift (start : UInt32) (noWrap : start.toNat + 12 < 2 ^ 32
       have := Nat.mod_lt (start.toNat % m + k) hm; omega)]
   rw [Nat.mod_add_mod]
 
-/-- Over any whole period (one that does not run into the tick counter's end), the gate is open for exactly
-half the ticks.
-Why it matters: GATE is a chop at the rate the knob says, an even square: half on, half off, in every eighth
-or sixteenth, however the period lines up with the bar. -/
+/-- Over any whole period that does not cross the tick counter's end, the gate is open for exactly half the
+ticks.
+Why it matters: GATE is an even square at the rate the knob says, however the period lines up with the bar. -/
 theorem punch_gate_half_open (keys choice start : UInt32) (on : Punch.held keys 7 = true)
     (noWrap : start.toNat + 12 < 2 ^ 32) :
     let period := Punch.gatePeriod keys choice
@@ -153,10 +150,9 @@ theorem punch_gate_half_open (keys choice start : UInt32) (on : Punch.held keys 
     rw [pv, List.filter_congr e]
     exact (punch_half_of_period.2 ⟨start.toNat % 6, Nat.mod_lt _ (by decide)⟩)
 
-/-- The gate's gain stays between nothing and full gain and moves toward its target by at most 512 a sample,
-landing on it exactly.
-Why it matters: a chop is a 1.5 ms slope, not a step, so GATE never clicks; and the gain can never pass full
-scale or go negative, so the mix through it is never louder than the mix. -/
+/-- The gate gain stays between 0 and 32768 and moves toward its target by at most 512 a sample, landing on it
+exactly.
+Why it matters: a chop is a 1.5 ms slope, so GATE never clicks, and the gain never exceeds unity. -/
 theorem punch_gate_glides (gain target : UInt32) (unitG : gain ≤ 32768) (unitT : target ≤ 32768) :
     Punch.gateStep gain target ≤ 32768 ∧
       (gain < target → gain < Punch.gateStep gain target ∧ Punch.gateStep gain target ≤ target) ∧
@@ -215,9 +211,8 @@ theorem punch_gate_glides (gain target : UInt32) (unitG : gain ≤ 32768) (unitT
         exact UInt32.toNat_inj.mp (by omega)
       exact ⟨unitG, fun h => absurd h lt, fun h => absurd h gt, fun _ => rfl⟩
 
-/-- A crushed sample is one of the two samples offered: the fresh one or the held one.
-Why it matters: CRUSH adds no energy and nothing new: at its worst the mix is the mix a few samples ago,
-so it stays inside every bound the mix had. -/
+/-- A crushed sample is either the fresh sample or the held one.
+Why it matters: CRUSH adds nothing new, so the output stays inside every bound the mix had. -/
 theorem punch_crush_repeats (factor index : UInt32) (heldSample sample : Int32) :
     Punch.crushSample factor index heldSample sample = sample ∨
       Punch.crushSample factor index heldSample sample = heldSample := by
@@ -225,9 +220,8 @@ theorem punch_crush_repeats (factor index : UInt32) (heldSample sample : Int32) 
   · exact Or.inl rfl
   · exact Or.inr rfl
 
-/-- A re-strike period divides the quarter note (24 ticks), so the re-strikes land on the beat's divisions.
-Why it matters: STUTTER and ROLL are in time: every period is an eighth, a sixteenth or a thirty-second, and
-they always come back to the beat. -/
+/-- A non-zero re-strike period divides the quarter note (24 ticks).
+Why it matters: STUTTER and ROLL land on the beat's divisions and come back to the beat. -/
 theorem punch_restrikes_on_the_beat (keys choice : UInt32) (some : Punch.stutterPeriod keys choice ≠ 0) :
     24 % Punch.stutterPeriod keys choice = 0 := by
   unfold Punch.stutterPeriod Punch.stutterChoice at *

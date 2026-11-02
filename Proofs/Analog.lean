@@ -31,7 +31,7 @@ private theorem analog_uint32_toInt32_toInt (x : UInt32) (below : x.toNat < 2 ^ 
   · simp at below ⊢; omega
 
 /-- The correction a step edge adds to its own sample is between 0 and 16383.
-Why it matters: the band-limiting correction can never be large enough to throw a sample out of range. -/
+Why it matters: the band-limiting correction cannot push a sample out of range. -/
 theorem analog_this_blep_range (t : UInt32) :
     0 ≤ (Analog.thisBlep t).toInt ∧ (Analog.thisBlep t).toInt ≤ 16383 := by
   have small := analog_square_shift _ (analog_clamp_le t)
@@ -40,7 +40,7 @@ theorem analog_this_blep_range (t : UInt32) :
   omega
 
 /-- The correction a step edge leaves for the next sample is between -16383 and 0.
-Why it matters: like the correction for its own sample, it can never throw a sample out of range. -/
+Why it matters: the band-limiting correction cannot push a sample out of range. -/
 theorem analog_next_blep_range (t : UInt32) :
     -16383 ≤ (Analog.nextBlep t).toInt ∧ (Analog.nextBlep t).toInt ≤ 0 := by
   have small := analog_square_shift _ (by
@@ -93,7 +93,7 @@ private theorem analog_triangle_wave_range (phase : UInt32) :
   exact analog_signed_half _ folded
 
 /-- Each half of a triangle step lies between -16384 and 16383.
-Why it matters: the two halves can be added without ever leaving the range of a 16-bit sample. -/
+Why it matters: the two halves add without leaving the 16-bit range. -/
 theorem analog_triangle_half_range (phase : UInt32) :
     -16384 ≤ (Analog.triangleHalf phase).toInt ∧ (Analog.triangleHalf phase).toInt ≤ 16383 := by
   unfold Analog.triangleHalf
@@ -101,8 +101,8 @@ theorem analog_triangle_half_range (phase : UInt32) :
   have := analog_triangle_wave_range phase
   omega
 
-/-- The triangle's sample is exactly the sum of its two halves: nothing wraps around.
-Why it matters: the triangle can never click from an overflow, at any pitch or phase. -/
+/-- The triangle's sample is exactly the sum of its two halves; nothing wraps.
+Why it matters: the triangle cannot click from an overflow at any pitch or phase. -/
 theorem analog_triangle_never_wraps (phase inc : UInt32) (sync : UInt8) :
     (Analog.triangle phase inc sync).out.toInt =
       (Analog.triangleHalf ((if sync != 0 then 0 else phase) + (inc >>> 1))).toInt +
@@ -118,8 +118,8 @@ theorem analog_triangle_never_wraps (phase inc : UInt32) (sync : UInt8) :
   omega
 
 /-- The sine at any phase lies between the two table entries it blends.
-Why it matters: the sine, and everything FM-modulated through it, can never put out more than the table
-holds; the cut to 16 bits in `Analog.sineAt` never changes a value. -/
+Why it matters: the sine, and everything FM-modulated through it, stays within the table's range, so the cut
+to 16 bits in `Analog.sineAt` never changes a value. -/
 theorem analog_sine_between_entries (phase : UInt32) :
     min (Analog.sineTable (Analog.tableIndex phase)).toInt
         (Analog.sineTable (Analog.tableIndex phase + 1)).toInt ≤ (Analog.sineAt phase).toInt ∧
@@ -138,10 +138,9 @@ theorem analog_sine_between_entries (phase : UInt32) :
   have := blend_sixteen_between x.toInt32 y.toInt32 (phase >>> 8) (by simp; omega) (by simp; omega)
   simpa using this
 
-/-- Left to run, an oscillator's phase after `n` samples is exactly `phase + n * inc`, wrapped at 2^32.
-Why it matters: a note's pitch is exact for as long as it sounds: the frequency is `inc / 2^32` of the sample
-rate with no rounding error building up, so a long drone does not drift and two lanes an octave apart stay
-locked. -/
+/-- An oscillator's phase after `n` samples is exactly `phase + n * inc`, wrapped at 2^32.
+Why it matters: the frequency is exactly `inc / 2^32` of the sample rate with no rounding error building up,
+so a long note does not drift. -/
 theorem analog_phase_exact (phase inc : UInt32) (n : Nat) :
     (Analog.freeRun phase inc n).toNat = (phase.toNat + n * inc.toNat) % 2 ^ 32 := by
   induction n with

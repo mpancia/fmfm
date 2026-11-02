@@ -170,10 +170,9 @@ private theorem physical_scale_down (half k : Int) (lo : 0 ≤ k) (hi : k ≤ 32
       exact this
     · exact Int.ediv_nonpos_of_nonpos_of_neg b (by decide)
 
-/-- Braids' `Mix` of two 16-bit delay-line samples by a 16-bit fraction is exact: the weighted sum sits at the
-very edge of 32 bits (32768 times 65535) and never crosses it.
-Why it matters: every delay-line read of the bowed string, blown pipe and flute goes through this blend; an
-overflow here would put a wrong sample back into the string or bore on every pass. -/
+/-- Braids' `Mix` of two 16-bit delay-line samples by a 16-bit fraction is exact: the weighted sum reaches
+at most 32768 * 65535 and stays inside 32 bits.
+Why it matters: every delay-line read of the bowed string, blown pipe and flute uses this blend. -/
 theorem physical_mix_never_wraps (a b : Int32) (fraction : UInt32)
     (aFits : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (bFits : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767)
     (fractionFits : fraction.toNat ≤ 65535) :
@@ -210,10 +209,10 @@ private theorem physical_mix_fits_byte (a b : Int32) (fraction : UInt32)
   have := physical_blend_bounds a.toInt b.toInt fraction.toNat 65535 (-128) 127 (by omega) aFits bFits
   omega
 
-/-- The comb filter's sample and the sample it feeds back are exact: the delayed sample is the exact blend of
-its two neighbours, and each output is that arithmetic held between -32767 and 32767, with nothing wrapping in
-between. Holds for 16-bit input and delay-line samples, a fraction from 0 to 65535 and a 16-bit resonance.
-Why it matters: the comb's delay line feeds itself; a wrapped sample would ring round the loop as a click. -/
+/-- The comb filter's output and feedback samples are exact: the delayed sample is the blend of its two
+neighbours and each output is that arithmetic clipped to ±32767, for 16-bit input and line samples, a
+fraction from 0 to 65535 and a 16-bit resonance.
+Why it matters: a wrapped sample in the comb's feedback would ring round the loop. -/
 theorem physical_comb_never_wraps (input a b fraction resonance : Int32)
     (inputFits : -32768 ≤ input.toInt ∧ input.toInt ≤ 32767)
     (aFits : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (bFits : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767)
@@ -263,9 +262,8 @@ theorem physical_comb_never_wraps (input a b fraction resonance : Int32)
     rw [physical_keep16 _ (by rw [physical_clip_value]; omega) (by rw [physical_clip_value]; omega),
       physical_clip_value, sum, delayed]
 
-/-- The comb filter reads its resonance curve inside the curve's 257 entries, whatever the setting.
-Why it matters: the curve is a plain C array read without a bounds check; the cut to 16 bits before the
-offset is what keeps every setting inside. -/
+/-- The comb filter's resonance curve read is inside the curve's 257 entries for every setting.
+Why it matters: the curve is a C array read without a bounds check. -/
 theorem physical_comb_resonance_index_in_table (parameter : Int32) :
     (Physical.combResonanceIndex parameter).toNat ≤ 65535 := by
   unfold Physical.combResonanceIndex
@@ -279,9 +277,9 @@ theorem physical_comb_resonance_index_in_table (parameter : Int32) :
   rw [sum] at e
   omega
 
-/-- Filling a new string never wraps: each place gets exactly a quarter of the old sample plus three quarters
-of the noise, which fits 16 bits for 16-bit inputs.
-Why it matters: a pluck starts from this fill; a wrapped value would start the note with a click. -/
+/-- Filling a new string never wraps: each entry is a quarter of the old sample plus three quarters of the
+noise, which fits 16 bits for 16-bit inputs.
+Why it matters: a pluck starts from this fill. -/
 theorem physical_pluck_fill_never_wraps (old noise : Int32)
     (oldFits : -32768 ≤ old.toInt ∧ old.toInt ≤ 32767)
     (noiseFits : -32768 ≤ noise.toInt ∧ noise.toInt ≤ 32767) :
@@ -295,10 +293,10 @@ theorem physical_pluck_fill_never_wraps (old noise : Int32)
   rw [physical_keep16 _ (by rw [physical_shift_two, sum]; omega) (by rw [physical_shift_two, sum]; omega),
     physical_shift_two, sum]
 
-/-- One step of the plucked string's loop never makes the signal louder: the result is within the louder of
-the two neighbours it averages, for 16-bit neighbours and a loss between 0 and 32768.
-Why it matters: the Karplus-Strong loop feeds its output back into itself; a step that could gain would make
-the string grow instead of ring down. -/
+/-- One step of the plucked string's loop stays within the larger of the two neighbours it averages, for
+16-bit neighbours and a loss from 0 to 32768.
+Why it matters: the Karplus-Strong loop feeds back into itself; a step with gain would make the string
+grow instead of decay. -/
 theorem physical_pluck_average_no_gain (a b loss : Int32)
     (ha : -32767 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32767 ≤ b.toInt ∧ b.toInt ≤ 32767)
     (hl : 0 ≤ loss.toInt ∧ loss.toInt ≤ 32768) :
@@ -349,11 +347,10 @@ theorem physical_pluck_average_no_gain (a b loss : Int32)
     simp [Int.bmod_def]
     split <;> omega
 
-/-- Reading the plucked string between two entries gives exactly the blend of the two, for 16-bit entries at
-any phase. The product inside can pass 32 bits (as in Braids' `Interpolate1022`), but the excess is a multiple
-of 2^16 and the cut to 16 bits removes it exactly.
-Why it matters: this read is the plucked string's sample; the overflow in the original is shown harmless
-rather than assumed. -/
+/-- Reading the plucked string between two 16-bit entries gives exactly their blend at any phase. The
+product can pass 32 bits (as in Braids' `Interpolate1022`), but the excess is a multiple of 2^16 and the cut
+to 16 bits removes it.
+Why it matters: this read is the plucked string's sample; the overflow in the original is harmless. -/
 theorem physical_pluck_read_never_wraps (a b : Int32) (phase : UInt32)
     (aFits : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (bFits : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
     (Physical.pluckRead a b phase).toInt =
@@ -373,10 +370,9 @@ theorem physical_pluck_read_never_wraps (a b : Int32) (phase : UInt32)
   simp only [Int.bmod_def]
   split <;> split <;> split <;> omega
 
-/-- The two samples of an engine that runs at half rate are exact: the sample is the voices' sum held between
--32767 and 32767, and the in-between sample is the mean of that and the previous 16-bit sample, rounded down.
-Why it matters: the plucked string and the bowed string hand every other sample through here; the mean of two
-16-bit values must not wrap on the way to the buffer. -/
+/-- A half-rate engine's two samples are exact: the sample is the voices' sum clipped to ±32767, and the
+in-between sample is the mean of that and the previous 16-bit sample, rounded down.
+Why it matters: the plucked and bowed strings hand every other sample through here. -/
 theorem physical_half_rate_never_wraps (sum previous : Int32)
     (previousFits : -32768 ≤ previous.toInt ∧ previous.toInt ≤ 32767) :
     (Digital.clip sum).toInt16.toInt = max (-32767) (min 32767 sum.toInt) ∧
@@ -391,11 +387,10 @@ theorem physical_half_rate_never_wraps (sum previous : Int32)
     rw [physical_keep16 _ (by rw [physical_shift_one, s]; omega) (by rw [physical_shift_one, s]; omega),
       physical_shift_one, s]
 
-/-- The bowed string's sample is exact: the body filter's arithmetic on the bridge sample (the blend of two
-8-bit line samples, scaled up by 256) and its two previous outputs, held between -32767 and 32767. The two
-previous outputs are within 2^18, which `physical_bowed_body_stays_bounded` keeps true from one sample to the
-next.
-Why it matters: the body filter runs on every sample of a bowed note; a wrap in it would be a click. -/
+/-- The bowed string's sample is exact: the body filter on the bridge sample (the blend of two 8-bit line
+samples times 256) and its two previous outputs, clipped to ±32767, for previous outputs within 2^18
+(which `physical_bowed_body_stays_bounded` keeps true from one sample to the next).
+Why it matters: the body filter runs on every sample of a bowed note. -/
 theorem physical_bowed_never_wraps (bridgeA bridgeB nutA nutB : Int32) (bridgeFraction neckFraction : UInt32)
     (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32)
     (bridgeAFits : -128 ≤ bridgeA.toInt ∧ bridgeA.toInt ≤ 127)
@@ -438,10 +433,10 @@ theorem physical_bowed_never_wraps (bridgeA bridgeB nutA nutB : Int32) (bridgeFr
   rw [physical_keep16 _ (by rw [physical_clip_value]; omega) (by rw [physical_clip_value]; omega),
     physical_clip_value, diff, t0, t1, t2]
 
-/-- The bowed string's bridge low-pass never runs away: when its state is within 16 bits, so is the next
-state, for 8-bit line samples and any fraction up to 65535.
-Why it matters: this state feeds the string back to itself on every sample; a state that could grow would make
-the string swell instead of settle, and would wrap the bow's arithmetic. -/
+/-- The bowed string's bridge low-pass state stays within 16 bits from one sample to the next, for 8-bit
+line samples and any fraction up to 65535.
+Why it matters: this state feeds the string back to itself; a growing state would wrap the bow's
+arithmetic. -/
 theorem physical_bowed_lowpass_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
     (bridgeFraction neckFraction : UInt32) (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32)
     (bridgeAFits : -128 ≤ bridgeA.toInt ∧ bridgeA.toInt ≤ 127)
@@ -468,11 +463,10 @@ theorem physical_bowed_lowpass_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
   rw [physical_shift_fifteen, physical_add_exact _ _ (by rw [t0, t1]; omega), t0, t1]
   omega
 
-/-- The bowed string reads its friction curve inside the curve's 257 entries, for a bow pressure up to 1024
-and a bow-to-string speed difference up to 2^20 (Braids' pressure is at most 172 and the difference at most
-2^17).
-Why it matters: the friction read is a plain C array access with no bounds check; the cap at 131071 before
-the top 8 bits are taken is what keeps it inside. -/
+/-- The bowed string's friction curve read is inside the curve's 257 entries, for a bow pressure up to 1024
+and a bow-to-string speed difference up to 2^20 (Braids uses at most 172 and 2^17).
+Why it matters: the curve is a C array read without a bounds check; the cap at 131071 before taking the
+top 8 bits keeps it inside. -/
 theorem physical_friction_index_in_table (delta bow : Int32)
     (deltaFits : delta.toInt.natAbs ≤ 2 ^ 20) (bowFits : bow.toInt.natAbs ≤ 1024) :
     (Physical.frictionIndex delta bow).toNat ≤ 255 := by
@@ -514,10 +508,9 @@ theorem physical_friction_index_in_table (delta bow : Int32)
   rw [physical_shift_nine] at e
   omega
 
-/-- The blown pipe's output filter lands between the bore's new sample and the filter's own last output, so it
-fits 16 bits with nothing to cut, for a coefficient from 0 to 4096 and a 16-bit last output.
-Why it matters: this filter is the blown pipe's sample; it can only smooth what the bore gives it, never add a
-wrapped value of its own. -/
+/-- The blown pipe's output filter lands between the bore's new sample and its own last output, so it fits
+16 bits, for a coefficient from 0 to 4096 and a 16-bit last output.
+Why it matters: this filter is the blown pipe's sample; it cannot add a wrapped value. -/
 theorem physical_blown_filter_stays_between (noise a b : Int32) (fraction : UInt32)
     (lp parameter filter coefficient : Int32)
     (coefficientFits : 0 ≤ coefficient.toInt ∧ coefficient.toInt ≤ 4096)
@@ -550,9 +543,9 @@ theorem physical_blown_filter_stays_between (noise a b : Int32) (fraction : UInt
     (by rw [physical_shift_twelve, sum]; omega), physical_shift_twelve, sum]
   omega
 
-/-- The flute's sample is exact: the bore's blended 8-bit sample scaled up by 256, held between -32767 and
-32767, for 8-bit line samples and any fraction up to 65535.
-Why it matters: the flute's sample is read straight off the bore; nothing on that path can wrap. -/
+/-- The flute's sample is exact: the bore's blended 8-bit sample times 256, clipped to ±32767, for 8-bit
+line samples and any fraction up to 65535.
+Why it matters: nothing on the flute's output path can wrap. -/
 theorem physical_fluted_never_wraps (boreA boreB jetA jetB : Int32) (boreFraction jetFraction : UInt32)
     (excitation : UInt32) (noise intensity coefficient lp dcX dcY : Int32)
     (boreAFits : -128 ≤ boreA.toInt ∧ boreA.toInt ≤ 127) (boreBFits : -128 ≤ boreB.toInt ∧ boreB.toInt ≤ 127)
@@ -573,9 +566,9 @@ theorem physical_fluted_never_wraps (boreA boreB jetA jetB : Int32) (boreFractio
   rw [physical_keep16 _ (by rw [physical_clip_value]; omega) (by rw [physical_clip_value]; omega),
     physical_clip_value, bore]
 
-/-- The flute reads its jet curve inside the curve's 257 entries, whatever the jet's value.
-Why it matters: the jet read is a plain C array access with no bounds check; the limit to 0 to 65535 before
-the top 8 bits are taken is what keeps it inside. -/
+/-- The flute's jet curve read is inside the curve's 257 entries for every jet value.
+Why it matters: the curve is a C array read without a bounds check; the clamp to 0..65535 before taking
+the top 8 bits keeps it inside. -/
 theorem physical_jet_index_in_table (jetValue : Int32) : (Physical.jetIndex jetValue).toNat ≤ 255 := by
   unfold Physical.jetIndex
   dsimp only
@@ -597,9 +590,9 @@ theorem physical_jet_index_in_table (jetValue : Int32) : (Physical.jetIndex jetV
   rw [physical_shift_eight] at e
   omega
 
-/-- The body filter's state the bowed string carries to the next sample is within 2^18, whatever the inputs.
-Why it matters: with `physical_bowed_never_wraps` this closes the loop: the two states a sample needs are the
-two a previous sample left, so the body filter never wraps however long the note is bowed. -/
+/-- The body filter state the bowed string carries to the next sample is within 2^18 for any inputs.
+Why it matters: with `physical_bowed_never_wraps` this closes the loop, so the body filter never wraps
+over a whole note. -/
 theorem physical_bowed_body_stays_bounded (bridgeA bridgeB nutA nutB : Int32)
     (bridgeFraction neckFraction : UInt32) (lp : Int32) (excitation : UInt32) (bow : Int32) (y0 y1 : Int32) :
     let step := Physical.bowed bridgeA bridgeB nutA nutB bridgeFraction neckFraction lp excitation bow y0 y1
@@ -629,15 +622,14 @@ private theorem physical_masked_in_line (x mask : UInt32) (length : Nat) (fits :
     (x &&& mask).toNat < length := by
   rw [UInt32.toNat_and]; exact Nat.lt_of_le_of_lt Nat.and_le_right fits
 
-/-- The comb filter's two reads (`integral` and `integral + 1` samples back) land inside its 8192 line.
-Why it matters: the glue indexes the line with this number unchecked; a delay longer than the line would read
-past it. -/
+/-- The comb filter's two reads (`integral` and `integral + 1` samples back) are inside its 8192-entry line.
+Why it matters: the glue indexes the line unchecked. -/
 theorem physical_comb_read_in_line (ptr integral : UInt32) :
     (Physical.combRead ptr integral).toNat < 8192 := physical_masked_in_line _ _ _ (by decide)
 
-/-- The comb filter's write position after a sample is inside its 8192 line. The first position of a block
-comes from C++ as `phase_ % 8192`; this keeps every later one in the line.
-Why it matters: the write is unmasked in the glue, so the advance is what keeps it inside. -/
+/-- The comb filter's write position after a sample is inside its 8192-entry line. A block's first position
+comes from C++ as `phase_ % 8192`; this keeps every later one inside.
+Why it matters: the glue writes unmasked. -/
 theorem physical_comb_write_in_line (ptr : UInt32) : (Physical.combAdvance ptr).toNat < 8192 :=
   physical_masked_in_line _ _ _ (by decide)
 
@@ -661,12 +653,11 @@ private theorem physical_pluck_entry_lt (phase shift : UInt32) (oversampled : sh
   have e : 10 - shift.toNat + (shift.toNat + 22) = 32 := by omega
   rw [e]; exact phase.toNat_lt
 
-/-- The entry a plucked string reads, and its neighbour one further on, are both within a string of `size`
-entries, the neighbour landing at most on the guard copy `dl[size]`. The setup gives `size = 1024 >> shift` on
-each strike with `shift` at most 9 (`physical_setup_pluck_size_valid`; a larger shift would shift the phase by
-32 or more, which C leaves undefined), so both are hypotheses.
-Why it matters: the read blends two neighbours; the second is why the line is one entry longer than the
-string, and this shows that one entry is enough. -/
+/-- The plucked string's read entry and its neighbour one further on are both within a string of `size`
+entries, the neighbour at most on the guard copy `dl[size]`. The hypotheses `size = 1024 >> shift` with
+`shift` at most 9 come from the setup (`physical_setup_pluck_size_valid`; a larger shift is undefined in C).
+Why it matters: the read blends two neighbours, which is why the line is one entry longer than the
+string. -/
 theorem physical_pluck_read_in_line (phase shift size : UInt32) (sized : size = 1024 >>> shift)
     (oversampled : shift ≤ 9) :
     (Physical.pluckEntry (Physical.pluckPhase phase shift)).toNat + 1 ≤ size.toNat := by
@@ -681,11 +672,11 @@ private theorem physical_pluck_mask_lt (shift mask size : UInt32) (sized : size 
   have one : (1 : UInt32) ≤ size := UInt32.le_iff_toNat_le.mpr pos
   rw [masked, UInt32.toNat_sub_of_le _ _ one, UInt32.toNat_one]; omega
 
-/-- Where the plucked string's low-pass loop stops this sample, and each next entry the loop visits, are
-within a string of `size` entries. The setup gives `size = 1024 >> shift` and `mask = size - 1` on each
-strike, with `shift` at most 9 (`physical_setup_pluck_size_valid`), so these are hypotheses.
-Why it matters: the loop reads and writes `dl[write_ptr]` and `dl[next]` unchecked; with `size` zero the mask
-would be all ones and the loop would walk the whole address space. -/
+/-- Where the plucked string's low-pass loop stops this sample, and each next entry it visits, are within a
+string of `size` entries. The hypotheses `size = 1024 >> shift` and `mask = size - 1` with `shift` at most 9
+come from the setup (`physical_setup_pluck_size_valid`).
+Why it matters: the loop reads and writes `dl[write_ptr]` and `dl[next]` unchecked; with `size` zero the
+mask would be all ones. -/
 theorem physical_pluck_next_in_line (phase shift mask size writePtr : UInt32) (sized : size = 1024 >>> shift)
     (masked : mask = size - 1) (oversampled : shift ≤ 9) :
     (Physical.pluckReadPtr phase shift mask).toNat < size.toNat ∧
@@ -693,11 +684,10 @@ theorem physical_pluck_next_in_line (phase shift mask size writePtr : UInt32) (s
   have := physical_pluck_mask_lt shift mask size sized masked oversampled
   ⟨physical_masked_in_line _ _ _ this, physical_masked_in_line _ _ _ this⟩
 
-/-- Filling a new string writes inside a string of `size` entries as long as the fill counter started at or
-below `size`. The setup gives `size * (8192 + width) >> 16` with `width` below 49152, so it does
+/-- Filling a new string writes inside a string of `size` entries when the fill counter started at or below
+`size`. The setup gives `size * (8192 + width) >> 16` with `width` below 49152, so it does
 (`physical_setup_pluck_size_valid`).
-Why it matters: the fill counts down from where the setup left it and the glue indexes the line with the
-result unchecked. -/
+Why it matters: the glue indexes the line with the fill counter unchecked. -/
 theorem physical_pluck_fill_in_line (initialization size : UInt32) (started : 1 ≤ initialization)
     (fits : initialization ≤ size) : (Physical.pluckFillAt initialization).toNat < size.toNat := by
   unfold Physical.pluckFillAt
@@ -706,26 +696,24 @@ theorem physical_pluck_fill_in_line (initialization size : UInt32) (started : 1 
   rw [UInt32.toNat_one] at above
   rw [UInt32.toNat_sub_of_le _ _ started, UInt32.toNat_one]; omega
 
-/-- The bowed string's reads and writes land inside its lines: the bridge line is 1024 long, the neck line
+/-- The bowed string's reads and writes are inside its lines: the bridge line is 1024 long, the neck line
 4096.
-Why it matters: both lines are `int8_t` arrays the glue indexes unchecked, and the two delays come from the
-pitch without a clamp to the line. -/
+Why it matters: both lines are `int8_t` arrays indexed unchecked, and the delays come from the pitch
+without a clamp. -/
 theorem physical_bowed_lines_in_line (ptr bridgeIntegral neckIntegral : UInt32) :
     (Physical.bridgeRead ptr bridgeIntegral).toNat < 1024 ∧ (Physical.bridgeWrite ptr).toNat < 1024 ∧
     (Physical.neckRead ptr neckIntegral).toNat < 4096 ∧ (Physical.neckWrite ptr).toNat < 4096 :=
   ⟨physical_masked_in_line _ _ _ (by decide), physical_masked_in_line _ _ _ (by decide),
     physical_masked_in_line _ _ _ (by decide), physical_masked_in_line _ _ _ (by decide)⟩
 
-/-- The blown pipe's read and write land inside its 2048 bore line.
-Why it matters: the bore is indexed unchecked and the delay comes from the pitch without a clamp to the
-line. -/
+/-- The blown pipe's read and write are inside its 2048-entry bore line.
+Why it matters: the bore is indexed unchecked and the delay comes from the pitch without a clamp. -/
 theorem physical_blown_bore_in_line (ptr integral : UInt32) :
     (Physical.boreRead ptr integral).toNat < 2048 ∧ (Physical.boreWrite ptr).toNat < 2048 :=
   ⟨physical_masked_in_line _ _ _ (by decide), physical_masked_in_line _ _ _ (by decide)⟩
 
-/-- The flute's reads and writes land inside its lines: the bore line is 4096 long, the jet line 1024.
-Why it matters: both lines are indexed unchecked and the two delays come from the pitch without a clamp to the
-line. -/
+/-- The flute's reads and writes are inside its lines: the bore line is 4096 long, the jet line 1024.
+Why it matters: both lines are indexed unchecked and the delays come from the pitch without a clamp. -/
 theorem physical_fluted_lines_in_line (ptr boreIntegral jetIntegral : UInt32) :
     (Physical.fluteBoreRead ptr boreIntegral).toNat < 4096 ∧ (Physical.fluteBoreWrite ptr).toNat < 4096 ∧
     (Physical.jetRead ptr jetIntegral).toNat < 1024 ∧ (Physical.jetWrite ptr).toNat < 1024 :=

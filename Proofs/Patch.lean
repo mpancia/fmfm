@@ -11,9 +11,8 @@ private theorem patchLane_ofBytes_bytes (l : PatchLane) (fits : l.Fits) (rest : 
   have seedSplit : seed / 256 * 256 + seed % 256 = seed := Nat.div_add_mod' seed 256
   simp (disch := omega) only [byte, seedSplit]
 
-/-- Saving a patch and loading the bytes back gives the same patch, for every patch the knobs can produce.
-Why it matters: a user slot restores exactly what was saved, every lane setting and every global, with no
-field lost, swapped or rounded on the way through flash. -/
+/-- Decoding an encoded patch gives the same patch, for every patch that fits (`Patch.Fits`).
+Why it matters: a user slot restores exactly what was saved. -/
 theorem patch_decode_encode_round_trip (p : Patch) (fits : p.Fits) :
     Patch.decode (Patch.encode p) = some p := by
   obtain ⟨bpm, key, progression, rate, scaleLock, time, bright, amount, dTime, dFeedback, dTone, dAmount, lane0, lane1,
@@ -31,9 +30,9 @@ theorem patch_decode_encode_round_trip (p : Patch) (fits : p.Fits) :
     patchLane_ofBytes_bytes lane2 fits2, last, List.isEmpty_nil, Option.pure_def]
   simp (disch := omega) only [byte, fitsAll, ite_true]
 
-/-- A patch that loads from a slot is one the knobs could have produced: every setting is in range.
-Why it matters: a corrupt or foreign slot can never put an out-of-range sound index, scale or step count
-into the firmware, where it would read past a table; such a slot loads as EMPTY instead. -/
+/-- Any patch `decode` accepts fits: every setting is in range.
+Why it matters: a corrupt or foreign slot cannot load an out-of-range index that would read past a table; it
+loads as EMPTY instead. -/
 theorem patch_decode_only_fits (bytes : ByteArray) (p : Patch) (loaded : Patch.decode bytes = some p) :
     p.Fits := by
   unfold Patch.decode at loaded
@@ -53,9 +52,8 @@ private theorem patch_ofBytes_wrong_marker (l : List UInt8) (wrong : l[0]? ≠ s
     simp [guard, wrong]
   · rfl
 
-/-- A slot whose first byte is not the patch marker 0xA7 never loads.
-Why it matters: a slot never written, or written by other software, is told apart by its first byte and
-treated as empty rather than read as a scramble of settings. -/
+/-- A slot whose first byte is not the marker 0xA7 never loads.
+Why it matters: an unwritten or foreign slot is treated as empty rather than read as settings. -/
 theorem patch_decode_rejects_wrong_marker (bytes : ByteArray) (nonEmpty : 0 < bytes.size)
     (wrong : bytes[0] ≠ 0xA7) : Patch.decode bytes = none := by
   unfold Patch.decode
@@ -93,8 +91,7 @@ private theorem patch_ofBytes_length (l : List UInt8) (p : Patch) (parsed : Patc
   · simp at parsed
 
 /-- A slot that is not exactly 106 bytes long never loads.
-Why it matters: a slot written by a firmware with a different patch layout is rejected whole instead of
-being read field by field in the wrong places. -/
+Why it matters: a slot from a firmware with a different patch layout is rejected whole. -/
 theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size ≠ 106) :
     Patch.decode bytes = none := by
   unfold Patch.decode
@@ -105,8 +102,7 @@ theorem patch_decode_rejects_wrong_size (bytes : ByteArray) (wrong : bytes.size 
     exact absurd length wrong
   · rfl
 
-/-- Every saved patch is 106 bytes long.
-Why it matters: the C side reads exactly this many bytes back from a flash slot (`FM1_PATCH_BYTES`); a
-different count would make every saved patch unloadable. -/
+/-- Every encoded patch is 106 bytes long.
+Why it matters: the C side reads exactly `FM1_PATCH_BYTES` back from a flash slot. -/
 theorem patch_encode_size (p : Patch) : (Patch.encode p).size = 106 := by
   simp [Patch.encode, Patch.bytes, PatchLane.bytes, ByteArray.size]

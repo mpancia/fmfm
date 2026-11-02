@@ -21,15 +21,14 @@ private theorem divider_pulses_from (div : Nat) (positive : 0 < div) :
       simp only [Bool.false_eq_true, ite_false, Nat.add_zero]
       congr 1; omega
 
-/-- A divide-by-`div` counter that starts at 0 and gets `ticks` ticks gives exactly `ticks / div` pulses.
-Why it matters: a divide-by-4 clock never drops or doubles a beat, however long it runs. -/
+/-- A divide-by-`div` counter started at 0 gives exactly `ticks / div` pulses after `ticks` ticks.
+Why it matters: the clock divider never drops or doubles a beat. -/
 theorem divider_pulse_count (div ticks : Nat) (positive : 0 < div) :
     (Divider.run div 0 ticks).2 = ticks / div := by
   rw [divider_pulses_from div positive ticks 0 positive]; simp
 
-/-- The count never reaches `div`: it always stays between 0 and `div - 1`.
-Why it matters: the counter is a small number for good, so it can never grow into a big number the chip's
-Lean runtime cannot handle. -/
+/-- The count stays below `div`.
+Why it matters: the counter stays bounded however long it runs. -/
 theorem divider_count_bounded (div ticks count : Nat) (below : count < div) :
     (Divider.run div count ticks).1 < div := by
   induction ticks generalizing count with

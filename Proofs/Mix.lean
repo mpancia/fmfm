@@ -54,10 +54,9 @@ private theorem mix_product_bound (s t : Int) (a b : Nat) (hs : s.natAbs ≤ a) 
   rw [Int.natAbs_mul]
   exact Nat.mul_le_mul hs (by omega)
 
-/-- The level of a voice one sample later lies between where it was and its gate, and so stays between 0
-and 130048 (the top of `play`'s gate). The steps are `ATTACK` (at most 1024) and `RELEASE` (at most 250).
-Why it matters: the glide that removes clicks cannot overshoot and bounce, and the level never wraps to a
-negative number that would flip the sound's sign or make a released voice sound again. -/
+/-- A voice's level one sample later lies between its old level and its gate, so it stays between 0 and
+130048 (the top of `play`'s gate), for `ATTACK` at most 1024 and `RELEASE` at most 250.
+Why it matters: the click-removing glide cannot overshoot, and the level cannot wrap negative. -/
 theorem mix_envelope_toward_gate (amp gate up down : Int32)
     (ampInRange : 0 ≤ amp.toInt ∧ amp.toInt ≤ 130048) (gateInRange : 0 ≤ gate.toInt ∧ gate.toInt ≤ 130048)
     (upInRange : 0 ≤ up.toInt ∧ up.toInt ≤ 1024) (downInRange : 0 ≤ down.toInt ∧ down.toInt ≤ 250) :
@@ -120,11 +119,10 @@ private theorem mix_send_value (s : Int32) (send : UInt16) (sBounded : s.toInt.n
   rw [mix_shift8, sent]
   omega
 
-/-- A voice's sample for the mix is computed without any wrap, given a gain of at most 2048 (the most
-`tools/gen_presets.py` writes) and a level of at most 130048, and it is within 65024 either way; the share
-sent to the reverb bus (send at most 256) is within 130048.
-Why it matters: the loudest voice at the loudest gain stays an exact scaled copy of what Braids rendered,
-never a wrapped burst, and six of each fit the stereo mix and the send bus with room to spare. -/
+/-- A voice's sample for the mix is computed without wrap and is within 65024, for a gain of at most 2048
+(the most `tools/gen_presets.py` writes) and a level of at most 130048; its share for the reverb bus (send
+at most 256) is within 130048.
+Why it matters: six voices at full gain fit the stereo mix and the send bus without wrapping. -/
 theorem mix_voice_sample_never_wraps (sample : Int16) (gain send : UInt16) (amp : Int32)
     (gainInRange : gain.toNat ≤ 2048) (sendInRange : send.toNat ≤ 256)
     (ampInRange : 0 ≤ amp.toInt ∧ amp.toInt ≤ 130048) :
@@ -170,14 +168,12 @@ private theorem mix_wet_return (wet gain : Int32) (wetBounded : wet.toInt.natAbs
   rw [Int.bmod_eq_of_le (by omega) (by omega)]
   omega
 
-/-- The stereo mix of up to six voice samples (each within 65024, as `mix_voice_sample_never_wraps` gives)
-plus the wet return is added up without any wrap: the dry sum is within 390144, the whole within 1077734144.
-The wet sample is within 2^29 + 2^21, which is what `reverb_wet_never_overflows` proves of what the glue
-hands back, so the two promises join. The last conjunct is for `platform.c`, which multiplies the mix by the
-master gain (at most 4088, Q12) before its clip to 16 bits: the dry mix cannot wrap in that product; the
-whole mix is held within that reach by `Mix.limit` (`mix_limit_fits_master`).
-Why it matters: six loud voices and the reverb together can only clip at the deliberate clip in `platform.c`,
-never wrap in the mix to a burst of the opposite sign. -/
+/-- The stereo mix of up to six voice samples (each within 65024, from `mix_voice_sample_never_wraps`) plus
+the wet return is added without wrap: the dry sum is within 390144, the whole within 1077734144. The wet
+sample is within 2^29 + 2^21, which is what `reverb_wet_never_overflows` gives. The last conjunct says the
+dry mix times the master gain in `platform.c` (at most 4088, Q12) cannot wrap; the whole mix is held within
+that reach by `Mix.limit` (`mix_limit_fits_master`).
+Why it matters: six voices and the reverb can only clip at the clip in `platform.c`, never wrap in the mix. -/
 theorem mix_bus_never_wraps (voices : List Int32) (wet gain : Int32) (atMostSix : voices.length ≤ 6)
     (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024)
     (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21)
@@ -197,9 +193,9 @@ theorem mix_bus_never_wraps (voices : List Int32) (wet gain : Int32) (atMostSix 
   omega
 
 /-- After the limiter the mix is within 524287, so `platform.c`'s product with the master gain (at most 4088)
-fits in 32 bits for any input; and a mix already within that range passes through unchanged.
+fits in 32 bits for any input; a mix already within that range passes through unchanged.
 Why it matters: the dry mix never reaches the limit (`mix_bus_never_wraps`), so the limiter only acts on an
-extreme wet return, where it keeps the master stage from wrapping to a burst of the opposite sign. -/
+extreme wet return, where it keeps the master stage from wrapping. -/
 theorem mix_limit_fits_master (x : Int32) :
     (Mix.limit x).toInt.natAbs * 4088 < 2 ^ 31 ∧ (x.toInt.natAbs ≤ 524287 → Mix.limit x = x) := by
   have hi : (524287 : Int32).toInt = 524287 := by decide
@@ -235,11 +231,9 @@ private theorem mix_limit_value (x : Int32) :
     · have b := mt below.mpr h2
       simp only [h1, h2, a, b, ite_false]
 
-/-- One effect's return into a mix that is already within the limit: the sum is exact (no wrap), and the
-result is the sum clipped to 524287, for a wet sample within 2^29 + 2^21 and a gain up to 65500 (twice the
-largest RETURN).
-Why it matters: this is the step `app_audio` takes for the delay and then for the reverb; however loud a
-return, it can only clip, never wrap. -/
+/-- Adding one effect's return to a mix already within the limit is exact (no wrap), and the result is the
+sum clipped to 524287, for a wet sample within 2^29 + 2^21 and a gain up to 65500 (twice the largest RETURN).
+Why it matters: `app_audio` does this for the delay and then the reverb; a loud return can only clip. -/
 theorem mix_in_never_wraps (mix wet gain : Int32) (mixHeld : mix.toInt.natAbs ≤ 524287)
     (wetBounded : wet.toInt.natAbs ≤ 2 ^ 29 + 2 ^ 21) (returnInRange : 0 ≤ gain.toInt ∧ gain.toInt ≤ 65500) :
     (mix + Mix.wetSample wet gain).toInt = mix.toInt + wet.toInt * gain.toInt / 32768 ∧
@@ -262,14 +256,13 @@ theorem mix_in_never_wraps (mix wet gain : Int32) (mixHeld : mix.toInt.natAbs �
   · unfold Mix.mixIn
     rw [mix_limit_value, sum]
 
-/-- The sample the master stage sees, from the six voices through both sends: the dry sum of up to six voice
-samples (each within 65024, as `mix_voice_sample_never_wraps` gives), then the delay's echo (a stored 16-bit
-sample), then the reverb's wet sample (within 2^29 + 2^21, as `reverb_wet_never_overflows` gives), each with
-a return gain up to 65500. Every addition on the way is exact, the delay's return never reaches the limit, and
-the result is within 524287, so `platform.c`'s product with the master gain (at most 4088) fits 32 bits.
-Why it matters: this joins the voice, delay, reverb and mix promises into one statement about the whole
-audio path of `app_audio`: whatever the lanes play and however the sends are set, the sample the master stage
-sees is the mix, clipped at the limit, and never a wrapped burst. -/
+/-- The sample the master stage sees: the dry sum of up to six voice samples (each within 65024, from
+`mix_voice_sample_never_wraps`), then the delay's echo (a stored 16-bit sample), then the reverb's wet sample
+(within 2^29 + 2^21, from `reverb_wet_never_overflows`), each with a return gain up to 65500. Every addition
+is exact, the delay's return never reaches the limit, and the result is within 524287, so `platform.c`'s
+product with the master gain (at most 4088) fits 32 bits.
+Why it matters: this joins the voice, delay, reverb and mix results into one statement about the whole
+`app_audio` path: the master stage sees the mix clipped at the limit, never a wrapped value. -/
 theorem mix_machine_sample_bounded (voices : List Int32) (echo delayGain wet reverbGain : Int32)
     (atMostSix : voices.length ≤ 6) (eachBounded : ∀ s ∈ voices, s.toInt.natAbs ≤ 65024)
     (echoStored : echo.toInt.natAbs ≤ 32768) (delayInRange : 0 ≤ delayGain.toInt ∧ delayGain.toInt ≤ 65500)
@@ -339,10 +332,9 @@ private theorem mix_pan_clamped (pan : UInt32) :
   · unfold Mix.panLeft; rw [m]
   · unfold Mix.panRight; rw [m]
 
-/-- For every pan setting the two gains are between 0 and 1.0 and keep the power: their squares add up to
-1.0 within a tenth of a percent.
-Why it matters: a sound panned anywhere is never louder on a side than it was, and does not dip in the middle
-or swell at the sides as it moves. -/
+/-- For every pan setting the two gains are between 0 and 1.0 and their squares add up to 1.0 within a tenth
+of a percent.
+Why it matters: a panned sound is never louder on a side than it was and keeps its power as it moves. -/
 theorem mix_pan_equal_power (pan : UInt32) :
     0 ≤ (Mix.panLeft pan).toInt ∧ (Mix.panLeft pan).toInt ≤ 32767 ∧
       0 ≤ (Mix.panRight pan).toInt ∧ (Mix.panRight pan).toInt ≤ 32767 ∧
@@ -355,10 +347,9 @@ theorem mix_pan_equal_power (pan : UInt32) :
   have := mix_every_pan_ok ⟨(min pan 100).toNat, by omega⟩
   simpa [UInt32.ofNat_toNat] using this
 
-/-- A voice's sample on one side is never larger in size than the sample, for any pan gain between 0 and
-32767, and it is computed without a wrap for samples within 65024 (what `mix_voice_sample_never_wraps` gives).
-Why it matters: panning only ever takes level away from a side, so the stereo mix stays within the bounds
-`mix_machine_sample_bounded` was proved for. -/
+/-- A voice's sample on one side is at most the sample in size, for any pan gain between 0 and 32767, and is
+computed without wrap for samples within 65024 (from `mix_voice_sample_never_wraps`).
+Why it matters: panning only takes level away, so the bounds of `mix_machine_sample_bounded` still hold. -/
 theorem mix_pan_never_amplifies (s gain : Int32) (sample : s.toInt.natAbs ≤ 65024) (nonneg : 0 ≤ gain.toInt)
     (unit : gain.toInt ≤ 32767) :
     (Mix.panSample s gain).toInt = s.toInt * gain.toInt / 32768 ∧ (Mix.panSample s gain).toInt.natAbs ≤ 65024 := by

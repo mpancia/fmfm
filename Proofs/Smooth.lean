@@ -49,11 +49,10 @@ private theorem smooth_between (a b t : Int) (ht : 0 ≤ t ∧ t ≤ 32767) :
     generalize (b - a) * t = q at *
     omega
 
-/-- A smoothed parameter never leaves the range between the value it moves from and the value it moves to:
-for parameters 0 to 32767 (Braids' range) and any crossfade position 0 to 32767, the smoothed value lies
-between `start` and `target`, and nothing in the arithmetic wraps.
-Why it matters: when a knob moves, the timbre glides from the old setting to the new one; it cannot swing past
-either, and the product inside cannot overflow into a sudden jump. -/
+/-- A smoothed parameter lies between `start` and `target`, for parameters 0 to 32767 (Braids' range) and any
+crossfade position 0 to 32767, and nothing in the arithmetic wraps.
+Why it matters: a moving knob glides the timbre between the two settings without overshoot or a wrapped
+jump. -/
 theorem smooth_parameter_between (start target xfade : Int32)
     (startInRange : 0 ≤ start.toInt ∧ start.toInt ≤ 32767)
     (targetInRange : 0 ≤ target.toInt ∧ target.toInt ≤ 32767)
@@ -102,11 +101,11 @@ private theorem smooth_crossfade_exact (size : UInt32) (small : size.toNat ≤ 3
     simp only [Int.bmod_def]
     split <;> omega
 
-/-- When the block ends, the smoothed parameter is within `size` of the value it was moving to: the last
-crossfade position is `32767 - 32767 % size` rather than 32768, so the final value stops just short. Blocks on
-the FM-1 are 16 samples, so the parameter ends within 16 of its target on a scale of 32768.
-Why it matters: a knob setting is reached, not approached forever; the step from the end of one block to the
-start of the next is at most `size`, so block boundaries are inaudible. -/
+/-- When the block ends, the smoothed parameter is within `size` of its target: the last crossfade position
+is `32767 - 32767 % size` rather than 32768, so it stops just short. Blocks on the FM-1 are 16 samples, so
+the parameter ends within 16 of its target on a scale of 32768.
+Why it matters: the step from the end of one block to the start of the next is at most `size`, so block
+boundaries are inaudible. -/
 theorem smooth_parameter_reaches_target (start target : Int32) (size : UInt32)
     (startInRange : 0 ≤ start.toInt ∧ start.toInt ≤ 32767)
     (targetInRange : 0 ≤ target.toInt ∧ target.toInt ≤ 32767)
@@ -183,13 +182,12 @@ private theorem smooth_step_falling (previous target size : UInt32) (falling : t
     simp only [UInt32.size] at *
     omega
 
-/-- While a block smooths the phase step from `previous` to `target`, the step never rises above the larger of
-the two nor falls more than `size` below the smaller. Rising, it stays between the two exactly; falling (or
-level), Braids' `~` makes each sample move one more than the exact share, so the step can pass the target by
-up to `size`. The target must be at least `size` for the falling case to stay in range (a phase step of 16 is
-a pitch far below hearing).
-Why it matters: a pitch glide between blocks cannot shoot past the note by more than 16 units of 2^32 per
-sample, a frequency error below a millionth of a semitone; there is no audible blip at a block boundary. -/
+/-- While a block smooths the phase step from `previous` to `target`, the step never rises above the larger
+of the two nor falls more than `size` below the smaller. Rising, it stays between the two; falling or level,
+Braids' `~` moves each sample one more than the exact share, so the step can pass the target by up to `size`.
+The target must be at least `size` for the falling case to stay in range.
+Why it matters: a pitch glide cannot pass the note by more than 16 units of 2^32 per sample, under a
+millionth of a semitone. -/
 theorem smooth_step_glide_bound (previous target size : UInt32) (room : size.toNat ≤ target.toNat) (k : Nat)
     (within : k ≤ size.toNat) :
     min previous.toNat target.toNat - size.toNat ≤ (Smooth.stepAfter previous target size k).toNat ∧
@@ -213,11 +211,11 @@ theorem smooth_step_glide_bound (previous target size : UInt32) (room : size.toN
     have order : target.toNat ≤ previous.toNat := UInt32.le_iff_toNat_le.mp falling
     omega
 
-/-- When the block ends, the smoothed phase step is at or below its target and within `size` of it: rising, it
-lands `(target - previous) % size` short; falling or level, it lands between 1 and `size` below. The target
-must be at least `size` so the falling case stays in range.
-Why it matters: after every block the pitch is within 16 units of 2^32 per sample of the note asked for, so a
-note settles on pitch within one block and never ends up sharp. -/
+/-- When the block ends, the smoothed phase step is at or below its target and within `size` of it: rising,
+it lands `(target - previous) % size` short; falling or level, between 1 and `size` below. The target must
+be at least `size` for the falling case to stay in range.
+Why it matters: after every block the pitch is within 16 units of 2^32 per sample of the note asked for and
+never sharp. -/
 theorem smooth_step_lands_near_target (previous target size : UInt32) (notEmpty : 0 < size.toNat)
     (room : size.toNat ≤ target.toNat) :
     target.toNat - size.toNat ≤ (Smooth.stepAfter previous target size size.toNat).toNat ∧

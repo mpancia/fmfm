@@ -75,9 +75,9 @@ private theorem pitch_index_lt (pitch : Int16) : (Pitch.tableIndex pitch).toNat 
   omega
 
 /-- Every pitch reads two neighbouring entries of the 97-entry phase step table, both inside it.
-Why it matters: the table is C data read without a check; the clamp to note 128 and the fold into one octave
-are what keep the read inside it, for any 16-bit pitch, including the negative ones a detuned FM operator can
-ask for. -/
+Why it matters: the table is C data read without a check; the clamp to note 128 and the fold into one
+octave keep the read inside for any 16-bit pitch, including the negative ones a detuned FM operator asks
+for. -/
 theorem pitch_table_reads_inside (pitch : Int16) :
     (Pitch.tableIndex pitch).toNat < 97 ∧ (Pitch.tableIndex pitch + 1).toNat < 97 := by
   have := pitch_index_lt pitch
@@ -153,9 +153,9 @@ private theorem pitch_halved (step shifts : Nat) (one : 1 ≤ shifts) (small : s
 
 /-- The step is below half a cycle per sample. The table's entries rise from one to the next by less than
 2^27 and the top one is 2588618730 (`Proofs/BraidsData.lean`, checked against `resources.cc`).
-Why it matters: the table's top entry is above half a cycle, so this bound comes from the clamp, which makes
-every pitch at least one octave below the table, and a step below half a cycle means the oscillators never run
-past Nyquist by construction. -/
+Why it matters: the table's top entry is above half a cycle, so the bound comes from the clamp, which puts
+every pitch at least one octave below the table; a step below half a cycle keeps the oscillators under
+Nyquist. -/
 theorem pitch_increment_bounded (pitch : Int16) : (Pitch.phaseIncrement pitch).toNat < 2 ^ 31 := by
   have ⟨one, _, _⟩ := pitch_shifts_and_folded pitch
   have inside := pitch_index_lt pitch

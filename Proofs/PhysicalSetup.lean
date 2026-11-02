@@ -78,13 +78,12 @@ private theorem physical_setup_pluck_width (param1 : Int32) (fits : 0 ≤ param1
   rw [physical_setup_small_toUInt32 _ (by rw [sum]; omega) (by rw [sum]; omega), sum]
   omega
 
-/-- A new plucked string's numbers are the ones the line theorems take as hypotheses: its oversampling is at
-most 9 (`oversampled` in `physical_pluck_read_in_line` and `physical_pluck_next_in_line`; `pluckSize` and
-`pluckMask` are `1024 >>> shift` and `size - 1` by definition), and its fill count is at most its size (`fits`
-in `physical_pluck_fill_in_line`; the glue only fills while the count is nonzero, which is that theorem's
-`started`). Holds for `param1` from 0 to 32767.
-Why it matters: these are the only numbers that decide where the plucked string reads and writes its
-1025-entry line; with them in range every position the line theorems cover is inside it. -/
+/-- A new plucked string meets the line theorems' hypotheses: its oversampling is at most 9 (`oversampled` in
+`physical_pluck_read_in_line` and `physical_pluck_next_in_line`; `pluckSize` and `pluckMask` are
+`1024 >>> shift` and `size - 1` by definition), and its fill count is at most its size (`fits` in
+`physical_pluck_fill_in_line`; the glue only fills while the count is nonzero, that theorem's `started`).
+Holds for `param1` from 0 to 32767.
+Why it matters: these numbers decide where the plucked string reads and writes its 1025-entry line. -/
 theorem physical_setup_pluck_size_valid (increment : UInt32) (param1 : Int32)
     (param1Fits : 0 ≤ param1.toInt ∧ param1.toInt ≤ 32767) :
     PhysicalSetup.pluckShift increment ≤ 9 ∧
@@ -110,8 +109,8 @@ theorem physical_setup_pluck_size_valid (increment : UInt32) (param1 : Int32)
   exact Nat.div_le_of_le_mul le
 
 /-- The comb filter's whole-sample delay is at most 8192, its line's length.
-Why it matters: the clamp is the only thing between the pitch's delay time and the 8192-entry line; the
-positions are masked, so a longer delay would not read outside the line but would read the wrong sample. -/
+Why it matters: the positions are masked, so a longer delay would not read outside the line but would read
+the wrong sample; the clamp is the only thing preventing it. -/
 theorem physical_setup_comb_delay_in_line (delay : UInt32) :
     (PhysicalSetup.combDelayIntegral delay).toNat ≤ 8192 := by
   unfold PhysicalSetup.combDelayIntegral PhysicalSetup.combDelay
@@ -128,10 +127,10 @@ theorem physical_setup_comb_delay_in_line (delay : UInt32) :
 /-- The bowing and blowing envelope pointers a block leaves behind read inside their envelopes through the
 next block: the bowed string's pointer is held to 1440, so its two reads (at half the pointer and half the
 pointer plus one) stay below the 752-entry bowing envelope for any advance up to 16 samples, and the flute's
-is held to 360, so its read stays below the 392-entry blowing envelope. A block is 16 samples and the bowed
+is held to 360, so its read stays below the 392-entry blowing envelope. A block is 16 samples; the bowed
 string advances one per two samples, the flute three per four.
-Why it matters: both envelopes are read unchecked at the pointer; the clamp after each block is what keeps a
-long note from running off the end of its envelope. -/
+Why it matters: both envelopes are read unchecked at the pointer; the clamp after each block keeps a long
+note from running off the end. -/
 theorem physical_setup_envelope_pointer_in_table (ptr advance : UInt32) (block : advance ≤ 16) :
     ((PhysicalSetup.bowedExcitationClamp ptr + advance + 1) >>> 1).toNat < 752 ∧
       (PhysicalSetup.flutedExcitationClamp ptr + advance).toNat < 392 := by
@@ -182,8 +181,8 @@ private theorem physical_setup_note_clamped (note : Int32) :
 
 /-- The blown pipe and the flute read their body filter inside its 128-entry table, for any pitch and
 parameter.
-Why it matters: Braids indexes this table with the pitch in semitones and the pitch can reach note 140; the
-clamp to 127 in the setup is what keeps the read inside the data. -/
+Why it matters: Braids indexes this table by the pitch in semitones, which can reach note 140; the clamp to
+127 keeps the read inside. -/
 theorem physical_setup_flute_body_in_table (pitch param1 : Int32) :
     (PhysicalSetup.blownNormalizedPitch pitch param1).toUInt32.toNat ≤ 127 ∧
       (PhysicalSetup.flutedNote pitch).toUInt32.toNat ≤ 127 := by

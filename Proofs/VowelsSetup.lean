@@ -42,8 +42,8 @@ private theorem vowels_setup_succ_toNat (x : UInt32) (small : x.toNat < 42949672
 
 /-- A parameter of 0 to 32767 selects a vowel from 0 to 7, and the vowel after it is at most 8, so both reads
 are inside the nine entries of `vowels_data`.
-Why it matters: the vowel blends two neighbouring rows of its data without a bounds check; the top three bits
-of the parameter can never name the last row, so the row after is always there to blend with. -/
+Why it matters: the vowel blends two neighbouring rows without a bounds check; the top three bits of the
+parameter never name the last row, so the row after exists. -/
 theorem vowels_setup_vowel_index_in_table (parameter : Int32)
     (shaped : 0 ≤ parameter.toInt ∧ parameter.toInt ≤ 32767) :
     (VowelsSetup.vowelIndex parameter).toNat ≤ 7 ∧ (VowelsSetup.vowelIndex parameter + 1).toNat ≤ 8 := by
@@ -54,8 +54,8 @@ theorem vowels_setup_vowel_index_in_table (parameter : Int32)
   omega
 
 /-- A strike's random sample selects a consonant from 0 to 7, inside the eight entries of `consonant_data`.
-Why it matters: the consonant is read without a bounds check from whatever the random generator gives; the
-mask to three bits is what keeps it inside. -/
+Why it matters: the consonant is read without a bounds check from the random generator; the mask to three
+bits keeps it inside. -/
 theorem vowels_setup_consonant_index_in_table (random : Int32) :
     (VowelsSetup.consonantIndex random).toNat ≤ 7 := by
   unfold VowelsSetup.consonantIndex
@@ -68,7 +68,7 @@ theorem vowels_setup_consonant_index_in_table (random : Int32) :
 /-- A parameter of 0 to 32767 selects a row of the FOF vowel's 5-by-5 grid from 0 to 3, and the row after it
 is at most 4, so the four corners the blend reads are inside the grid.
 Why it matters: `fofBlend` reads the corner past the selected row and column; the top two bits of a parameter
-can never select the last row, so that corner exists. -/
+never select the last row, so that corner exists. -/
 theorem vowels_setup_fof_reads_in_table (parameter : Int32)
     (shaped : 0 ≤ parameter.toInt ∧ parameter.toInt ≤ 32767) :
     (VowelsSetup.fofRow parameter).toNat ≤ 3 ∧ (VowelsSetup.fofRow parameter + 1).toNat ≤ 4 := by
@@ -98,8 +98,7 @@ private theorem vowels_setup_weighted_le (a b balance : Nat) (ha : a ≤ 15) (hb
 /-- The amplitude the vowel hands each formant is at most 15. Every amplitude in `vowels_data` is at most 15
 (`braids_data_vowel_amplitudes_are_nibbles`, checked against `digital_oscillator.cc`).
 Why it matters: the formant tables are indexed by the phase's top nibble or-ed with the amplitude, and
-`tables_formant_reads_inside_256` needs the amplitude to be a nibble; this closes that hypothesis for every
-parameter and formant. -/
+`tables_formant_reads_inside_256` needs the amplitude to be a nibble. -/
 theorem vowels_setup_formant_amplitude_in_range (parameter : Int32) (formant : UInt32) :
     (VowelsSetup.vowelAmplitude parameter formant).toNat ≤ 15 := by
   unfold VowelsSetup.vowelAmplitude
@@ -132,7 +131,7 @@ private theorem vowels_setup_cut16_range (x : Int32) :
 
 /-- The amplitude the FOF vowel hands its formant filters is a signed 16-bit value, for any parameters.
 Why it matters: `vowels_fof_contribution_never_wraps` takes a 16-bit amplitude; the blend's final cut to 16
-bits (the original's `int16_t` return) is what makes that so, so the hypothesis is met for every block. -/
+bits (the original's `int16_t` return) makes that so for every block. -/
 theorem vowels_setup_fof_amplitude_16bit (parameter0 parameter1 : Int32) (formant : UInt32) :
     -32768 ≤ (VowelsSetup.fofAmplitude parameter0 parameter1 formant).toInt ∧
       (VowelsSetup.fofAmplitude parameter0 parameter1 formant).toInt ≤ 32767 := by

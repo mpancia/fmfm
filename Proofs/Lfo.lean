@@ -24,9 +24,8 @@ private theorem lfo_capped (x : UInt32) : (min x 100).toNat ≤ 100 := by
   · rename_i h; rw [UInt32.le_iff_toNat_le] at h; simpa using h
   · simp
 
-/-- A modulated value stays a percentage, 0 to 100, for any base, depth and phase.
-Why it matters: a modulator can never push a lane's chance, level or timbre setting out of the range the rest
-of the firmware expects, however it is set. -/
+/-- A modulated value is at most 100, for any base, depth and phase.
+Why it matters: an LFO cannot push a chance, level or timbre setting out of range. -/
 theorem lfo_modulate_in_range (base depth phase : UInt32) : (lfoModulate base depth phase).toNat ≤ 100 := by
   unfold lfoModulate Lfo.modulate
   have tri := lfo_triangle_le phase
@@ -60,9 +59,8 @@ theorem lfo_modulate_in_range (base depth phase : UInt32) : (lfoModulate base de
       generalize d.toNat * t.toNat / 32768 = q at *
       simp at h; omega
 
-/-- The triangle is the same on the way up as on the way down: mirroring the phase mirrors nothing.
-Why it matters: the modulator rises and falls by the same path, so a one-bar LFO repeats exactly every bar
-with no step or jump at the turn. -/
+/-- `Lfo.triangle (~~~phase) = Lfo.triangle phase`: the triangle is symmetric about its peak.
+Why it matters: the modulator rises and falls by the same path, with no jump at the turn. -/
 theorem lfo_triangle_symmetric (phase : UInt32) : Lfo.triangle (~~~phase) = Lfo.triangle phase := by
   have bound := phase.toNat_lt
   have half : (phase >>> 15).toNat < 131072 := by
@@ -80,10 +78,10 @@ theorem lfo_triangle_symmetric (phase : UInt32) : Lfo.triangle (~~~phase) = Lfo.
     (try rw [UInt32.toNat_sub_of_le _ _ pLe]) <;> (try rw [UInt32.toNat_sub_of_le _ _ qLe]) <;>
     simp at a b ⊢ <;> omega
 
-/-- At the middle of its swing the modulator leaves the setting exactly as it is; and a depth of zero never
-changes anything.
-Why it matters: the knob's own value is the centre of the motion, not its top or bottom, so adding an LFO does
-not shift the average sound; and switching depth to zero returns exactly the sound you set. -/
+/-- At the middle of the swing (phase 2^30) the modulator returns the base unchanged (for
+`base, depth ≤ 100`), and depth 0 never changes anything.
+Why it matters: the knob's value is the centre of the motion, so an LFO does not shift the average; depth 0
+gives exactly the set value. -/
 theorem lfo_modulate_centred (base depth phase : UInt32) (small : base.toNat ≤ 100)
     (deep : depth.toNat ≤ 100) :
     lfoModulate base depth 1073741824 = base ∧ lfoModulate base 0 phase = base := by

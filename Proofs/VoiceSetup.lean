@@ -23,11 +23,10 @@ private theorem voice_setup_note_times (note : UInt32) (midi : note.toNat ≤ 12
   exact Int.bmod_eq_of_le (by simp; omega) (by simp; omega)
 
 /-- The pitch Braids gets for a MIDI note (`play` in `fw/firmware/src/dinghy.c` sends the note times 128) is
-exactly that, below the note 128 where the phase step clamps, and a timbre value of 0 to 32767 (what the
-sounds hold and what the envelope's boost is held to) reaches Braids unchanged.
-Why it matters: Braids holds pitch and timbre in 16 bits; a note or a timbre value cut on the way in would
-play the wrong pitch or a parameter past the tables, and this says the firmware's range never reaches the
-cut. -/
+exactly that below note 128, where the phase step clamps, and a timbre value of 0 to 32767 (the sounds' range,
+and what the envelope's boost is held to) reaches Braids unchanged.
+Why it matters: Braids holds pitch and timbre in 16 bits; the firmware's range never reaches the cut, so no
+note plays the wrong pitch and no parameter reads past the tables. -/
 theorem voice_setup_pitch_in_range (note : UInt32) (midi : note.toNat ≤ 127) (timbre : Int32)
     (lo : 0 ≤ timbre.toInt) (hi : timbre.toInt ≤ 32767) :
     (VoiceSetup.pitch (note.toInt32 * 128)).toInt = note.toNat * 128 ∧

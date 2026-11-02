@@ -1,7 +1,7 @@
 import Firmware.Random
 
-/-- A random pick is always below its limit, so it is a valid index into a list of `limit` choices.
-Why it matters: a pick one too big would read past the end of a note list or a step table. -/
+/-- `Random.below` returns a value below `limit` (for `0 < limit ≤ 65535`).
+Why it matters: a pick is always a valid index into a list of `limit` choices. -/
 theorem random_below_lt (state limit : UInt32) (positive : 0 < limit.toNat) (small : limit.toNat ≤ 65535) :
     (Random.below state limit).toNat < limit.toNat := by
   have high : (state >>> 16).toNat < 65536 := by
@@ -19,11 +19,9 @@ theorem random_below_lt (state limit : UInt32) (positive : 0 < limit.toNat) (sma
   rw [this]
   omega
 
-/-- The generator never stands still: no state maps to itself, so a random lane can never freeze on one value.
-`next x = x` would need `(a - 1) * x ≡ -c` modulo 2^32; `a - 1` is a multiple of 4 and `c` is odd, so the two
-sides have different parity. (Hull and Dobell's conditions for the full period include these two facts.)
-Why it matters: whatever the seed, the next draw is a different state, so random, walk and the play chance
-keep moving; a stuck generator would play one note forever. -/
+/-- No state maps to itself under `Random.next`: `next x = x` would need `(a - 1) * x ≡ -c` mod 2^32, but
+`a - 1` is a multiple of 4 and `c` is odd.
+Why it matters: the generator can never get stuck on one value, whatever the seed. -/
 theorem random_never_stands_still (state : UInt32) : Random.next state ≠ state := by
   intro same
   unfold Random.next at same

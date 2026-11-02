@@ -84,10 +84,10 @@ private theorem filter_hold_spec (y bound : Int32) (nonneg : 0 ≤ bound.toInt) 
       have b := Int32.le_iff_toInt_le.mp (Int32.not_lt.mp h2); rw [neg] at b
       exact ⟨by omega, fun _ _ => rfl, fun _ => by omega, fun _ => by omega⟩
 
-/-- With the cutoff fully open (100) and no resonance the filter is not active and a step hands back the
-sample and the states exactly as they were, whatever the state, the mode and the sample.
-Why it matters: the filter is on every voice, Braids shapes and FM alike, and these are its default settings:
-every sound a player already has is bit for bit what it was, with nothing to undo and nothing to pay. -/
+/-- With the cutoff fully open (100) and no resonance the filter is inactive: a step returns the sample and
+the states unchanged, for any state, mode and sample.
+Why it matters: these are the default settings on every voice, so every existing sound is bit for bit what
+it was. -/
 theorem filter_open_is_identity (mode : UInt32) (ic1 ic2 x : Int32) :
     Filter.active 100 0 = false ∧ Filter.step 100 0 mode ic1 ic2 x = ⟨x, ic1, ic2⟩ := by
   constructor
@@ -101,9 +101,8 @@ exactly `a1 ic1 / 2^15 + a2 ((x - ic2) / 2) / 2^14`, the held band node `v1` is 
 node `v2` is exactly `ic2 + g v1 / 2^15` and within ±131072, the high-pass output before its clip is exactly
 `x - k v1 / 2^13 - v2`, the raw output of every mode is within ±327680 (5 · 2^16), and both state updates
 `2 v - ic` are exact.
-Why it matters: the filter's arithmetic is 32-bit throughout and a saturation, never a wrap: a resonant peak
-goes flat at twice full scale rather than inside out, whatever the engine feeds it, and the clip to ±32767
-at the output is the only other thing that can touch a sample. -/
+Why it matters: the filter's arithmetic saturates at twice full scale and never wraps, whatever the engine
+feeds it; the clip to ±32767 at the output is the only other thing that touches a sample. -/
 theorem filter_states_stay_bounded (ic1 ic2 x : Int32) (g a1 a2 k mode : UInt32)
     (s1 : ic1.toInt.natAbs ≤ 65536) (s2 : ic2.toInt.natAbs ≤ 65536) (sample : x.toInt.natAbs ≤ 65536)
     (hg : g.toNat ≤ 32767) (h1 : a1.toNat ≤ 32767) (h2 : a2.toNat ≤ 32767) (hk : k.toNat ≤ 16384) :
@@ -196,13 +195,12 @@ private theorem filter_table_rises :
     ∀ c : Fin 100, Filter.g c.val.toUInt32 < Filter.g (c.val.toUInt32 + 1) := by
   decide +kernel
 
-/-- The coefficients are in the ranges `filter_states_stay_bounded` needs and the sweep is a sweep: every
-entry of the cutoff table is at most 32767 and the table rises from each setting to the next below 100; the
-damping is between 884 (0.108 in Q13) and 16384 (2.0) for any resonance setting; `a1` is at most 32767 for
-any `g` and `k`, and `a2` is at most `g` for any `g` at most 32767.
-Why it matters: the numbers in the table are checked, not trusted: turning the cutoff up always opens the
-filter further, and no setting of cutoff or resonance can hand the sample path a coefficient that would make
-a product overflow. -/
+/-- The coefficients are in the ranges `filter_states_stay_bounded` needs and the cutoff sweep is monotone:
+every entry of the cutoff table is at most 32767 and the table rises from each setting to the next below
+100; the damping is between 884 (0.108 in Q13) and 16384 (2.0) for any resonance setting; `a1` is at most
+32767 for any `g` and `k`, and `a2` is at most `g` for any `g` at most 32767.
+Why it matters: turning the cutoff up always opens the filter, and no cutoff or resonance setting hands
+the sample path a coefficient that could overflow a product. -/
 theorem filter_coefficients_in_range (c r g k : UInt32) (hg : g.toNat ≤ 32767) :
     (Filter.g c).toNat ≤ 32767 ∧ (c < 100 → Filter.g c < Filter.g (c + 1)) ∧
       884 ≤ (Filter.k r).toNat ∧ (Filter.k r).toNat ≤ 16384 ∧
@@ -241,12 +239,11 @@ theorem filter_coefficients_in_range (c r g k : UInt32) (hg : g.toNat ≤ 32767)
     generalize g.toNat * (Filter.a1 g k).toNat = p at *
     omega
 
-/-- A settled constant is a fixed point of the active filter: with the band state at rest (`ic1 = 0`) and the
-low-pass state at the sample (`ic2 = x`), for any cutoff and resonance, a step gives the low-pass output `x`
-itself, band and high outputs 0, and the same states again, for any sample within ±32767.
-Why it matters: a note's steady level passes through the low-pass unchanged however far the cutoff is turned
-down, with no drift from rounding: the filter shapes the colour of a sound and leaves its level alone, and
-the band and high outputs truly reject the constant. -/
+/-- A settled constant is a fixed point of the active filter: with the band state at rest (`ic1 = 0`) and
+the low-pass state at the sample (`ic2 = x`), a step gives low-pass output `x`, band and high outputs 0,
+and the same states again, for any cutoff and resonance and any sample within ±32767.
+Why it matters: a steady level passes through the low-pass unchanged at any cutoff, with no drift from
+rounding, and the band and high outputs reject it. -/
 theorem filter_settled_dc_holds (cutoff resonance mode : UInt32) (x : Int32)
     (sample : x.toInt.natAbs ≤ 32767) (on : Filter.active cutoff resonance = true) :
     Filter.step cutoff resonance 0 0 x x = ⟨x, 0, x⟩ ∧ Filter.step cutoff resonance 1 0 x x = ⟨0, 0, x⟩ ∧
@@ -284,12 +281,11 @@ theorem filter_settled_dc_holds (cutoff resonance mode : UInt32) (x : Int32)
     simp only [Filter.step, on, ite_true, v1, v2, n1, n2, Filter.out, Filter.raw.eq_3 mode _ _ _ _ not0 not1,
       Int32.mul_zero, z13, Int32.sub_zero, Int32.sub_self, h0]
 
-/-- A low-pass step with the band node at rest (`ic1 = 0`) lands between the low-pass state and the sample
-(within one count of rounding below): `min x ic2 - 1 ≤ v2 ≤ max x ic2`, for any `g` and `a2` at most 32767,
+/-- A low-pass step with the band node at rest (`ic1 = 0`) lands between the low-pass state and the sample,
+within one count of rounding below: `min x ic2 - 1 ≤ v2 ≤ max x ic2`, for any `g` and `a2` at most 32767,
 any `a1`, and states and sample within ±65536.
-Why it matters: without the band node's momentum the low-pass only ever moves toward the input and never
-past it, so it cannot add energy of its own: a resonant peak comes from the band state, which is held, and
-not from the low-pass integrator running away. -/
+Why it matters: the low-pass integrator only moves toward the input; a resonant peak comes from the band
+state, which is held. -/
 theorem filter_lowpass_steps_toward_input (ic2 x : Int32) (g a1 a2 : UInt32)
     (s2 : ic2.toInt.natAbs ≤ 65536) (sample : x.toInt.natAbs ≤ 65536) (hg : g.toNat ≤ 32767)
     (h2 : a2.toNat ≤ 32767) :

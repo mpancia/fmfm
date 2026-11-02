@@ -75,24 +75,21 @@ private theorem fm_quarter_wave_nat (p : Nat) (inside : p < 4294967296) :
   rw [fold]
   simp only [upper]
 
-/-- The sine half a cycle on is the negative of the sine: `sineAt (phase + 2^31) = -sineAt phase`, for every
+/-- The sine half a cycle on is the negative of the sine: `sineAt (phase + 2^31) = -sineAt phase` for every
 phase (the quadrant moves by two, the place in the quarter is unchanged, the sign flips).
-Why it matters: a half-wave-symmetric waveform has no DC and no even harmonics; whatever error the
-polynomial has sits at odd harmonics only, so the fit can colour the tone but never push an offset or an
-octave into the mix. -/
+Why it matters: a half-wave-symmetric waveform has no DC and no even harmonics, so the polynomial's error
+sits at odd harmonics only. -/
 theorem fm_sine_half_wave (phase : UInt32) : Fm.sineAt (phase + 0x80000000) = -Fm.sineAt phase := by
   rw [fm_sine_of_nat, fm_sine_of_nat, UInt32.toNat_add,
     show (0x80000000 : UInt32).toNat = 2147483648 from rfl]
   exact fm_half_wave_nat phase.toNat phase.toNat_lt
 
-/-- The sine is mirrored about the quarter points: `sineAt (0x7FFFFFFF - phase) = sineAt phase`, for every
-phase. This is the exact mirror of the discrete waveform: position `p` (the phase's top 17 bits) pairs with
-position `65535 - p` (modulo 2^17), so place `x` in an even quadrant pairs with place `32767 - x` in the odd
-quadrant above it, which `Fm.folded` reads at the same `x`. (`0x80000000 - phase` would land one position
-off: the mirror of position 0 is position 65535, not 65536.)
-Why it matters: the quarter-wave symmetry is why one quarter is all the engine computes: the polynomial is
-evaluated on 0 to 32767 and the other three quarters are read from it by mirror and sign, with no seam
-between a quadrant and the next. -/
+/-- The sine is mirrored about the quarter points: `sineAt (0x7FFFFFFF - phase) = sineAt phase` for every
+phase. Position `p` (the phase's top 17 bits) pairs with position `65535 - p` (modulo 2^17), so place `x` in
+an even quadrant pairs with place `32767 - x` in the odd quadrant above it, which `Fm.folded` reads at the
+same `x`. (`0x80000000 - phase` would land one position off: the mirror of position 0 is 65535, not 65536.)
+Why it matters: the engine evaluates the polynomial on 0 to 32767 only and reads the other three quarters
+by mirror and sign; this symmetry is what makes that exact. -/
 theorem fm_sine_quarter_wave (phase : UInt32) : Fm.sineAt (0x7FFFFFFF - phase) = Fm.sineAt phase := by
   rw [fm_sine_of_nat, fm_sine_of_nat, UInt32.toNat_sub,
     show (0x7FFFFFFF : UInt32).toNat = 2147483647 from rfl]
@@ -123,10 +120,9 @@ private theorem fm_sine_small (phase : UInt32) : (Fm.sineAt phase).toInt.natAbs 
   · rw [Int32.toInt_neg, Int.bmod_eq_of_le (by omega) (by omega)]; omega
   · omega
 
-/-- Two samples half a cycle apart cancel exactly: `sineAt p + sineAt (p + 2^31) = 0` as integers, for every
-phase (the negation never wraps, the sine being within 32767).
-Why it matters: an operator read at two points half a cycle apart contributes nothing net; this is the
-pairing behind `fm_sine_has_no_dc`. -/
+/-- Two samples half a cycle apart cancel exactly: `sineAt p + sineAt (p + 2^31) = 0` as integers for every
+phase (the negation cannot wrap, the sine being within 32767).
+Why it matters: this is the pairing behind `fm_sine_has_no_dc`. -/
 theorem fm_sine_pairs_cancel (phase : UInt32) :
     (Fm.sineAt phase).toInt + (Fm.sineAt (phase + 0x80000000)).toInt = 0 := by
   rw [fm_sine_half_wave, Int32.toInt_neg]
@@ -176,9 +172,8 @@ private theorem fm_run_pairs (start : UInt32) (m : Nat) :
 
 /-- Any 256 samples of the sine spaced a 256th of a cycle apart sum to zero, from any starting phase: sample
 `k` and sample `k + 128` are half a cycle apart and cancel (`fm_sine_half_wave`).
-Why it matters: a carrier running at any pitch and any phase adds no DC to the mix over a cycle, so the
-output never drifts off centre and nothing is lost to a DC offset at the output stage; and the same pairing
-says the polynomial's error has no even harmonics. -/
+Why it matters: a carrier at any pitch and phase adds no DC to the mix over a cycle, and the polynomial's
+error has no even harmonics. -/
 theorem fm_sine_has_no_dc (start : UInt32) :
     (List.range 256).foldl (fun acc k => acc + (Fm.sineAt (start + k.toUInt32 * 0x01000000)).toInt) 0
       = 0 := by

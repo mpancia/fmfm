@@ -45,10 +45,10 @@ private theorem digital_weighted_between (s lo hi : Int) (hc : lo * 65535 ≤ s 
       lo - 1 ≤ s / 65536 ∧ s / 65536 ≤ hi := by
   refine ⟨Int.bmod_eq_of_le (by omega) (by omega), Int.bmod_eq_of_le (by omega) (by omega), by omega, by omega⟩
 
-/-- A crossfade of two 16-bit values never leaves the range between them (give or take one rounding step
-toward zero), for any balance up to 65535.
-Why it matters: every macro shape mixes its oscillators with this, as do the wavetable engines; a crossfade
-can never be louder than its louder input, so it cannot wrap. -/
+/-- A crossfade of two 16-bit values stays between them (give or take one rounding step toward zero), for
+any balance up to 65535.
+Why it matters: the macro shapes and the wavetable engines mix with this; it cannot exceed its louder input,
+so it cannot wrap. -/
 theorem digital_mix_between_inputs (a b : Int32) (balance : UInt32) (hbal : balance.toNat ≤ 65535)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
     min a.toInt b.toInt - 1 ≤ (Digital.mix a b balance).toInt ∧
@@ -94,11 +94,10 @@ private theorem digital_shape_range (table : UInt32 → Int16) (index : UInt32) 
   unfold Analog.shape Analog.blend88
   exact digital_cut16_range _
 
-/-- Braids' `CLIP` leaves a value between -32767 and 32767, and the 16-bit sample written is exactly that
+/-- Braids' `CLIP` gives a value between -32767 and 32767, and the 16-bit sample written is exactly that
 value.
-Why it matters: every engine that ends in a clip (the saw swarm, the harmonics, the FOF vowel, the question
-mark) writes exactly the clipped sample; the clip is the only thing that limits an overloaded sample, never a
-wrap. -/
+Why it matters: the engines that end in a clip (saw swarm, harmonics, FOF vowel, question mark) are limited
+by the clip only, never a wrap. -/
 theorem digital_clip_never_wraps (x : Int32) :
     (Digital.clip x).toInt16.toInt = (Digital.clip x).toInt ∧
       -32767 ≤ (Digital.clip x).toInt ∧ (Digital.clip x).toInt ≤ 32767 := by
@@ -116,9 +115,9 @@ theorem digital_clip_never_wraps (x : Int32) :
   exact ⟨digital_keep16 _ (by omega) range.2, range⟩
 
 /-- Each of the three FM engines (FM, feedback FM, chaotic FM) writes exactly the blended sine at its
-modulated phase: the cut to 16 bits changes nothing.
-Why it matters: an FM sample is always a value of the sine table (`analog_sine_between_entries`), so no
-modulation depth, feedback or sync can make it click from an overflow. -/
+modulated phase; the cut to 16 bits changes nothing.
+Why it matters: an FM sample is always a sine table value (`analog_sine_between_entries`), so no modulation
+depth, feedback or sync can overflow it. -/
 theorem digital_fm_never_wraps (phase modPhase inc modInc : UInt32) (previous : Int16)
     (index attenuation : Int32) (sync : UInt8) :
     (Digital.fm phase modPhase inc modInc index sync).out.toInt =
@@ -153,10 +152,10 @@ private theorem digital_product16 (a b : Int32) (ha : -32768 ≤ a.toInt ∧ a.t
   rw [Int32.toInt_mul]
   exact ⟨Int.bmod_eq_of_le (by omega) (by omega), by omega, by omega⟩
 
-/-- The product of two 16-bit signals, taken as the ring modulator does, is their exact product scaled down by
-65536, between -16384 and 16384: the multiplication never wraps and the cut to 16 bits changes nothing.
-Why it matters: the ring modulator multiplies three full-scale sines in a row; neither product can overflow,
-at any phase, so the soft clipper after them gets a value at most half scale. -/
+/-- The ring modulator's product of two 16-bit signals is their exact product divided by 65536, between
+-16384 and 16384; the multiplication never wraps and the cut to 16 bits changes nothing.
+Why it matters: the ring modulator multiplies three full-scale sines in a row, and the soft clipper after
+them gets a value of at most half scale. -/
 theorem digital_ring_product_never_wraps (a b : Int32)
     (ha : -32768 ≤ a.toInt ∧ a.toInt ≤ 32767) (hb : -32768 ≤ b.toInt ∧ b.toInt ≤ 32767) :
     (Digital.ringProduct a b).toInt = a.toInt * b.toInt / 65536 ∧
@@ -167,9 +166,8 @@ theorem digital_ring_product_never_wraps (a b : Int32)
     Int.bmod_eq_of_le (by omega) (by omega)]
   omega
 
-/-- The ring modulator writes exactly its soft-clipped triple product: the cut to 16 bits changes nothing.
-Why it matters: the ring modulator's sample is always a value of the overdrive shaper, so it cannot click
-from an overflow at any phase or pitch. -/
+/-- The ring modulator writes exactly its soft-clipped triple product; the cut to 16 bits changes nothing.
+Why it matters: the sample is always a value of the overdrive shaper, so it cannot overflow. -/
 theorem digital_ring_mod_never_wraps (phase mod1 mod2 inc inc1 inc2 : UInt32) (sync : UInt8) :
     (Digital.ringMod phase mod1 mod2 inc inc1 inc2 sync).out.toInt =
       (Analog.shape Digital.overdriveTable
@@ -200,10 +198,9 @@ private theorem digital_toy_centre (q : Nat) (small : q ≤ 56195) :
     omega
 
 /-- The toy's smoothing filter writes exactly the weighted average of its four held values, centred on zero
-(between -28208 and 27987): the unsigned subtraction wraps for a low average, and the read as a 16-bit value
+(between -28208 and 27987); the unsigned subtraction wraps for a low average and the read as a 16-bit value
 undoes that wrap exactly.
-Why it matters: the toy's sample is never off by 65536; the wrap Braids relies on is proved harmless, not
-assumed. -/
+Why it matters: the wrap Braids relies on is proved harmless; the sample is never off by 65536. -/
 theorem digital_toy_never_wraps (h1 h2 h3 h4 : UInt8) :
     (Digital.toyFilter h1 h2 h3 h4).toInt =
       ((10530 * h1.toNat + 14751 * h2.toNat + 16384 * h3.toNat + 14751 * h4.toNat) / 256 : Nat) - 28208 := by

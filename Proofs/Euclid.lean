@@ -27,15 +27,14 @@ private theorem euclid_count_is_total (hits steps : Nat) (positive : 0 < steps) 
     · simp only [bne_iff_ne, ne_eq, same, not_false_eq_true, ite_true]
       omega
 
-/-- A bar of `steps` steps with `hits` hits (`hits ≤ steps`) plays exactly `hits` notes.
-Why it matters: the pattern has the density you asked for, with no missing or extra notes. -/
+/-- A bar of `steps` steps with `hits` hits (`hits ≤ steps`) has exactly `hits` hits.
+Why it matters: the pattern has exactly the density HITS asks for. -/
 theorem euclid_hit_count (hits steps : Nat) (positive : 0 < steps) (fits : hits ≤ steps) :
     Euclid.countHits hits steps steps = hits := by
   rw [euclid_count_is_total hits steps positive fits, Nat.mul_comm, Nat.mul_div_cancel _ positive]
 
-/-- The last step of a bar is a hit whenever the bar has any hits.
-Why it matters: the pattern always ends on a note, so the bar's last step (just before the circle comes round)
-is where every Euclidean rhythm lands; the ratchet's first sub-hit relies on it too. -/
+/-- The last step of a bar is a hit whenever `hits > 0`.
+Why it matters: every Euclidean pattern ends on a hit; the ratchet's first sub-hit relies on this. -/
 theorem euclid_last_step_hits (hits steps : Nat) (positive : 0 < hits) (fits : hits ≤ steps) :
     Euclid.hit hits steps (steps - 1) = true := by
   unfold Euclid.hit
@@ -85,12 +84,10 @@ private theorem euclid_floor_of_sum (a b steps : Nat) (positive : 0 < steps) :
       Nat.mul_comm (a / steps + 1), Nat.mul_comm (b / steps + 1), Nat.mul_succ, Nat.mul_succ]
     omega
 
-/-- Every window of `len` steps of a bar of `steps` steps with `hits` hits plays `len * hits / steps` notes or
-one more, wherever it starts, across the bar line included: the pattern is maximally even.
-Why it matters: this is what "spread out" means and the reason the hits never bunch: 5 hits in 16 steps gives
-every 4 steps one or two notes, every 8 steps two or three, and any two stretches of the same length are
-within one note of each other. It is the Clough–Douthett maximal-evenness property of the floor-function
-set, and the balance property of the Christoffel word, for the pattern the firmware plays. -/
+/-- Any window of `len` steps, wherever it starts (wrapping across the bar line), contains
+`len * hits / steps` hits or one more.
+Why it matters: the hits never bunch; this is Clough–Douthett maximal evenness for the pattern the firmware
+plays. -/
 theorem euclid_window_balanced (hits steps start len : Nat) (positive : 0 < steps) (fits : hits ≤ steps) :
     len * hits / steps ≤ Euclid.countBetween hits steps start (start + len) ∧
       Euclid.countBetween hits steps start (start + len) ≤ len * hits / steps + 1 := by
@@ -101,22 +98,18 @@ theorem euclid_window_balanced (hits steps start len : Nat) (positive : 0 < step
   generalize len * hits / steps = e at *
   omega
 
-/-- Two windows of the same length never differ by more than one note: a direct form of the balance.
-Why it matters: whichever two bars, half-bars or beats you compare, the Euclidean pattern gives them the same
-number of notes or one apart; it has no busy and empty stretches. -/
+/-- Two windows of the same length differ by at most one hit.
+Why it matters: any two bars, half-bars or beats carry the same number of hits or one apart. -/
 theorem euclid_windows_within_one (hits steps a b len : Nat) (positive : 0 < steps) (fits : hits ≤ steps) :
     Euclid.countBetween hits steps a (a + len) ≤ Euclid.countBetween hits steps b (b + len) + 1 := by
   have ⟨_, ha⟩ := euclid_window_balanced hits steps a len positive fits
   have ⟨hb, _⟩ := euclid_window_balanced hits steps b len positive fits
   omega
 
-/-- The firmware's pattern is the lower Christoffel word of slope `hits / steps` in Berstel's form: a step is a
-hit exactly when the multiples of `hits` wrap round modulo `steps` there (for `hits < steps`; `hits = steps`
-is every step).
-Why it matters: it names what the sequencer plays: a Christoffel word, the discrete line from (0, 0) to
-(steps, hits), the same object as the maximally even scales, so everything known about those words (they are
-balanced, their conjugates are the Euclidean rhythms, their reversal is the upper word) is about these
-rhythms. -/
+/-- For `hits < steps`, step `k` is a hit exactly when `(k + 1) * hits` wraps modulo `steps`: the pattern is
+the lower Christoffel word of slope `hits / steps` in Berstel's form (`hits = steps` is every step).
+Why it matters: known results on Christoffel words (balance, conjugates are the Euclidean rhythms, reversal
+is the upper word) apply to these patterns. -/
 theorem euclid_is_christoffel (hits steps k : Nat) (proper : hits < steps) :
     Euclid.hit hits steps k = Euclid.christoffel hits steps k := by
   unfold Euclid.hit Euclid.christoffel
@@ -143,11 +136,10 @@ theorem euclid_is_christoffel (hits steps k : Nat) (proper : hits < steps) :
     have step : (q0 + 1 != q0) = true := by simp
     rw [step, decide_eq_true wraps]
 
-/-- Bjorklund's algorithm, as Toussaint describes it, plays the firmware's pattern turned round: for every bar of
-up to 32 steps and every number of hits, its output is `Euclid.hit` read from some step, checked case by case.
-Why it matters: "Euclidean rhythm" usually means Bjorklund's output; the firmware plays the floor-function
-form instead because a step is then one division, with no list to build. This says they are the same rhythm,
-one rotation apart (the ROTATE knob reaches the rest), for every setting the knobs allow. -/
+/-- Bjorklund's algorithm (Toussaint's form) gives a rotation of `Euclid.hit`, for every bar of up to 32 steps
+and every hit count, checked case by case.
+Why it matters: the firmware's floor-function pattern is the usual "Euclidean rhythm" up to rotation, which
+ROTATE reaches. -/
 theorem euclid_bjorklund_is_rotation (steps : Nat) (positive : 0 < steps) (small : steps ≤ 32) (hits : Nat)
     (fits : hits ≤ steps) :
     ∃ rotation, rotation < steps ∧ Euclid.word hits steps rotation = Euclid.bjorklund hits steps := by
@@ -159,11 +151,9 @@ theorem euclid_bjorklund_is_rotation (steps : Nat) (positive : 0 < steps) (small
   obtain ⟨rotation, member, same⟩ := List.any_eq_true.mp this
   exact ⟨rotation, List.mem_range.mp member, beq_iff_eq.mp same⟩
 
-/-- The major scale is the seven-hit Euclidean pattern on twelve steps, started on its sixth step; the major
-pentatonic is the five-hit one started on its seventh (both as the SCALE table's masks).
-Why it matters: the scales and the rhythms are one construction: the diatonic scale is the maximally even
-seven of twelve (Clough and Douthett), so the SCALE knob and the HITS knob are reading the same word; a lane
-set to seven hits in twelve steps taps out the major scale. -/
+/-- The major scale mask is the 7-of-12 Euclidean pattern started on step 6; the major pentatonic mask is the
+5-of-12 pattern started on step 7.
+Why it matters: the SCALE table and the Euclidean rhythm are one construction (Clough–Douthett). -/
 theorem euclid_major_scale_is_seven_of_twelve :
     Euclid.mask 7 6 = Harmony.scale 0 ∧ Euclid.mask 5 7 = Harmony.scale 2 := by
   decide +kernel

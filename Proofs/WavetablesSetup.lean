@@ -112,8 +112,8 @@ private theorem wavetables_setup_pointer_le (param0 prev1 : Int16) (nonneg : 0 �
 /-- The wavetable engine reads its wavetable's definition inside the table of 20 definitions, and the
 pointer's step and the one after it inside the 17 steps of a definition, for a held parameter from 0 to 32767.
 Every definition in `digital_oscillator.cc` has 4, 8 or 16 steps (`braids_data_wavetable_steps_at_most_16`).
-Why it matters: both are C arrays read without a check; the 17th entry of each definition exists so that the
-step after the last can be read. -/
+Why it matters: both are C arrays read without a check; the 17th entry of each definition is there for the
+read past the last step. -/
 theorem wavetables_setup_table_in_table (param0 prev1 : Int16) (nonneg0 : 0 ≤ param0.toInt)
     (nonneg1 : 0 ≤ prev1.toInt) :
     (WavetablesSetup.tableIndex prev1).toNat ≤ 19 ∧
@@ -151,8 +151,8 @@ private theorem wavetables_setup_coordinate_le (param : Int16) (nonneg : 0 ≤ p
 
 /-- The wave map reads its four corners inside the 256-entry map for parameters from 0 to 32767 and corners
 0 or 1 away from the square's origin.
-Why it matters: the map is a C array read without a check; the scaling to 15 squares is what keeps the corner
-after the last column or row inside the 16 by 16 grid. -/
+Why it matters: the map is a C array read without a check; the scaling to 15 squares keeps the corner after
+the last column or row inside the 16 by 16 grid. -/
 theorem wavetables_setup_map_in_table (param0 param1 : Int16) (i j : UInt32) (nonneg0 : 0 ≤ param0.toInt)
     (nonneg1 : 0 ≤ param1.toInt) (cornerI : i.toNat ≤ 1) (cornerJ : j.toNat ≤ 1) :
     (WavetablesSetup.mapIndex param0 param1 i j).toNat ≤ 255 := by
@@ -196,13 +196,13 @@ private theorem wavetables_setup_scan_le (previous : Int32) (param0 : Int16)
   rw [UInt32.toNat_toUInt16, Nat.mod_eq_of_lt (by omega)]
   omega
 
-/-- The wave line reads the held parameter's wave inside its 64-entry line, the scan's wave inside it too,
-and the wave after the scan's at most one past it, for parameters from 0 to 32767 and a smoothed parameter
-from 0 to 65534; the smoothed parameter and the held one stay in those ranges, so the block after can rely on
-them again. The read one past the line is Braids' own: at the top of the parameter's range its scan reaches
-the last wave and asks for the one after it. The port keeps that read so the output is Braids'.
+/-- The wave line reads the held parameter's wave and the scan's wave inside its 64-entry line, and the wave
+after the scan's at most one past it, for parameters from 0 to 32767 and a smoothed parameter from 0 to
+65534; both parameters stay in those ranges for the next block. The read one past the line is Braids' own:
+at the top of the parameter's range the scan reaches the last wave and asks for the one after it. The port
+keeps that read so the output matches Braids.
 Why it matters: the line is a C array read without a check; the ranges are the invariant that bounds every
-block's reads, the first block starting at 0. -/
+block's reads, starting from 0. -/
 theorem wavetables_setup_line_in_table (previous : Int32) (prev0 param0 : Int16)
     (settled : 0 ≤ previous.toInt ∧ previous.toInt ≤ 65534) (held : 0 ≤ prev0.toInt)
     (nonneg : 0 ≤ param0.toInt) :
@@ -233,8 +233,8 @@ theorem wavetables_setup_line_in_table (previous : Int32) (prev0 param0 : Int16)
 
 /-- The paraphonic engine reads its chord and the one after it inside the 17 chords, and the first parameter's
 wave and the one after it inside the 33-entry short line, for parameters from 0 to 32767.
-Why it matters: both are C arrays read without a check; the 17th chord and 33rd wave exist so that the entry
-after the last can be read. -/
+Why it matters: both are C arrays read without a check; the 17th chord and 33rd wave are there for the read
+past the last entry. -/
 theorem wavetables_setup_paraphonic_in_table (param0 param1 : Int16) (nonneg0 : 0 ≤ param0.toInt)
     (nonneg1 : 0 ≤ param1.toInt) :
     (WavetablesSetup.chordIndex param1 + 1).toNat ≤ 16 ∧
@@ -253,11 +253,9 @@ theorem wavetables_setup_paraphonic_in_table (param0 param1 : Int16) (nonneg0 : 
   omega
 
 /-- A wave numbered up to 255 reads its two bytes at any halved phase inside the 33024-byte bank of 129-byte
-waves (`wt_waves`, `WT_WAVES_SIZE` in `resources.h`). The selection tables above hold numbers up to 255, a
-fact about their data.
+waves (`wt_waves`, `WT_WAVES_SIZE` in `resources.h`). The selection tables above hold numbers up to 255.
 Why it matters: the bank is read without a check through `Wavetables.waveByte`, which adds the wave's offset
-to the byte's index; 256 waves of 129 bytes is exactly the bank, so a wave number past 255 would read past
-it. -/
+to the byte's index; 256 waves of 129 bytes is exactly the bank. -/
 theorem wavetables_setup_wave_in_bank (wave phase : UInt32) (selected : wave.toNat ≤ 255) :
     wave.toNat * 129 + (Analog.tableIndex (phase >>> 1) + 1).toNat ≤ 33023 := by
   have := tables_wave_reads_inside_129 phase
@@ -265,8 +263,8 @@ theorem wavetables_setup_wave_in_bank (wave phase : UInt32) (selected : wave.toN
 
 /-- Every detuned voice of the paraphonic engine steps below half a cycle per sample
 (`pitch_increment_bounded`).
-Why it matters: the detune is added to the pitch before the table's clamp, so the clamp applies to each voice
-and none of the four runs past Nyquist. -/
+Why it matters: the detune is added to the pitch before the table's clamp, so none of the four voices runs
+past Nyquist. -/
 theorem wavetables_setup_increments_half_cycle (pitch param1 : Int16) (voice : UInt32) :
     (WavetablesSetup.voiceIncrement pitch param1 voice).toNat < 2 ^ 31 :=
   pitch_increment_bounded _

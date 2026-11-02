@@ -37,10 +37,9 @@ private theorem fm_quarter_le (x : UInt32) : (Fm.quarter x).toNat ≤ 32767 := b
   · rename_i h; exact UInt32.le_iff_toNat_le.mp h
   · decide
 
-/-- The sine is a quarter value with a sign: between -32767 and 32767, for every phase.
-Why it matters: an operator can never hand its modulators or the mix more than full scale, whatever phase the
-modulation pushed it to; and there is no table, so there is nothing to read past: the polynomial is checked
-here for every input, not trusted. -/
+/-- The sine is within ±32767 for every phase.
+Why it matters: an operator never hands its modulators or the mix more than full scale; there is no table,
+and the polynomial is checked for every input. -/
 theorem fm_sine_bounded (phase : UInt32) : (Fm.sineAt phase).toInt.natAbs ≤ 32767 := by
   simp only [Fm.sineAt]
   have q := fm_quarter_le (Fm.folded phase)
@@ -50,10 +49,9 @@ theorem fm_sine_bounded (phase : UInt32) : (Fm.sineAt phase).toInt.natAbs ≤ 32
   · rw [Int32.toInt_neg, Int.bmod_eq_of_le (by omega) (by omega)]; omega
   · omega
 
-/-- The sine is exact where it matters: 0 at the start, 32767 at a quarter, 0 at a half, -32767 at three
-quarters, 32767 being one.
-Why it matters: an operator at rest sits at zero, and a sine at its peak is exactly full scale, so the
-levels and depths of the shapes mean what they say. -/
+/-- The sine is 0 at the start, 32767 at a quarter, 0 at a half and -32767 at three quarters (32767 is one).
+Why it matters: an operator at rest is zero and a peak is exactly full scale, so the shapes' levels and
+depths mean what they say. -/
 theorem fm_sine_exact_at_quarters :
     Fm.sineAt 0 = 0 ∧ Fm.sineAt 0x40000000 = 32767 ∧ Fm.sineAt 0x80000000 = 0 ∧
         Fm.sineAt 0xC0000000 = -32767 := by
@@ -69,10 +67,10 @@ private theorem fm_every_quarter_step :
           (Fm.quarter (hi.val * 256 + lo.val).toUInt32).toNat + 2 := by
   decide +kernel
 
-/-- The quarter sine is continuous: from one position to the next it rises by at most two and falls by at most
-one (the fall is rounding; the fit itself rises throughout), for every position.
-Why it matters: no step in the waveform, so no click or buzz from the polynomial itself; the sine the
-operators read is smooth to within the last bit, checked at all 32767 positions. -/
+/-- From one position to the next the quarter sine rises by at most two and falls by at most one (the fall
+is rounding), for every position.
+Why it matters: the polynomial has no step, so no click or buzz of its own; checked at all 32767
+positions. -/
 theorem fm_sine_continuous (x : UInt32) (inside : x.toNat < 32767) :
     (Fm.quarter x).toNat ≤ (Fm.quarter (x + 1)).toNat + 1 ∧
       (Fm.quarter (x + 1)).toNat ≤ (Fm.quarter x).toNat + 2 := by
@@ -84,10 +82,10 @@ theorem fm_sine_continuous (x : UInt32) (inside : x.toNat < 32767) :
     = x.toNat from split] at this
   simpa using this
 
-/-- An operator's output is its sine through its envelope: at most 32767 in size for any envelope up to one
-(2^24), and nothing wraps on the way.
-Why it matters: every operator's output is a sample in range whatever its modulators did; the modulators'
-pushes are modular and the output is bounded, so no setting of depths can make an operator misbehave. -/
+/-- An operator's output is its sine through its envelope, at most 32767 in size for any envelope up to
+one (2^24), and nothing wraps.
+Why it matters: an operator's output is in range whatever its modulators did, so no depth setting can
+overflow it. -/
 theorem fm_operator_never_wraps (phase push envelope : UInt32) (unit : envelope.toNat ≤ 2 ^ 24) :
     (Fm.operator phase push envelope).toInt.natAbs ≤ 32767 ∧
       (Fm.operator phase push envelope).toInt = (Fm.sineAt (phase + push)).toInt *
@@ -123,9 +121,9 @@ theorem fm_operator_never_wraps (phase push envelope : UInt32) (unit : envelope.
     rw [Int.mul_ediv_cancel o (by decide)] at d2
     omega
 
-/-- A carrier's share never exceeds its output: the level is at most one (32767).
+/-- A carrier's share is at most its output, for a level at most one (32767).
 Why it matters: the mix of carriers is at most the sum of their levels, so a shape with levels summing to
-one cannot clip (`fm_shapes_in_range`), and `Fm.saturate` only ever acts on a louder setting. -/
+one cannot clip (`fm_shapes_in_range`). -/
 theorem fm_carry_never_amplifies (out : Int32) (level : UInt32) (sample : out.toInt.natAbs ≤ 32767)
     (unit : level.toNat ≤ 32767) :
     (Fm.carry out level).toInt.natAbs ≤ out.toInt.natAbs ∧
@@ -158,10 +156,8 @@ theorem fm_carry_never_amplifies (out : Int32) (level : UInt32) (sample : out.to
     rw [Int.mul_ediv_cancel o (by decide)] at d2
     omega
 
-/-- The sample out of the voice is a 16-bit value within 32767 either way, and a sum already in range passes
-unchanged.
-Why it matters: the hold at full scale is a saturation, never a wrap: a loud shape goes flat,
-    not inside out. -/
+/-- The voice's output sample is within ±32767, and a sum already in range passes unchanged.
+Why it matters: the hold at full scale is a saturation, not a wrap. -/
 theorem fm_saturate_in_range (x : Int32) : (Fm.saturate x).toInt.natAbs ≤ 32767 ∧
     (x.toInt.natAbs ≤ 32767 → (Fm.saturate x).toInt = x.toInt) := by
   unfold Fm.saturate
@@ -182,10 +178,9 @@ theorem fm_saturate_in_range (x : Int32) : (Fm.saturate x).toInt.natAbs ≤ 3276
       rw [Int32.toInt_toInt16, Int.bmod_eq_of_le (by omega) (by omega)]
       omega
 
-/-- The envelope one block on is no higher, and no lower than 15/16 of itself, for any rate below 65536
-and any envelope up to one; nothing wraps.
-Why it matters: an operator's envelope only ever falls, and a block cannot take more than a sixteenth of it:
-the shapes' tails are smooth and a modulator never comes back once it has gone. -/
+/-- The envelope one block on is no higher, and no lower than 15/16 of itself, for any rate below 65536 and
+envelope up to one; nothing wraps.
+Why it matters: an operator's envelope only falls, by at most a sixteenth a block. -/
 theorem fm_envelope_only_falls (envelope rate : UInt32) (unit : envelope.toNat ≤ 2 ^ 24)
     (small : rate.toNat < 65536) :
     (Fm.envelopeStep envelope rate).toNat ≤ envelope.toNat ∧
@@ -210,9 +205,9 @@ theorem fm_envelope_only_falls (envelope rate : UInt32) (unit : envelope.toNat �
   · omega
   · rw [UInt32.le_iff_toNat_le, share]; omega
 
-/-- An operator's increment is at most half a cycle a sample, whatever the pitch and ratio.
-Why it matters: half a cycle a sample is the Nyquist limit; an operator asked for more is held there rather
-than wrapping to a wrong low pitch. -/
+/-- An operator's increment is at most half a cycle a sample for any pitch and ratio.
+Why it matters: an operator asked for more than Nyquist is held there instead of wrapping to a wrong
+pitch. -/
 theorem fm_increment_below_nyquist (voiceInc ratio : UInt32) :
     (Fm.increment voiceInc ratio).toNat ≤ 2 ^ 31 := by
   simp only [Fm.increment]
@@ -225,11 +220,10 @@ theorem fm_increment_below_nyquist (voiceInc ratio : UInt32) :
     rw [UInt64.toNat_toUInt32, Nat.mod_eq_of_lt (by omega)]
     omega
 
-/-- In every algorithm, a modulator is a higher-numbered operator than the one it modulates, and operator 1
+/-- In every algorithm a modulator is a higher-numbered operator than the one it modulates, and operator 1
 always carries.
-Why it matters: computing a sample from operator 4 down to 1, every modulator's output is already this
-sample's (no one-sample lag, no cycle except the declared feedback on 4),
-    and every algorithm makes a sound. -/
+Why it matters: computing operators 4 down to 1, every modulator's output is already this sample's (no
+one-sample lag and no cycle except the declared feedback on 4), and every algorithm makes a sound. -/
 theorem fm_algorithms_well_founded (alg op source : UInt32) :
     (Fm.modulates alg op source = true → op < source) ∧ Fm.carries alg 1 = true := by
   constructor
@@ -245,10 +239,10 @@ theorem fm_algorithms_well_founded (alg op source : UInt32) :
     simp at *
     omega
 
-/-- Every shape's settings are in the ranges the theorems above need: ratios at most 16 (4096 in Q8), levels
-at most one (32767), rates below 65536, and the carrier levels of a shape add up to at most one.
-Why it matters: with `fm_carry_never_amplifies` the eight shapes cannot clip at full envelope, and with
-`fm_envelope_only_falls` their envelopes behave; the numbers in the tables are checked, not trusted. -/
+/-- Every shape's settings are in the ranges the theorems above need: ratios at most 16 (4096 in Q8),
+levels at most one (32767), rates below 65536, and a shape's carrier levels sum to at most one.
+Why it matters: with `fm_carry_never_amplifies` the eight shapes cannot clip at full envelope, and
+`fm_envelope_only_falls` applies to their rates. -/
 theorem fm_shapes_in_range (shape : UInt32) :
     (∀ op : UInt32, (Fm.ratio shape op).toNat ≤ 4096 ∧ (Fm.level shape op).toNat ≤ 32767 ∧
       (Fm.rate shape op).toNat < 65536) ∧

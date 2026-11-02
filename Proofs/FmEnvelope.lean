@@ -44,12 +44,11 @@ private theorem fm_step_scales (e r : UInt32) (unit : e.toNat ≤ 2 ^ 24) (small
   generalize e.toNat * r.toNat = p at *
   omega
 
-/-- The envelope after `k` blocks at `rate` is at most its start times `((2^20 - rate) / 2^20)^k`, plus 17
-counts a block for the roundings (both sides scaled by `2^20^k` to stay in whole numbers), for any start
-up to one (2^24) and rate below 65536; and it never passes one on the way.
-Why it matters: an envelope dies away geometrically with the time constant the rate promises
-(`2^20 / rate` blocks), whatever it started from: a modulator's roundings cannot pile up into a floor that
-keeps the sound bright, and the shapes' decays are the exponentials they were tuned as. -/
+/-- The envelope after `k` blocks at `rate` is at most its start times `((2^20 - rate) / 2^20)^k` plus 17
+counts a block for rounding (both sides scaled by `2^20^k` to stay in whole numbers), for any start up to
+one (2^24) and rate below 65536; and it never passes one.
+Why it matters: an envelope decays geometrically with time constant `2^20 / rate` blocks; rounding cannot
+pile up into a floor. -/
 theorem fm_envelope_after_bounded (e r : UInt32) (unit : e.toNat ≤ 2 ^ 24) (small : r.toNat < 65536)
     (k : Nat) :
     (Fm.envelopeAfter e r k).toNat ≤ 2 ^ 24 ∧
@@ -81,9 +80,9 @@ theorem fm_envelope_after_bounded (e r : UInt32) (unit : e.toNat ≤ 2 ^ 24) (sm
       _ = s * c ^ (k + 1) + 17 * (k + 1) * m ^ (k + 1) := by
           rw [Nat.pow_succ c, Nat.pow_succ m, Nat.mul_succ, Nat.add_mul]; ac_rfl
 
-/-- At rate 0 the envelope holds exactly, for ever.
-Why it matters: a carrier with no decay (the piano's body, the organ's every operator) sounds at full
-level for as long as the note is held, with no drift down from rounding: `0` in the rate table means hold. -/
+/-- At rate 0 the envelope holds exactly.
+Why it matters: `0` in the rate table means hold with no drift from rounding (the piano's body, every organ
+operator). -/
 theorem fm_held_envelope_holds (e : UInt32) (k : Nat) : Fm.envelopeAfter e 0 k = e := by
   induction k with
   | zero => rfl
@@ -215,16 +214,14 @@ private theorem fm_tails_clang :
     2 ^ 24 / 100 ≤ (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 4) 3353).toNat ∧
       (Fm.envelopeAfter (2 ^ 24) (Fm.rate 55 4) 3354).toNat < 2 ^ 24 / 100 := by
   decide +kernel
-/-- When every shape's decaying operators are gone, from a full envelope (2^24) at the rates in the table,
-exactly: the first block at which the envelope is under a tenth, and under a hundredth, checked by the kernel
-block by block, with the block before still above (a block is 16 samples, 0.36 ms at 44.1 kHz). Under a
-hundredth: the piano's tine (op 4) in 0.27 s and its modulator (op 2) in 1.8 s, its op 3 in 3.7 s; the
-bell's three partials in 1.8 to 4.4 s; the bass's modulators in 0.4 to 0.9 s; the brass's in 7 to 14 s;
-the glass's op 4 in 5.5 s; the mallet's in 0.16 to 0.44 s; the clang's in 1.2 to 2.2 s. The organ, and the
-carriers of every shape, hold (`fm_held_envelope_holds`).
-Why it matters: these are the decay times a player hears, computed from the arithmetic the chip runs rather
-than from the time constants the rates were chosen by: the piano's strike is brief and its body sustains,
-the bell and brass ring long, the mallet is short, and no shape's decay is a surprise. -/
+/-- For every shape's decaying operators, from a full envelope (2^24) at the table's rate: the first block at
+which the envelope is under a tenth, and under a hundredth, stepped block by block in the kernel, with the
+block before still above (a block is 16 samples, 0.36 ms at 44.1 kHz). Under a hundredth: the piano's tine
+(op 4) in 0.27 s, its modulator (op 2) in 1.8 s, its op 3 in 3.7 s; the bell's three partials in 1.8 to
+4.4 s; the bass's modulators in 0.4 to 0.9 s; the brass's in 7 to 14 s; the glass's op 4 in 5.5 s; the
+mallet's in 0.16 to 0.44 s; the clang's in 1.2 to 2.2 s. The organ and every shape's carriers hold
+(`fm_held_envelope_holds`).
+Why it matters: these are the decay times a player hears, computed from the arithmetic the chip runs. -/
 theorem fm_shape_tails :
     -- piano
     (

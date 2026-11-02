@@ -152,7 +152,7 @@ for f in files:
     # hygiene
     if lines and any(l != l.rstrip() for l in lines): warn(f, 1, "trailing whitespace")
 
-for root, lib in (("Proofs.lean", "Proofs"), ("Firmware.lean", "Firmware"), ("Spec.lean", "Spec")):
+for root, lib in (("Proofs.lean", "Proofs"), ("Firmware.lean", "Firmware"), ("Spec.lean", "Spec"), ("Examples.lean", "Examples")):
     imported = set(re.findall(rf"^import {lib}\.(\S+)", (ROOT / root).read_text(), re.M))
     for missing in sorted(p.stem for p in (ROOT / lib).glob("*.lean") if p.stem not in imported):
         errors.append(f"{root} does not import {lib}.{missing}, so `lake build` and Comparator never see it")

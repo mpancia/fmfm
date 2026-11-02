@@ -72,11 +72,9 @@ private theorem run_balance (ops : List Lane.Op) : ∀ l : Lane,
         simp [Lane.soundingCount, keep]]
       exact ih _
 
-/-- Every note a lane starts during a run is stopped: after any sequence of ticks and setting changes, the
-number of note-ons equals the number of note-offs plus the one note still sounding, which stopping the clock
-then reports as stopped (`lane_silence_stops_note`) and leaves nothing sounding.
-Why it matters: this is the no-stuck-notes promise for a whole performance, not one tick: however long you
-play and whatever you turn, pressing stop leaves nothing sounding and nothing unaccounted for. -/
+/-- After any sequence of ticks and setting changes from a fresh lane, note-ons equal note-offs plus the one
+note still sounding; `silence` then stops that note and leaves nothing sounding.
+Why it matters: no stuck notes over a whole performance, not just one tick. -/
 theorem run_every_note_on_has_a_note_off (l : Lane) (fresh : l.playing = none) (ops : List Lane.Op) :
     Lane.noteOns (l.trace ops) = Lane.noteOffs (l.trace ops) + (l.run ops).soundingCount ∧
       (l.run ops).silence.playing = none := by
@@ -120,9 +118,9 @@ private theorem run_tick_clock (l : Lane) (n : Nat) (divPos : 0 < l.div)
     · rw [ite_eq_left full, ite_eq_left (show r + 1 ≥ l.div by omega)]; simp [Nat.add_mod]
     · rw [ite_eq_right full, ite_eq_right (show ¬ (r + 1 ≥ l.div) by omega)]; simp
 
-/-- After `n` ticks from a fresh lane, the clock stands at `(n / div) % steps`, whatever notes played.
-Why it matters: the step position depends only on the tick count, so four lanes at different speeds stay in
-phase forever: nothing a note does can make a lane drift. -/
+/-- After `n` ticks from a fresh lane the step position is `(n / div) % steps`, regardless of the notes
+played.
+Why it matters: lanes at different speeds stay in phase; notes cannot make a lane drift. -/
 theorem run_clock_never_drifts (hits steps div mask low span : Nat) (seed : UInt32) (n : Nat) :
     let l := Lane.make hits steps div mask low span seed
     (l.run (List.replicate n .tick)).step = Lane.stepAfter l.div l.steps n ∧
@@ -364,12 +362,10 @@ private theorem run_bar_steady (l : Lane) (f : Nat → Bool) (steady : l.Steady 
   rw [run_steady_ons f (l.steps * l.div) 0 l (fun _ => steady) divPos (by simp [fresh.1]) (by simp [fresh.2])
     (by omega), run_ons_steps f l.steps l.div divPos l.steps (Nat.le_refl _), run_count_eq]
 
-/-- A lane with the Euclidean, turned or automaton rhythm (any kind but the ratchet) and a play chance of 100
-plays, over the `steps * div` ticks of a bar from a fresh lane, exactly the hits its rhythm marks in that bar:
-for the automaton, the ones of its row at the start of the bar.
-Why it matters: `run_bar_plays_every_hit` for every rhythm the knobs offer except ratchets: whatever the
-FEEL page is set to, the bar plays what the screen's row of hits shows, no note missing and none added;
-and for the automaton it says the row you see is the bar you hear, before it moves a generation on. -/
+/-- A lane with the Euclidean, rotated or automaton rhythm (any kind but ratchet) at play chance 100 plays,
+over the `steps * div` ticks of a bar from a fresh lane, exactly the hits its rhythm marks in that bar (for
+the automaton, the hits of its row at the start of the bar).
+Why it matters: for every non-ratchet FEEL setting the bar plays exactly the row of hits the screen shows. -/
 theorem run_bar_plays_the_rhythm (hits steps div mask low span : Nat) (seed : UInt32)
     (kind rotate accents rule ratchet subHits : Nat) (noRatchet : kind < 3) :
     let l := ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).setRhythm
@@ -387,12 +383,9 @@ theorem run_bar_plays_the_rhythm (hits steps div mask low span : Nat) (seed : UI
     · rfl
   exact run_bar_steady l _ steady valid.divPositive ⟨rfl, rfl⟩
 
-/-- A plain lane (the Euclidean source, play chance 100) plays exactly `hits` notes in a bar: over the
-`steps * div` ticks of a bar from a fresh lane, the trace has `hits` note-ons, for any settings at all (`make`
-holds them to what the knobs can produce).
-Why it matters: the safety theorems say a lane never plays on a rest; this one says it does play on every
-hit. The bar has the density the HITS knob asks for, no note missing: the machine makes the music it
-promises, not merely nothing wrong. -/
+/-- A plain lane (Euclidean source, play chance 100) has exactly `hits` note-ons over the `steps * div` ticks
+of a bar from a fresh lane, for any settings (`make` clamps them to knob range).
+Why it matters: the safety theorems say a lane never plays on a rest; this one says it plays on every hit. -/
 theorem run_bar_plays_every_hit (hits steps div mask low span : Nat) (seed : UInt32) :
     let l := (Lane.make hits steps div mask low span seed).setNotes 0 100 1 0
     Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) = l.hits := by
@@ -414,10 +407,9 @@ theorem run_bar_plays_every_hit (hits steps div mask low span : Nat) (seed : UIn
   rw [same]
   exact euclid_hit_count l.hits l.steps valid.stepsPositive valid.hitsFit
 
-/-- A turned lane (the Euclidean source rotated by ROTATE, play chance 100) plays exactly `hits` notes in a
-bar too.
-Why it matters: turning the pattern moves the hits round the bar without losing or doubling one; a lane
-with ROTATE set plays the density the HITS knob asks for. -/
+/-- A rotated lane (Euclidean source turned by ROTATE, play chance 100) also plays exactly `hits` notes in a
+bar.
+Why it matters: ROTATE never loses or doubles a hit. -/
 theorem run_bar_plays_every_hit_turned (hits steps div mask low span : Nat) (seed : UInt32)
     (rotate accents rule ratchet subHits : Nat) :
     let l := ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).setRhythm
@@ -768,13 +760,11 @@ private theorem run_count_shift (f : Nat → Bool) : ∀ m,
       _ + (run_count (fun k => f (k + 1)) m + if f (m + 1) then 1 else 0)
     rw [ih]; omega
 
-/-- A ratchet lane (kind 3, play chance 100) whose ratchet is at most `div` plays, over the `steps * div`
-ticks of a bar from a fresh lane, exactly `hits` times the number of sub-hits that play: every hit step
-rolls the same sub-hits (its pulse and those SUB-HITS spreads over the ratchet), each on a tick of its own.
-The bound `ratchet ≤ div` is what keeps the sub-hits on distinct ticks; a step shorter than its ratchet
-merges them.
-Why it matters: ratchets play exactly the rolls the knobs ask for, no sub-hit lost or doubled; with this
-every rhythm kind the FEEL page offers has its liveness theorem. -/
+/-- A ratchet lane (kind 3, play chance 100) with `ratchet ≤ div` plays, over the `steps * div` ticks of a bar
+from a fresh lane, exactly `hits` times the number of sub-hits that play; every hit step rolls the same
+sub-hits, each on its own tick. With `ratchet > div` a step is too short and sub-hits merge.
+Why it matters: ratchets play exactly the rolls the knobs ask for, so every rhythm kind has a liveness
+theorem. -/
 theorem run_bar_plays_every_ratchet (hits steps div mask low span : Nat) (seed : UInt32)
     (rotate accents rule ratchet subHits : Nat) :
     let l := ((Lane.make hits steps div mask low span seed).setNotes 0 100 1 0).setRhythm

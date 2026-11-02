@@ -109,9 +109,9 @@ theorem noise_particle_amplitude_fades (noise : UInt32) (amplitude : UInt16)
   rw [Nat.mod_eq_of_lt (by omega)]
   exact this
 
-/-- A signed 16-bit value moved up by 32768 lands on the overdrive curve's 65536 indices.
-Why it matters: the filtered and twin-peaks noises read the curve by this index with no bounds check; this
-is the condition `tables_shape_reads_inside_257` needs. -/
+/-- A signed 16-bit value plus 32768 is one of the overdrive curve's 65536 indices.
+Why it matters: the filtered and twin-peaks noises read the curve by this index unchecked; it is the
+condition `tables_shape_reads_inside_257` needs. -/
 theorem noise_overdrive_index_in_table (x : Int32) (sixteenBit : -32768 ≤ x.toInt ∧ x.toInt ≤ 32767) :
     (Noise.overdriveIndex x).toNat ≤ 65535 := by
   unfold Noise.overdriveIndex
@@ -122,10 +122,9 @@ theorem noise_overdrive_index_in_table (x : Int32) (sixteenBit : -32768 ≤ x.to
   rw [sum] at e
   omega
 
-/-- The filtered noise's gain correction is exact and stays within 16 bits: the mix held between -32767 and
-32767, scaled by `gain` parts in 32768, for a gain from 0 to 32767.
-Why it matters: the result is the index into the overdrive curve; a wrapped or oversized value would read
-outside the curve. -/
+/-- The filtered noise's gain correction is exact and within 16 bits: the mix clipped to ±32767, scaled by
+`gain` parts in 32768, for a gain from 0 to 32767.
+Why it matters: the result indexes the overdrive curve; an oversized value would read outside it. -/
 theorem noise_corrected_never_wraps (mixed gain : Int32) (gainFits : 0 ≤ gain.toInt ∧ gain.toInt ≤ 32767) :
     (Noise.corrected mixed gain).toInt = max (-32767) (min 32767 mixed.toInt) * gain.toInt / 32768 ∧
       (Noise.corrected mixed gain).toInt.natAbs ≤ 32767 := by
@@ -138,9 +137,9 @@ theorem noise_corrected_never_wraps (mixed gain : Int32) (gainFits : 0 ≤ gain.
   · rfl
   · rw [← c]; omega
 
-/-- The twin peaks' boost is exact: the resonators' sum plus `makeup` parts in 8192 of itself, held between
--32767 and 32767, for a sum within 65536 and a makeup gain from 0 to 8191.
-Why it matters: the boost is the last arithmetic before the overdrive curve; it is clipped, not wrapped. -/
+/-- The twin peaks' boost is exact: the resonators' sum plus `makeup` parts in 8192 of itself, clipped to
+±32767, for a sum within 65536 and a makeup gain from 0 to 8191.
+Why it matters: the boost is the last arithmetic before the overdrive curve; it clips, not wraps. -/
 theorem noise_boost_never_wraps (sum makeup : Int32) (sumFits : sum.toInt.natAbs ≤ 65536)
     (makeupFits : 0 ≤ makeup.toInt ∧ makeup.toInt ≤ 8191) :
     (Noise.boost sum makeup).toInt =
@@ -152,11 +151,10 @@ theorem noise_boost_never_wraps (sum makeup : Int32) (sumFits : sum.toInt.natAbs
   rw [noise_clip_value, noise_add_exact _ _ (by rw [p]; omega), p]
 
 /-- One resonator step is exact: the input scaled by `s` parts in 65536 with its sign kept, plus the last
-output times `c` parts in 32768, minus the one before times `q2` parts in 32768, held between -32767 and
-32767. Holds for an input within 32768, a scale from 0 to 65535, a coefficient within 65535, a `q2` within
-32768 and last outputs within 32767 (they are this step's own clipped results).
-Why it matters: the resonators ring the particle and twin-peaks noises; a wrap in the feedback would be a
-burst of noise that never decays. -/
+output times `c` parts in 32768, minus the one before times `q2` parts in 32768, clipped to ±32767. Holds for
+an input within 32768, a scale from 0 to 65535, a coefficient within 65535, a `q2` within 32768 and last
+outputs within 32767 (this step's own clipped results).
+Why it matters: a wrap in the resonators' feedback would be a burst of noise that never decays. -/
 theorem noise_resonate_never_wraps (input s c q2 y1 y2 : Int32) (inputFits : input.toInt.natAbs ≤ 32768)
     (sFits : 0 ≤ s.toInt ∧ s.toInt ≤ 65535) (cFits : c.toInt.natAbs ≤ 65535)
     (q2Fits : q2.toInt.natAbs ≤ 32768)
@@ -212,9 +210,9 @@ theorem noise_resonate_never_wraps (input s c q2 y1 y2 : Int32) (inputFits : inp
     rw [noise_sub_exact _ _ (by rw [sum]; omega), sum]
   rw [noise_clip_value, diff, t1, t2]
 
-/-- A particle burst's sample is exact: the noise word's low 16 bits, read as a signed number, times the
-amplitude, divided by 65536, which keeps it within 16 bits.
-Why it matters: this is the input to the three resonators; it is within the range they are proved for. -/
+/-- A particle burst's sample is exact: the noise word's low 16 bits as a signed number, times the
+amplitude, divided by 65536, which is within 16 bits.
+Why it matters: this is the input to the three resonators, in the range they are proved for. -/
 theorem noise_burst_never_wraps (noise : UInt32) (amplitude : UInt16) :
     (Noise.burst noise amplitude).toInt = noise.toUInt16.toInt16.toInt * amplitude.toNat / 65536 := by
   unfold Noise.burst
@@ -234,10 +232,9 @@ private theorem noise_resonate_fits (input s c q2 y1 y2 : Int32) :
   rw [noise_clip_value]
   omega
 
-/-- The particle noise's sample is exact: the three resonators' outputs added and held between -32767 and
-32767, with nothing wrapping in the sum.
-Why it matters: each resonator is clipped on its own, so the three together need the sum to be clipped
-again, not wrapped. -/
+/-- The particle noise's sample is exact: the three resonators' outputs added and clipped to ±32767, with
+nothing wrapping in the sum.
+Why it matters: each resonator is clipped on its own, so the sum of three needs its own clip. -/
 theorem noise_particle_never_wraps (noise : UInt32) (amplitude : UInt16)
     (s1 c1 s2 c2 s3 c3 y11 y12 y21 y22 y31 y32 : Int32) :
     (Noise.particle noise amplitude s1 c1 s2 c2 s3 c3 y11 y12 y21 y22 y31 y32).out.toInt =
@@ -262,8 +259,8 @@ theorem noise_particle_never_wraps (noise : UInt32) (amplitude : UInt16)
   rw [noise_keep16 _ (by rw [noise_clip_value]; omega) (by rw [noise_clip_value]; omega), noise_clip_value,
     s123]
 
-/-- The cloud's limiter is exact: the sample is the grains' sum held between -32768 and 32767.
-Why it matters: the cloud's sum is cut to 16 bits only after this limit, so the cut changes nothing. -/
+/-- The cloud's limiter is exact: the sample is the grains' sum clipped to -32768..32767.
+Why it matters: the cut to 16 bits after the limit changes nothing. -/
 theorem noise_cloud_out_never_wraps (sum : Int32) :
     (Noise.cloudOut sum).toInt = max (-32768) (min 32767 sum.toInt) := by
   unfold Noise.cloudOut
@@ -278,8 +275,8 @@ theorem noise_cloud_out_never_wraps (sum : Int32) :
   rw [noise_keep16 _ (by rw [v]; omega) (by rw [v]; omega), v]
 
 /-- A grain's share of the sample is exact: the sine at its new phase times its envelope entry, divided by
-131072, which is within 16384 either way, so the cloud's limiter sees the exact sum of its four grains.
-Why it matters: the cloud adds four of these for every sample; a wrapped share would be a click. -/
+131072, which is within ±16384, so the cloud's limiter sees the exact sum of its four grains.
+Why it matters: the cloud adds four of these every sample; a wrapped share would be a click. -/
 theorem noise_grain_never_wraps (phase inc envelope envInc : UInt32) :
     (Noise.grain phase inc envelope envInc).contribution.toInt =
       (Analog.sineAt (phase + inc)).toInt * (Noise.grainEnvelope ((envelope + envInc) >>> 16)).toNat
@@ -298,11 +295,10 @@ theorem noise_grain_never_wraps (phase inc envelope envInc : UInt32) :
       (Noise.grainEnvelope ((envelope + envInc) >>> 16)).toNat 32768 65535 (by omega) (by omega)
     omega
 
-/-- A grain reads inside its 513-entry envelope as long as its envelope phase is at or below 2^24 + 2^22 and
-its rate is at most 2^18 per sample. Both come from the block's setup (`noise_setup_grain_reset`): a grain
-starts at 0 and a block of up to 16 samples at that rate cannot carry an envelope that was still playing
-past that point.
-Why it matters: the envelope is a plain C array read without a bounds check. -/
+/-- A grain reads inside its 513-entry envelope when its envelope phase is at most 2^24 + 2^22 and its rate
+at most 2^18 per sample. Both come from the block's setup (`noise_setup_grain_reset`): a grain starts at 0
+and a block of up to 16 samples at that rate cannot carry a playing envelope past that point.
+Why it matters: the envelope is a C array read without a bounds check. -/
 theorem noise_grain_envelope_index_in_table (phase inc envelope envInc : UInt32)
     (started : envelope.toNat ≤ 2 ^ 24 + 2 ^ 22) (rate : envInc.toNat ≤ 2 ^ 18) :
     ((Noise.grain phase inc envelope envInc).envelope >>> 16).toNat ≤ 512 := by

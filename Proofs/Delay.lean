@@ -22,8 +22,7 @@ private theorem delay_scaled_value (k t : UInt32) (small : k.toNat ≤ 32768) :
 
 /-- For every feedback setting the gain is between 0 and 0.95 (31129 in Q15), and for every tone setting the
 low-pass amount is between 0.2 and 1.0.
-Why it matters: an echo is always quieter than the one before it, so echoes die away at every knob position;
-the delay cannot build up into a howl. -/
+Why it matters: each echo is quieter than the one before at every knob position. -/
 theorem delay_gains_in_range (setting : UInt32) :
     0 ≤ (Delay.feedbackGain setting).toInt ∧ (Delay.feedbackGain setting).toInt ≤ 31129 ∧
       6554 ≤ (Delay.toneGain setting).toInt ∧ (Delay.toneGain setting).toInt ≤ 32768 := by
@@ -71,11 +70,9 @@ private theorem delay_mul_value (s g : Int32) (nonmin : -2 ^ 31 < s.toInt) (unit
   clear e1 e2
   exact Int.bmod_eq_of_le (by omega) (by omega)
 
-/-- With nothing new on the send, what goes back into the line is at most 95% of the echo plus one count
-of rounding, for every feedback setting (the one most negative number left out).
-Why it matters: this is the geometric decay of the echoes. With the low-pass only ever between its state
-and its input (`reverb_lowpass_stays_between`), each pass round the line loses at least a twentieth, so a
-tail of echoes dies away whatever the settings. -/
+/-- With nothing new on the send, what goes back into the line is at most 95% of the echo plus one count of
+rounding, for every feedback setting (the most negative number excluded).
+Why it matters: each pass round the line loses at least a twentieth, so the echoes decay at any setting. -/
 theorem delay_echo_shrinks (echo feedback : Int32) (nonmin : -2 ^ 31 < echo.toInt)
     (nonneg : 0 ≤ feedback.toInt) (unit : feedback.toInt ≤ 31129) :
     (Delay.input 0 echo feedback).toInt.natAbs ≤ echo.toInt.natAbs * 19 / 20 + 1 := by
@@ -110,19 +107,18 @@ private theorem delay_clamp_in_line (n : UInt32) :
       have nz : n.toNat ≠ 0 := fun h => notZero (UInt32.toNat.inj (by rw [h]; rfl))
       omega
 
-/-- The delay in samples is always between 1 and 20479, so the echo is read from inside the line, never
-from the sample being written (an offset of 0) and never from a wrapped-round position.
-Why it matters: a TIME or TEMPO setting can never make a line read where it writes, which would be a
-feedback path with no delay at all. -/
+/-- The delay in samples is between 1 and 20479, so the echo is read from inside the line, never from the
+sample being written (offset 0) and never from a wrapped position.
+Why it matters: no TIME or TEMPO setting makes a line read where it writes, a feedback path with no delay. -/
 theorem delay_samples_in_line (time bpm rate : UInt32) :
     1 ≤ (Delay.samples time bpm rate).toNat ∧ (Delay.samples time bpm rate).toNat ≤ 20479 := by
   unfold Delay.samples
   exact delay_clamp_in_line _
 
-/-- A write position and an offset both inside a line give a read position inside it, and the write position
-moves on to one inside it.
+/-- A write position and an offset inside a line give a read position inside it, and the next write position
+is inside it.
 Why it matters: with `delay_samples_in_line`, every read and write of the two lines is in bounds; the lines
-are not a power of two, so this is the wrap by subtraction, not a mask. -/
+are not a power of two, so the wrap is by subtraction, not a mask. -/
 theorem delay_position_in_line (write offset : UInt32) (w : write.toNat < 20480) (o : offset.toNat < 20480) :
     (Delay.pos write offset).toNat < 20480 ∧ (Delay.nextWrite write).toNat < 20480 := by
   unfold Delay.pos Delay.nextWrite
@@ -148,10 +144,10 @@ theorem delay_position_in_line (write offset : UInt32) (w : write.toNat < 20480)
       rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le, one]; omega), one]
       omega
 
-/-- At 44.1 kHz, the note values the lines are long enough for are exact, `60 * 44100 * numerator / (bpm *
-denominator)` samples: a 1/32 or a 1/16 at every tempo from 40 to 240; everything up to a dotted eighth from
-97 bpm; every note value from 130 bpm. (Below those tempos a longer note is held at 20479 samples, 464 ms.)
-Why it matters: the echo lands on the beat the setting names, at the tempos the setting can be played at. -/
+/-- At 44.1 kHz the note values the lines are long enough for are exact, `60 * 44100 * numerator / (bpm *
+denominator)` samples: 1/32 and 1/16 at every tempo from 40 to 240, everything up to a dotted eighth from
+97 bpm, every note value from 130 bpm. (Below those tempos a longer note is held at 20479 samples, 464 ms.)
+Why it matters: the echo lands on the beat the setting names at the tempos it can be played at. -/
 theorem delay_notes_exact (time bpm : UInt32) (slow : 40 ≤ bpm.toNat) (fast : bpm.toNat ≤ 240)
     (fits : time.toNat ≤ 1 ∨ (97 ≤ bpm.toNat ∧ time.toNat ≤ 6) ∨ (130 ≤ bpm.toNat ∧ time.toNat ≤ 7)) :
     (Delay.samples time bpm 44100).toNat =
@@ -168,8 +164,7 @@ theorem delay_notes_exact (time bpm : UInt32) (slow : 40 ≤ bpm.toNat) (fast : 
 
 /-- A signal for the line saturates at the 16-bit ends instead of wrapping: from 32767 up it stores 32767,
 from -32768 down it stores -32768, and in between it stores the signal.
-Why it matters: a send louder than full scale clips at the top of the line, as tape would, rather than
-flipping sign into a click that would then echo. -/
+Why it matters: a send louder than full scale clips instead of flipping sign into a click that echoes. -/
 theorem delay_store_saturates (signal : Int32) :
     (32767 ≤ signal.toInt → (Delay.store signal).toInt = 32767) ∧
     (signal.toInt ≤ -32768 → (Delay.store signal).toInt = -32768) ∧
@@ -209,12 +204,11 @@ private theorem delay_store_shrinks (signal : Int32) : (Delay.store signal).toIn
 private theorem delay_fetch_value (stored : Int16) : (Delay.fetch stored).toInt = stored.toInt := by
   unfold Delay.fetch; exact Int16.toInt_toInt32 stored
 
-/-- An echo going round the undriven line `n` times is at most its starting size times `(19/20)^n`, plus 20
-(the roundings of the hops, one each, kept below 20 by the same ratio), for every feedback setting; so
-however loud the echo started, after enough hops it is within 20 counts of silence (a count being 1/32768).
-Why it matters: the delay's tail ends. Full feedback is 0.95, not 1.0, and this says what that buys: the
-echoes cannot pile their rounding into a hum that never stops, and nothing a knob does can keep them alive.
-(The tone control only lowers each hop further.) -/
+/-- An echo going round the undriven line `n` times is at most its starting size times `(19/20)^n` plus 20
+(the roundings of the hops, one each, kept below 20 by the same ratio), for every feedback setting; after
+enough hops it is within 20 counts of silence (a count is 1/32768).
+Why it matters: the tail ends at every setting; rounding cannot accumulate into a hum. The tone control only
+lowers each hop further. -/
 theorem delay_echoes_die_away (echo feedback : Int32) (read : echo.toInt.natAbs ≤ 32768)
     (nonneg : 0 ≤ feedback.toInt) (unit : feedback.toInt ≤ 31129) (n : Nat) :
     (Delay.hops echo feedback n).toInt.natAbs * 20 ^ n ≤ echo.toInt.natAbs * 19 ^ n + 20 * 20 ^ n := by

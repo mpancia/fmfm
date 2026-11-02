@@ -47,8 +47,8 @@ private theorem filters_setup_index_of (p : Int32) (lo : 0 ≤ p.toInt) (hi : p.
 
 /-- The swarm's high-pass reads two neighbouring entries of the 257-entry cutoff table, both inside it, for
 every pitch and parameter.
-Why it matters: the cutoff pitch is the oscillator's pitch moved by the parameter, which can run far past the
-table; the clamp in `swarmHpCutoff` is what keeps the read inside, and this shows it does. -/
+Why it matters: the cutoff pitch is the oscillator's pitch plus the parameter, which can run far past the
+table; the clamp in `swarmHpCutoff` keeps the read inside. -/
 theorem filters_setup_cutoff_in_table (pitch parameter : Int32) :
     (Analog.tableIndex ((FiltersSetup.swarmHpCutoff pitch parameter).toUInt32 <<< 17)).toNat ≤ 255 ∧
       (Analog.tableIndex ((FiltersSetup.swarmHpCutoff pitch parameter).toUInt32 <<< 17) + 1).toNat ≤ 256 := by
@@ -97,9 +97,8 @@ private theorem filters_setup_index_lt (phase : UInt32) : (Analog.tableIndex pha
 
 /-- A table of 16-bit entries that rise from one to the next across its 257 entries and never pass `top` (at
 most 32767) blends to a value at most `top` at any phase (`Digital.lutAt`).
-Why it matters: a cutoff or damping coefficient read this way is a positive value no larger than the table's
-top entry, which is the range the filters' sample theorems take for it; the cut to 16 bits inside the blend
-changes nothing. -/
+Why it matters: a cutoff or damping coefficient read this way is between 0 and the table's top entry, the
+range the filters' sample theorems assume; the cut to 16 bits inside the blend changes nothing. -/
 theorem filters_setup_table_blend_le_top (table : UInt32 → UInt16) (phase : UInt32) (top : Nat)
     (rising : ∀ i : UInt32, i.toNat < 256 → table i ≤ table (i + 1)) (bounded : ∀ i, (table i).toNat ≤ top)
     (small : top ≤ 32767) :
@@ -122,8 +121,8 @@ theorem filters_setup_table_blend_le_top (table : UInt32 → UInt16) (phase : UI
 
 /-- The swarm's high-pass coefficient is between 0 and 25078. The cutoff table's entries rise from one to the
 next and the top one is 25078 (`Proofs/BraidsData.lean`, checked against `resources.cc`).
-Why it matters: the coefficient multiplies the filter's band-pass state on every sample; a positive 15-bit
-coefficient is the range that keeps that product in step with the original's. -/
+Why it matters: the coefficient multiplies the band-pass state on every sample; a positive 15-bit coefficient
+keeps that product in step with the original. -/
 theorem filters_setup_cutoff_in_range (pitch parameter : Int32) :
     0 ≤ (FiltersSetup.swarmCutoff pitch parameter).toInt ∧
       (FiltersSetup.swarmCutoff pitch parameter).toInt ≤ 25078 := by

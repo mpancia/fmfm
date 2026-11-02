@@ -25,9 +25,9 @@ private theorem filters_saw_bound (p : UInt32) :
     · simp at h ⊢; omega
   omega
 
-/-- The sum of the swarm's seven saws lies between -28672 and 28665, whatever the phases.
-Why it matters: the sum is handed to the overdrive shaper offset by 32768 with no mask, so this is what keeps
-that read inside the shaper's 257 entries (`tables_shape_reads_inside_257`). -/
+/-- The sum of the swarm's seven saws lies between -28672 and 28665 at any phases.
+Why it matters: the sum is offset by 32768 and read from the overdrive shaper with no mask; this keeps the
+read inside its 257 entries (`tables_shape_reads_inside_257`). -/
 theorem filters_swarm_sum_range (p0 p1 p2 p3 p4 p5 p6 : UInt32) :
     -28672 ≤ (Filters.swarmSum p0 p1 p2 p3 p4 p5 p6).toInt ∧
       (Filters.swarmSum p0 p1 p2 p3 p4 p5 p6).toInt ≤ 28665 := by
@@ -41,7 +41,7 @@ theorem filters_swarm_sum_range (p0 p1 p2 p3 p4 p5 p6 : UInt32) :
 
 /-- A harmonic's amplitude moves toward its target and never passes it (shown for an amplitude below its
 target; the other direction is symmetric), for values within a quarter of the 32-bit range.
-Why it matters: when a harmonic is told to fade, it fades monotonically; it cannot overshoot and ring. -/
+Why it matters: a fading harmonic cannot overshoot. -/
 theorem filters_harmonic_glide_approaches (amplitude target : Int32)
     (lo : -1073741824 < amplitude.toInt) (hi : target.toInt ≤ 1073741824)
     (order : amplitude.toInt ≤ target.toInt) :
@@ -118,8 +118,7 @@ private theorem filters_small_toInt32 (x : UInt32) (below : x.toNat < 2 ^ 31) :
   · simp at below ⊢; omega
 
 /-- The saw swarm's high-pass writes exactly its clipped output, between -32767 and 32767.
-Why it matters: the swarm's final sample is limited by the clip and only the clip; a resonance peak can never
-wrap around into a click. -/
+Why it matters: the swarm's sample is limited by the clip only; a resonance peak cannot wrap. -/
 theorem filters_swarm_filter_never_wraps (sample f damp bp lp : Int32) :
     (Filters.swarmFilter sample f damp bp lp).out.toInt =
       (Digital.clip ((sample - ((bp * damp) >>> 15)) - Digital.clip (lp + ((f * bp) >>> 15)))).toInt ∧
@@ -157,10 +156,10 @@ private theorem filters_lifted_cancels (P : Int) (lo : 0 ≤ P) (hi : P ≤ 4294
     omega
 
 /-- The windowed carrier of the digital filter engines is the exact product the formula means, for a 16-bit
-carrier and a window of 0 to 65535. In the low-pass and peak types the product can pass 2^31 and wrap (Braids'
-C++ does the same); the read as a 16-bit value cancels the wrap exactly.
-Why it matters: the saw or triangle voice of the digital filter engines never puts out a wrapped value, at any
-pitch, cutoff or window position; the overflow in the original is proved harmless rather than assumed. -/
+carrier and a window of 0 to 65535. In the low-pass and peak types the product can pass 2^31 and wrap
+(Braids' C++ does the same); the read as a 16-bit value cancels the wrap exactly.
+Why it matters: the digital filter engines never write a wrapped carrier; the overflow in the original is
+proved harmless. -/
 theorem filters_windowed_carrier_never_wraps (carrier window : Int32) (filterType : UInt8)
     (carrier16 : -32768 ≤ carrier.toInt ∧ carrier.toInt ≤ 32767)
     (window16 : 0 ≤ window.toInt ∧ window.toInt ≤ 65535) :
@@ -236,9 +235,9 @@ private theorem filters_vosim_centre (v : Int32) (hv : 0 ≤ v.toInt ∧ v.toInt
   rw [this]
   exact ⟨Int.bmod_eq_of_le (by omega) (by omega), by omega, by omega⟩
 
-/-- Vosim writes exactly its windowed formant sum, centred on zero: the two formants under the bell window
-never pass 49150 before the centring, so nothing wraps, at any pitch or formant setting.
-Why it matters: vosim cannot click from an overflow, whatever the two formant frequencies are. -/
+/-- Vosim writes exactly its windowed formant sum, centred on zero; the two formants under the bell window
+never pass 49150 before the centring, so nothing wraps at any pitch or formant setting.
+Why it matters: vosim cannot overflow for any formant frequencies. -/
 theorem filters_vosim_never_wraps (phase inc formant0 formant1 inc0 inc1 : UInt32) (sync : UInt8) :
     (Filters.vosim phase inc formant0 formant1 inc0 inc1 sync).out.toInt =
       (if (if sync != 0 then 0 else phase + inc) < inc then (0 : Int32) else
@@ -270,8 +269,7 @@ theorem filters_vosim_never_wraps (phase inc formant0 formant1 inc0 inc1 : UInt3
 
 /-- The harmonics engine writes exactly its clipped sum, and the in-between sample exactly the average of that
 with the last sample.
-Why it matters: adding the harmonics is limited by the clip and only the clip, and the half-rate smoothing
-cannot wrap, so the engine cannot click from an overflow. -/
+Why it matters: the sum is limited by the clip only and the half-rate smoothing cannot wrap. -/
 theorem filters_harmonics_never_wraps (sum previous : Int32)
     (previous16 : -32768 ≤ previous.toInt ∧ previous.toInt ≤ 32767) :
     (Filters.harmonicsOut sum).toInt16.toInt = (Digital.clip sum).toInt ∧

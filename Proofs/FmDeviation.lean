@@ -238,10 +238,9 @@ private theorem fm_sine_add (a m : UInt32) :
   exact this
 
 /-- The sine is Lipschitz in the phase: between two phases it moves by at most two per position (2^15 phase
-units) crossed, counting one more for the partial positions at either end.
-Why it matters: the sine an operator reads cannot jump: a phase that moves by a small increment reads a value
-that moves by a bounded amount, which is what makes a modulator's output smooth and a carrier's frequency
-deviation bounded (`fm_modulator_slew`, `fm_carrier_frequency_deviation`). -/
+units) crossed, plus one more for the partial positions at either end.
+Why it matters: a bounded phase step reads a bounded change in value, which is what bounds a modulator's
+slew and a carrier's frequency deviation (`fm_modulator_slew`, `fm_carrier_frequency_deviation`). -/
 theorem fm_sine_lipschitz (a b : UInt32) (order : a.toNat ≤ b.toNat) :
     ((Fm.sineAt b).toInt - (Fm.sineAt a).toInt).natAbs ≤ 2 * ((b.toNat - a.toNat) / 2 ^ 15 + 1) := by
   have := fm_sine_walk a.toNat (b.toNat - a.toNat)
@@ -297,12 +296,11 @@ private theorem fm_scale_close (s s' : Int) (l d : Nat) (unit : l ≤ 65536) (cl
   omega
 
 /-- An unmodulated operator at increment `incM` and envelope `env` (at most one) changes by at most
-`2 (incM / 2^15 + 1) + 1` a sample: two per position its phase crosses, one for the envelope scaling's
-rounding. The phase wraps round the cycle as the engine's does; the sine is continuous across the wrap (both
-ends are zero), so the wrap costs nothing.
-Why it matters: a modulator's output moves slowly when its frequency is low and faster when it is high, in
-proportion to its increment: the slew is the modulator's frequency in disguise, which is what makes FM's
-frequency deviation proportional to the modulating frequency. -/
+`2 (incM / 2^15 + 1) + 1` a sample: two per position its phase crosses, one for the envelope rounding. The
+phase wraps round the cycle as the engine's does; the sine is continuous across the wrap (both ends are
+zero), so the wrap costs nothing.
+Why it matters: a modulator's slew is proportional to its increment, which is what makes FM's frequency
+deviation proportional to the modulating frequency. -/
 theorem fm_modulator_slew (p incM env : UInt32) (unit : env.toNat ≤ 2 ^ 24) (n : Nat) :
     ((Fm.operator (Fm.phaseAfter p incM (n + 1)) 0 env).toInt -
         (Fm.operator (Fm.phaseAfter p incM n) 0 env).toInt).natAbs ≤ 2 * (incM.toNat / 2 ^ 15 + 1) + 1 := by
@@ -310,14 +308,12 @@ theorem fm_modulator_slew (p incM env : UInt32) (unit : env.toNat ≤ 2 ^ 24) (n
   exact fm_scale_close _ _ _ _ (by omega) (fm_sine_add (Fm.phaseAfter p incM n) incM)
 
 /-- A carrier at increment `incC` pushed by a modulator (`Fm.push 0 out depth`, `out` the modulator's output
-at each sample): the push changes from one sample to the next by `depth` times the change in the modulator's
-output (as 32-bit numbers, modulo 2^32), so the carrier's pushed phase advances by `incC` plus that term;
-the change in the modulator's output is at most `2 (incM / 2^15 + 1) + 1` (`fm_modulator_slew`), so the
-change in the push, as an integer, is at most `depth` times that.
-Why it matters: the carrier's instantaneous frequency is its own increment plus `depth` times the modulator's
-slew, so the peak frequency deviation is at most `depth (2 (incM / 2^15 + 1) + 1)` phase units a sample:
-proportional to the modulation index times the modulator's frequency, the half of Carson's rule that says how
-wide a shape's spectrum can get for a given depth and ratio. -/
+each sample): the push changes from one sample to the next by `depth` times the change in `out` (modulo
+2^32), so the pushed phase advances by `incC` plus that term; the change in `out` is at most
+`2 (incM / 2^15 + 1) + 1` (`fm_modulator_slew`), so the change in the push, as an integer, is at most
+`depth` times that.
+Why it matters: the carrier's peak frequency deviation is at most `depth (2 (incM / 2^15 + 1) + 1)` phase
+units a sample, proportional to modulation index times modulator frequency, as Carson's rule says. -/
 theorem fm_carrier_frequency_deviation (c incC p incM env depth : UInt32) (unit : env.toNat ≤ 2 ^ 24)
     (n : Nat) :
     let out := fun k => Fm.operator (Fm.phaseAfter p incM k) 0 env

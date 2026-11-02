@@ -37,7 +37,7 @@ private theorem noise_setup_small_toInt32 (x : UInt32) (below : x.toNat < 2 ^ 31
   · simp at below ⊢; omega
 
 /-- The filtered noise's cutoff, damping and scale read two neighbouring entries of their 257-entry tables,
-both inside, for any pitch and parameter: the top byte of the shifted value is the index.
+both inside, for any pitch and parameter; the index is the top byte of the shifted value.
 Why it matters: the three tables are C data read without a check, and the pitch can be any 16-bit value. -/
 theorem noise_setup_cutoff_in_table (pitch param0 : Int16) :
     (Analog.tableIndex (pitch.toInt32.toUInt32 <<< 17) + 1).toNat ≤ 256 ∧
@@ -65,8 +65,8 @@ private theorem noise_setup_quotient_range (scale f : Int32) (nonneg : 0 ≤ sca
     Int.bmod_eq_of_le (by omega) (by omega)]
   exact ⟨lo, hi⟩
 
-/-- The filtered noise's gain correction is between 0 and 32767, which the sample theorem
-`noise_corrected_never_wraps` takes as a hypothesis.
+/-- The filtered noise's gain correction is between 0 and 32767, the hypothesis of
+`noise_corrected_never_wraps`.
 Why it matters: the correction multiplies every sample; above 32767 the product could leave 32 bits. -/
 theorem noise_setup_gain_correction_in_range (pitch param0 : Int16) :
     0 ≤ (NoiseSetup.gainCorrection pitch param0).toInt ∧
@@ -114,9 +114,9 @@ theorem noise_setup_grain_rate_bounded (param0 : Int16) :
 
 /-- After the setup, a grain's rate is at most 2^18 and its envelope will not pass 2^24 + 2^22 within the
 block's 16 samples, given a block that started that way (the first block starts at 0).
-Why it matters: these are the two hypotheses `noise_grain_envelope_index_in_table` takes, so with this the
-grain's envelope reads stay inside their table from the first block on. A grain that has ended but does not
-restart keeps its envelope, which is why the bound carries the whole block's advance. -/
+Why it matters: these are the two hypotheses of `noise_grain_envelope_index_in_table`, so the envelope reads
+stay inside their table from the first block on. A grain that has ended but does not restart keeps its
+envelope, so the bound carries the whole block's advance. -/
 theorem noise_setup_grain_reset (envelope envInc word : UInt32) (param0 : Int16)
     (settled : envelope.toNat ≤ 2 ^ 24 + 2 ^ 22) (slow : envInc.toNat ≤ 2 ^ 18) :
     (NoiseSetup.grainRateStart envelope envInc word param0).toNat ≤ 2 ^ 18 ∧
@@ -161,9 +161,8 @@ private theorem noise_setup_steps_range (prev1 : Int16) (nonneg : 0 ≤ prev1.to
     omega
 
 /-- The clocked noise's quantization step is between 2048 and 32768 for any held parameter from 0 to 32767.
-Why it matters: the loop reduces every random value modulo this step (`Noise.clocked`); a step of 0 would be a
-division by zero in C and a silent 0 in Lean, and it cannot happen because the setup never asks for fewer
-than 2 steps. -/
+Why it matters: the loop reduces every random value modulo this step (`Noise.clocked`); a step of 0 would be
+a division by zero in C, and the setup never asks for fewer than 2 steps. -/
 theorem noise_setup_clock_period_positive (prev1 : Int16) (nonneg : 0 ≤ prev1.toInt) :
     2048 ≤ (NoiseSetup.quantizerDivider prev1).toNat ∧ (NoiseSetup.quantizerDivider prev1).toNat ≤ 32768 := by
   have ⟨lo, hi⟩ := noise_setup_steps_range prev1 nonneg

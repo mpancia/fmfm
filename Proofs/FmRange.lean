@@ -25,8 +25,8 @@ private theorem fm_range_product (voiceInc ratio : UInt32) :
 
 /-- The cap is a saturation of the exact value: the increment is the product shifted by eight, or half a
 cycle, whichever is smaller.
-Why it matters: above the keyboard an operator holds at Nyquist instead of wrapping to a wrong pitch, and
-below it nothing is lost; this is the one shape the arithmetic can take. -/
+Why it matters: above the keyboard an operator holds at Nyquist instead of wrapping to a wrong pitch;
+below it nothing is lost. -/
 theorem fm_cap_is_a_hold (voiceInc ratio : UInt32) :
     (Fm.increment voiceInc ratio).toNat = min (voiceInc.toNat * ratio.toNat / 256) (2 ^ 31) := by
   have exact := fm_range_product voiceInc ratio
@@ -42,10 +42,10 @@ theorem fm_cap_is_a_hold (voiceInc ratio : UInt32) :
     rw [lit, exact] at this
     rw [UInt64.toNat_toUInt32, exact, Nat.mod_eq_of_lt (by omega), Nat.min_eq_left (by omega)]
 
-/-- Below the cap the increment is the exact product shifted by eight: a product below 2^39 shifts to below
-2^31, so neither the hold nor the narrowing to 32 bits changes it.
-Why it matters: an operator's pitch is exactly the voice's times the shape's ratio whenever the product is
-small enough, with no rounding beyond the Q8 shift. -/
+/-- Below the cap the increment is the exact product shifted by eight: a product below 2^39 shifts to
+below 2^31, so neither the hold nor the narrowing to 32 bits changes it.
+Why it matters: an operator's pitch is exactly the voice's times the shape's ratio, with no rounding
+beyond the Q8 shift. -/
 theorem fm_increment_exact_below_cap (voiceInc ratio : UInt32)
     (small : voiceInc.toNat * ratio.toNat < 2 ^ 39) :
     (Fm.increment voiceInc ratio).toNat = voiceInc.toNat * ratio.toNat / 256 := by
@@ -222,13 +222,12 @@ private theorem fm_range_keyboard_increment (note : Nat) (low : note ≤ 88) :
         (by rw [succ]; omega)
       omega
 
-/-- Across the keyboard, MIDI notes 0 to 88 (up to E6, 1319 Hz), every operator's increment is the exact
-product of the voice's increment and its shape's ratio, shifted by eight: the Nyquist cap never engages. The
-voice's increment is `Pitch.phaseIncrement` at the note's pitch (`note * 128`, in 1/128 semitones), which is
-below 2^27 there, and every shape's ratio is at most 16.0 (`fm_shapes_in_range`), so the product is below
-2^39.
-Why it matters: every FM shape's ratios are exact across the playable keyboard, so what the tables say is
-what sounds; above it (`fm_cap_is_a_hold`) the engine saturates at Nyquist rather than aliasing. -/
+/-- For MIDI notes 0 to 88 (up to E6, 1319 Hz) every operator's increment is the exact product of the
+voice's increment and its shape's ratio, shifted by eight; the Nyquist cap never engages. The voice's
+increment is `Pitch.phaseIncrement` at `note * 128` (1/128 semitones), below 2^27 there, and every ratio is
+at most 16.0 (`fm_shapes_in_range`), so the product is below 2^39.
+Why it matters: every FM shape's ratios are exact across the playable keyboard; above it the engine
+saturates at Nyquist (`fm_cap_is_a_hold`). -/
 theorem fm_no_cap_on_the_keyboard (note : Nat) (shape op : UInt32) (low : note ≤ 88) :
     (Fm.increment (Pitch.phaseIncrement (note * 128 : Nat).toInt16) (Fm.ratio shape op)).toNat =
       (Pitch.phaseIncrement (note * 128 : Nat).toInt16).toNat * (Fm.ratio shape op).toNat / 256 := by

@@ -122,9 +122,9 @@ private theorem percussion_uint32_toInt32_toInt (x : UInt32) (below : x.toNat < 
   · simp
   · simp at below ⊢; omega
 
-/-- Between hits, an exciter's pulse only decays: it stays at or below where it was, and never below zero.
-The pulse is at most 2^19 (the loudest strike is 15 times 32768) and the decay at most 4096 (one, in 12 bits).
-Why it matters: a drum hit dies away; the exciter cannot grow on its own or swing negative. -/
+/-- Between hits an exciter's pulse stays at or below where it was and never below zero, for a pulse at most
+2^19 (the loudest strike is 15 times 32768) and a decay at most 4096 (one, in 12 bits).
+Why it matters: the exciter cannot grow on its own or go negative. -/
 theorem percussion_excite_decays (state decay counter level : Int32)
     (nonneg : 0 ≤ state.toInt) (small : state.toInt ≤ 524288) (gentle : 0 ≤ decay.toInt ∧ decay.toInt ≤ 4096)
     (quiet : counter.toInt ≠ 1) :
@@ -167,11 +167,10 @@ theorem percussion_excite_decays (state decay counter level : Int32)
   rw [percussion_uint32_toInt32_toInt _ (by omega), shifted]
   omega
 
-/-- Between blocks a partial only fades: its new amplitude is at least zero and at most what it was, for an
-amplitude up to 32767, decays up to 65535 (the short one at most the long one) and any setting from 0 to
-32767.
-Why it matters: a bell or drum partial dies away; the decay cannot make it louder or flip its sign, and so the
-amplitudes stay within the range the partial arithmetic is proved for. -/
+/-- Between blocks a partial's new amplitude is at least zero and at most what it was, for an amplitude up to
+32767, decays up to 65535 (the short one at most the long one) and any setting from 0 to 32767.
+Why it matters: the decay cannot make a partial louder or flip its sign, so amplitudes stay in the range
+the partial arithmetic is proved for. -/
 theorem percussion_decay_never_grows (amplitude decayLong decayShort parameter : Int32)
     (amplitudeFits : 0 ≤ amplitude.toInt ∧ amplitude.toInt ≤ 32767)
     (decayFits : 0 ≤ decayShort.toInt ∧ decayShort.toInt ≤ decayLong.toInt ∧ decayLong.toInt ≤ 65535)
@@ -230,7 +229,7 @@ theorem percussion_decay_never_grows (amplitude decayLong decayShort parameter :
 
 /-- A bell partial's share of the sample is exact: the sine at its new phase times its amplitude, divided by
 131072, for an amplitude from 0 to 32767 (Braids' bell partials start at most at 21872 and only decay).
-Why it matters: eleven of these are added for every sample of a bell; a wrapped share would be a click. -/
+Why it matters: eleven of these are added every sample of a bell; a wrapped share would be a click. -/
 theorem percussion_bell_partial_never_wraps (phase inc : UInt32) (amplitude : Int32)
     (amplitudeFits : 0 ≤ amplitude.toInt ∧ amplitude.toInt ≤ 32767) :
     (Percussion.bellPartial phase inc amplitude).contribution.toInt =
@@ -242,10 +241,10 @@ theorem percussion_bell_partial_never_wraps (phase inc : UInt32) (amplitude : In
     (by omega)
   rw [percussion_shift_seventeen, percussion_mul_exact _ _ (by omega)]
 
-/-- A drum partial's share of the sample is exact: its amplitude moves from `amplitude` toward `target` by
+/-- A drum partial's share of the sample is exact: the amplitude moves from `amplitude` toward `target` by
 `fade` parts in 32768, and the sine at its new phase times that, divided by 65536, is the share. Holds for
 amplitudes from 0 to 32767 (Braids' drum partials start at most at 16986) and a fade from 0 to 32768.
-Why it matters: six of these are added for every sample of a drum; a wrapped share would be a click. -/
+Why it matters: six of these are added every sample of a drum; a wrapped share would be a click. -/
 theorem percussion_drum_partial_never_wraps (phase inc : UInt32) (amplitude target fade : Int32)
     (amplitudeFits : 0 ≤ amplitude.toInt ∧ amplitude.toInt ≤ 32767)
     (targetFits : 0 ≤ target.toInt ∧ target.toInt ≤ 32767) (fadeFits : 0 ≤ fade.toInt ∧ fade.toInt ≤ 32768) :
@@ -270,10 +269,10 @@ theorem percussion_drum_partial_never_wraps (phase inc : UInt32) (amplitude targ
   rw [percussion_shift_sixteen, percussion_mul_exact _ _ (by rw [a]; omega), a]
 
 /-- The snare's sample is exact: the two filtered exciters, each with a sixteenth of its raw pulse, at their
-gains, plus the filtered noise, held between -32767 and 32767. Holds for 16-bit filter outputs and noise, a
-first pulse within 2^19 and a second within 2^18 (Braids strikes them at 15 times 32768 and at 13107) and
-the gains Braids uses (22000 minus and plus half the first parameter).
-Why it matters: the snare adds three loud signals; this says the sum is clipped, not wrapped. -/
+gains, plus the filtered noise, clipped to ±32767. Holds for 16-bit filter outputs and noise, a first pulse
+within 2^19 and a second within 2^18 (Braids strikes them at 15 times 32768 and at 13107) and the gains
+Braids uses (22000 minus and plus half the first parameter).
+Why it matters: the sum of three loud signals clips, not wraps. -/
 theorem percussion_snare_never_wraps (filtered1 excitation1 filtered2 excitation2 noise g1 g2 : Int32)
     (filtered1Fits : filtered1.toInt.natAbs ≤ 32767) (excitation1Fits : excitation1.toInt.natAbs ≤ 2 ^ 19)
     (filtered2Fits : filtered2.toInt.natAbs ≤ 32767) (excitation2Fits : excitation2.toInt.natAbs ≤ 2 ^ 18)
@@ -307,10 +306,10 @@ theorem percussion_snare_never_wraps (filtered1 excitation1 filtered2 excitation
   rw [percussion_keep16 _ (by rw [percussion_clip_value]; omega) (by rw [percussion_clip_value]; omega),
     percussion_clip_value, sum, p1, p2]
 
-/-- The cymbal's sample is exact: the metallic and white noises each held between -32767 and 32767, then the
-blend from the first toward the second by `xfade` parts in 32768, which lands between them and so fits 16
-bits. The product inside sits at the very edge of 32 bits (65534 times 32767) and never crosses it.
-Why it matters: the cymbal's blend is its sample; it cannot wrap at any blend setting. -/
+/-- The cymbal's sample is exact: the metallic and white noises each clipped to ±32767, then the blend from
+the first toward the second by `xfade` parts in 32768, which lands between them and fits 16 bits. The
+product inside reaches at most 65534 times 32767 and stays inside 32 bits.
+Why it matters: the cymbal's blend cannot wrap at any blend setting. -/
 theorem percussion_cymbal_never_wraps (metal white xfade : Int32)
     (xfadeFits : 0 ≤ xfade.toInt ∧ xfade.toInt ≤ 32767) :
     (Percussion.cymbalOut metal white xfade).toInt =
@@ -332,9 +331,9 @@ theorem percussion_cymbal_never_wraps (metal white xfade : Int32)
     rw [percussion_add_exact _ _ (by rw [percussion_shift_fifteen, p]; omega), percussion_shift_fifteen, p]
   rw [percussion_keep16 _ (by rw [sum]; omega) (by rw [sum]; omega), sum, cm, cw]
 
-/-- The drum's noise filter never runs away: when its three states are within 16384, so are the next three,
-for noise of any size and a cutoff from 0 to 32768.
-Why it matters: the filtered noise rings the drum's partials on every sample; a state that could grow would
+/-- The drum's noise filter's three states stay within 16384 from one sample to the next, for noise of any
+size and a cutoff from 0 to 32768.
+Why it matters: the filtered noise ring-modulates the drum's partials every sample; a growing state would
 wrap that product. -/
 theorem percussion_drum_noise_stays_bounded (noise lp0 lp1 lp2 f : Int32)
     (lp0Fits : lp0.toInt.natAbs ≤ 16384) (lp1Fits : lp1.toInt.natAbs ≤ 16384)
@@ -382,12 +381,12 @@ private theorem percussion_sum_four (p a b c : Int32) (pFits : p.toInt.natAbs �
   rw [percussion_add_exact _ _ (by rw [s2]; omega), s2]
 
 /-- The drum's sample is exact: the first partial, the second and fourth ring-modulated by the filtered noise
-at the noise gain, and all the partials at the harmonics gain, held between -32767 and 32767. Holds for a
-second partial within 2048 and a fourth within 4096 (Braids starts them at 2654 and 5308 and the sine halves
-that), the others within 16 bits, filtered noise within 16384, a noise gain from 0 to 12888 and a harmonics
-gain from 0 to 16983, which are the ranges Braids' drum sets (`percussion_setup_gains_in_range`).
-Why it matters: the ring modulation multiplies two signals and then a gain; with any louder partial it would
-pass 32 bits, so the bound on those two partials is what keeps the drum free of wraps. -/
+at the noise gain, and all partials at the harmonics gain, clipped to ±32767. Holds for a second partial
+within 2048 and a fourth within 4096 (Braids starts them at 2654 and 5308 and the sine halves that), the
+others within 16 bits, filtered noise within 16384, a noise gain from 0 to 12888 and a harmonics gain from
+0 to 16983, the ranges Braids' drum sets (`percussion_setup_gains_in_range`).
+Why it matters: the ring modulation multiplies two signals and a gain; a louder second or fourth partial
+would pass 32 bits. -/
 theorem percussion_drum_mix_never_wraps
     (partial0 partial1 partial3 harmonics lp2 noiseGain harmonicsGain : Int32)
     (partial0Fits : partial0.toInt.natAbs ≤ 32768) (partial1Fits : partial1.toInt.natAbs ≤ 2048)

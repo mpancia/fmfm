@@ -78,8 +78,8 @@ private theorem quantizer_search_finds (mask note : Nat) :
       obtain ⟨f, low', high', found⟩ := ih (dist + 1) ⟨e, later, by omega, hit⟩
       exact ⟨f, by omega, by omega, found⟩
 
-/-- A note that is already in the scale stays as it is.
-Why it matters: quantizing a melody that is already in key changes nothing, so it can be repeated. -/
+/-- A note already in the scale is unchanged by `snap`.
+Why it matters: quantizing an in-key melody changes nothing. -/
 theorem quantizer_snap_keeps_scale_notes (mask note : Nat) (inside : Quantizer.inScale mask note = true) :
     Quantizer.snap mask note = note := by
   unfold Quantizer.snap Quantizer.search Quantizer.at
@@ -101,16 +101,16 @@ private theorem quantizer_snap_found (mask note : Nat) (small : mask < 4096) (no
   obtain ⟨e, _, high, found⟩ := quantizer_search_finds mask note 7 0 hit
   exact ⟨e, by omega, found⟩
 
-/-- `snap` gives a note of the scale, as long as the scale has at least one note and the note is at least 6
-(so a search 6 semitones down cannot run off the bottom).
-Why it matters: the melody can never play a note outside the key you chose. -/
+/-- `snap` gives a note of the scale, for a non-empty 12-bit mask and a note of at least 6 (so the 6-semitone
+search down cannot run off the bottom).
+Why it matters: the lane never plays a note outside the chosen key. -/
 theorem quantizer_snap_in_scale (mask note : Nat) (small : mask < 4096) (notEmpty : mask ≠ 0)
     (low : 6 ≤ note) : Quantizer.inScale mask (Quantizer.snap mask note) = true := by
   obtain ⟨_, _, _, inside⟩ := quantizer_snap_found mask note small notEmpty low
   exact inside
 
-/-- `snap` never moves a note more than 6 semitones (same conditions as above).
-Why it matters: quantizing keeps the shape of the melody; no note jumps by an octave. -/
+/-- `snap` moves a note at most 6 semitones (same conditions as above).
+Why it matters: quantizing keeps the shape of the melody. -/
 theorem quantizer_snap_is_near (mask note : Nat) (small : mask < 4096) (notEmpty : mask ≠ 0)
     (low : 6 ≤ note) : Quantizer.snap mask note ≤ note + 6 ∧ note ≤ Quantizer.snap mask note + 6 := by
   obtain ⟨dist, near, ⟨moved, _⟩⟩ := quantizer_snap_found mask note small notEmpty low
@@ -184,12 +184,9 @@ private theorem quantizer_monotone_step (mask a : Nat) (small : mask < 4096) (no
     ((a - 6) % 12 + 6 + 1) + 12 * ((a - 6) / 12) by omega, quantizer_snap_octaves mask _ (by omega)]
   omega
 
-/-- The quantizer never inverts an interval: of two notes at least 6, the higher never snaps below where the
-lower snaps, for every non-empty scale.
-Why it matters: UP goes up, DOWN goes down and a WALK keeps its direction after the snap to the scale;
-quantising can merge two notes onto one scale note, but it cannot swap their order and turn a rising line
-into a falling one. (Notes of at least 6 only, as the other snap theorems: below that the search cannot look
-a full six semitones down.) -/
+/-- `snap` is monotone: for two notes of at least 6 and a non-empty mask, the higher never snaps below the
+lower (same conditions as the other snap theorems).
+Why it matters: quantizing can merge two notes onto one scale note but cannot reverse a line's direction. -/
 theorem quantizer_snap_monotone (mask a b : Nat) (small : mask < 4096) (notEmpty : mask ≠ 0) (low : 6 ≤ a)
     (order : a ≤ b) : Quantizer.snap mask a ≤ Quantizer.snap mask b := by
   obtain ⟨d, rfl⟩ : ∃ d, b = a + d := ⟨b - a, by omega⟩

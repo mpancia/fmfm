@@ -11,9 +11,9 @@ private theorem swing_first_value (s : UInt32) :
   simp only [UInt32.toNat_add, UInt32.toNat_div, UInt32.toNat_mul, UInt32.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
   rw [Nat.mod_eq_of_lt (by omega : 6666 * (min s 100).toNat < 4294967296), Nat.mod_eq_of_lt (by omega)]
 
-/-- Every tick is between a third and five thirds of a straight tick, at every swing setting.
-Why it matters: swing can never make a tick vanish (a zero-length tick would fire two steps at once) or
-stretch one past the next eighth. -/
+/-- Every tick is between 1/3 and 5/3 of a straight tick, at every swing setting.
+Why it matters: swing cannot make a tick vanish (two steps firing at once) or stretch one past the next
+eighth. -/
 theorem swing_tick_in_range (phase swing : UInt32) :
     3334 ≤ (Swing.tickLength phase swing).toNat ∧ (Swing.tickLength phase swing).toNat ≤ 16666 := by
   unfold Swing.tickLength
@@ -25,11 +25,10 @@ theorem swing_tick_in_range (phase swing : UInt32) :
     simp only [UInt32.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
     omega
 
-/-- A tick of the first eighth and a tick of the second add up to exactly two straight ticks, so the twelve
-ticks of a pair of eighths take exactly 24 straight ticks, whatever the swing.
-Why it matters: swing moves notes inside each pair of eighths and nothing else: a bar is as long as it was,
-the four lanes stay in phase with each other and with a MIDI clock, and `run_clock_never_drifts` still holds
-for the swung clock, tick for tick. -/
+/-- A tick of the first eighth plus a tick of the second is exactly two straight ticks, so a pair of eighths
+(12 ticks) takes exactly 24 straight ticks at any swing.
+Why it matters: swing only moves notes within each pair of eighths; bar length and lane phase are
+unchanged. -/
 theorem swing_keeps_time (phase swing : UInt32) (first : phase.toNat < 12) :
     (Swing.tickLength phase swing).toNat + (Swing.tickLength (phase + 12) swing).toNat = 20000 := by
   unfold Swing.tickLength
@@ -64,11 +63,9 @@ private theorem swing_every_quarter_exact :
         = 240000 := by
   decide +kernel
 
-/-- A quarter note under swing is exactly 24 straight ticks long, at every setting, and every tick inside
-it starts strictly after the one before (each is at least 3334).
-Why it matters: swing is a feel, not a tempo change: a quarter note, a bar and a song take the time the
-TEMPO knob says, a MIDI clock sent out would stay in step with one received, and no two ticks can fall
-together. -/
+/-- A swung quarter note is exactly 24 straight ticks long at every setting, and each tick inside it is at
+least 3334 long, so ticks never coincide.
+Why it matters: swing does not change the tempo, and an outgoing MIDI clock stays in step. -/
 theorem swing_quarter_note_exact (swing : UInt32) :
     (List.range 24).foldl (fun acc phase => acc + (Swing.tickLength phase.toUInt32 swing).toNat) 0 = 240000 ∧
       ∀ phase, 3334 ≤ (Swing.tickLength phase swing).toNat := by

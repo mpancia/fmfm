@@ -19,8 +19,8 @@ private theorem wavetables_crossfade_range (waveA waveB phase balance : UInt32) 
   simp [Int.bmod_def]
   split <;> omega
 
-/-- A wavetable sample is exactly the sum of its two half-rate readings, each halved: nothing wraps around.
-Why it matters: the wavetable engine cannot click from an overflow, for any waves, phase or morph position. -/
+/-- A wavetable sample is exactly the sum of its two half-rate readings, each halved; nothing wraps.
+Why it matters: the wavetable engine cannot overflow for any waves, phase or morph position. -/
 theorem wavetables_wavetable_never_wraps (phase inc waveA waveB balance : UInt32) (sync : UInt8) :
     (Wavetables.wavetable phase inc waveA waveB balance sync).out.toInt =
       (Wavetables.crossfade waveA waveB ((if sync != 0 then 0 else phase + inc) >>> 1) balance).toInt / 2 +
@@ -38,8 +38,8 @@ theorem wavetables_wavetable_never_wraps (phase inc waveA waveB balance : UInt32
   split <;> omega
 
 /-- A crossfade of two waves at the same phase lies between the two waves' values there, for any two waves.
-Why it matters: morphing between waves can never be louder than the louder wave, at any morph position, even
-where the two waves are far apart (where Braids' C++ product wraps; see `blend_sixteen_between`). -/
+Why it matters: morphing cannot exceed the louder wave, even where the waves are far apart and Braids' C++
+product wraps (`blend_sixteen_between`). -/
 theorem wavetables_crossfade_between_waves (waveA waveB phase balance : UInt32) :
     min (Wavetables.read waveA phase).toInt (Wavetables.read waveB phase).toInt ≤
         (Wavetables.crossfade waveA waveB phase balance).toInt ∧
@@ -99,11 +99,10 @@ private theorem wavetables_step (d f : Int) (hf : 0 ≤ f ∧ f ≤ 16777215) :
     rw [e] at l'
     exact ⟨l', Int.ediv_nonpos_of_nonpos_of_neg u (by decide)⟩
 
-/-- A wave read lies between the two bytes it blends (each byte scaled to 16 bits), for any wave and phase.
-The product inside wraps in 32 bits for steep waves (Braids' `wt_waves` has byte steps up to 253; the C++
-does the same), and the cut to 16 bits cancels the wrap exactly.
-Why it matters: a wave never puts out more than its bytes hold, and the overflow in the original is proved
-harmless rather than assumed. -/
+/-- A wave read lies between the two bytes it blends (each scaled to 16 bits), for any wave and phase. The
+product inside wraps in 32 bits for steep waves (Braids' `wt_waves` has byte steps up to 253; the C++ does
+the same), and the cut to 16 bits cancels the wrap exactly.
+Why it matters: a wave stays within its bytes' range; the overflow in the original is proved harmless. -/
 theorem wavetables_read_between_bytes (wave phase : UInt32) :
     min ((Wavetables.waveByte wave (Analog.tableIndex phase)).toNat * 256 - 32768 : Int)
         ((Wavetables.waveByte wave (Analog.tableIndex phase + 1)).toNat * 256 - 32768) ≤
@@ -186,10 +185,8 @@ private theorem wavetables_map_read_range (p w00 w01 w10 w11 xfadeX xfadeY : UIn
     (Wavetables.crossfade w10 w11 (p >>> 1) xfadeY) (xfadeX &&& 0xFFFF)
   omega
 
-/-- A wave map sample is exactly the sum of its two half-rate readings, each already halved: nothing wraps
-around.
-Why it matters: the wave map engine cannot click from an overflow, for any square of the map, phase or
-position inside the square. -/
+/-- A wave map sample is exactly the sum of its two half-rate readings, each already halved; nothing wraps.
+Why it matters: the wave map engine cannot overflow for any square, phase or position in the square. -/
 theorem wavetables_wave_map_never_wraps (phase inc w00 w01 w10 w11 xfadeX xfadeY : UInt32) (sync : UInt8) :
     (Wavetables.waveMap phase inc w00 w01 w10 w11 xfadeX xfadeY sync).out.toInt =
       (Wavetables.mapRead (if sync != 0 then 0 else phase + inc) w00 w01 w10 w11 xfadeX xfadeY).toInt +
@@ -214,9 +211,8 @@ private theorem wavetables_line_pair_range
   unfold Wavetables.linePair
   exact wavetables_mix_range _ _ _
 
-/-- A wave line sample is exactly the average of its two half steps: nothing wraps around.
-Why it matters: the wave line engine cannot click from an overflow, for any waves, masks, crossfades or
-balance. -/
+/-- A wave line sample is exactly the average of its two half steps; nothing wraps.
+Why it matters: the wave line engine cannot overflow for any waves, masks, crossfades or balance. -/
 theorem wavetables_wave_line_never_wraps
     (phase inc waveA waveB xfadeA stepA maskA waveC waveD xfadeB stepB maskB balance : UInt32)
     (sync : UInt8) :
@@ -253,9 +249,9 @@ private theorem wavetables_add_four (a b c d : Int32) (ha : -32768 ≤ a.toInt �
   rw [Int32.toInt_add, three]
   exact Int.bmod_eq_of_le (by omega) (by omega)
 
-/-- A paraphonic sample is exactly the sum of its four voices divided by four: nothing wraps around.
-Why it matters: four full-scale voices added in 32 bits stay far inside the range, so the chord engine cannot
-click from an overflow at any chord, phase or morph position. -/
+/-- A paraphonic sample is exactly the sum of its four voices divided by four; nothing wraps.
+Why it matters: four full-scale voices added in 32 bits stay far inside the range at any chord, phase or
+morph position. -/
 theorem wavetables_paraphonic_never_wraps (p0 p1 p2 p3 inc0 inc1 inc2 inc3 waveA waveB balance : UInt32) :
     (Wavetables.paraphonic p0 p1 p2 p3 inc0 inc1 inc2 inc3 waveA waveB balance).out.toInt =
       ((Wavetables.crossfade waveA waveB ((p0 + inc0) >>> 1) balance).toInt +

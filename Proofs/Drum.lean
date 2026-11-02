@@ -94,11 +94,11 @@ private theorem drum_orbit_checked :
     Drum.lfsrAfter 1 65535 = 1 ∧ Drum.orbitAvoids 1 1 65534 = true := by
   constructor <;> decide +kernel
 
-/-- The noise register from state 1 returns to 1 after exactly 65535 steps and at no step before: its period
-is 65535, every nonzero 16-bit state in one cycle (the taps are a primitive polynomial, checked by walking
-the whole orbit in the kernel).
-Why it matters: the noise behind the kick's click, the snare, the clap and the toms repeats only every 1.5
-seconds, far longer than any hit, so no drum has a pitch or a pattern in its noise. -/
+/-- The noise register from state 1 returns to 1 after exactly 65535 steps and not before: its period is
+65535, every nonzero 16-bit state (the taps are a primitive polynomial, checked by walking the orbit in the
+kernel).
+Why it matters: the noise behind the kick's click, the snare, the clap and the toms repeats only every
+1.5 s, longer than any hit. -/
 theorem drum_noise_period :
     Drum.lfsrAfter 1 65535 = 1 ∧ ∀ k, 0 < k → k < 65535 → Drum.lfsrAfter 1 k ≠ 1 :=
   ⟨drum_orbit_checked.1, fun k hk hlt => drum_orbit_sound 1 1 65534 drum_orbit_checked.2 k hk (by omega)⟩
@@ -113,10 +113,9 @@ private theorem drum_every_state :
         (Drum.lfsr (hi.val * 256 + lo.val).toUInt32).toNat < 65536 := by
   decide +kernel
 
-/-- A nonzero 16-bit noise state steps to a nonzero 16-bit state: the register never dies and never leaves
-its 16 bits, checked for every state.
-Why it matters: once seeded (the glue seeds it with 1 and never resets it) the noise runs for ever; a
-register stuck at zero would be a drum voice gone silent in its noise with no way back. -/
+/-- A nonzero 16-bit noise state steps to a nonzero 16-bit state, checked for every state.
+Why it matters: the glue seeds the register with 1 and never resets it; a register at zero would stay
+there. -/
 theorem drum_noise_never_dies (s : UInt32) (small : s.toNat < 65536) (live : s ≠ 0) :
     Drum.lfsr s ≠ 0 ∧ (Drum.lfsr s).toNat < 65536 := by
   have split : s.toNat / 256 * 256 + s.toNat % 256 = s.toNat := by
@@ -143,11 +142,10 @@ theorem drum_noise_in_range (s : UInt32) : (Drum.noise s).toInt.natAbs ≤ 32767
   omega
 
 /-- A one-pole step is exact, `y + (x - y) * a / 16384` rounded down, and lies between the state `y` and the
-input `x` (inclusive), for a coefficient from 0 to 16384 and signals within 65535; so the high-pass, what it
-leaves of the input, is within `|x| + |y|`, and nothing wraps on the way.
-Why it matters: a low-pass can never overshoot or ring, whatever its coefficient, so the filters in every
-shape keep their signals inside the bounds the gains and the mix need; and the high-pass built from it is
-bounded too, which is what lets six squares and a noise pass through two filters without a 32-bit wrap. -/
+input `x`, for a coefficient from 0 to 16384 and signals within 65535; so the high-pass (input minus
+low-pass) is within `|x| + |y|`, and nothing wraps.
+Why it matters: the low-pass cannot overshoot and the high-pass built from it is bounded, which is what
+lets six squares and a noise pass through two filters without a 32-bit wrap. -/
 theorem drum_one_pole_stays_between (y x a : Int32) (unit : 0 ≤ a.toInt ∧ a.toInt ≤ 16384)
     (xs : x.toInt.natAbs ≤ 65535) (ys : y.toInt.natAbs ≤ 65535) :
     (Drum.onePole y x a).toInt = y.toInt + (x.toInt - y.toInt) * a.toInt / 16384 ∧
@@ -192,9 +190,8 @@ theorem drum_one_pole_stays_between (y x a : Int32) (unit : 0 ≤ a.toInt ∧ a.
   · have := between.2 le; omega
 
 /-- The envelope one sample on is no higher, and no lower than 15/16 of itself less one count, for any rate
-below 65536 and any envelope up to one; rate 0 holds exactly; nothing wraps.
-Why it matters: a drum's envelope only ever falls, a sample cannot take more than a sixteenth of it, and
-a rate of 0 is a true hold: the tails are smooth exponentials and a part that has gone stays gone. -/
+below 65536 and envelope up to one; rate 0 holds exactly; nothing wraps.
+Why it matters: a drum's envelope only falls, by at most a sixteenth a sample, and rate 0 is a hold. -/
 theorem drum_envelope_only_falls (env rate : UInt32) (unit : env.toNat ≤ 2 ^ 24)
     (small : rate.toNat < 65536) :
     (Drum.envelope env rate).toNat ≤ env.toNat ∧
@@ -226,11 +223,11 @@ theorem drum_envelope_only_falls (env rate : UInt32) (unit : env.toNat ≤ 2 ^ 2
     rw [zero, UInt32.mul_zero, UInt32.zero_add, show ((4095 : UInt32) >>> 12) = 0 from by decide,
       UInt32.sub_zero]
 
-/-- The swept increment never goes below its target and never rises: from above it falls toward the target
-(a share `rate / 2^20` of the distance a sample), and at or below it sits on the target; for any increment
-below half a cycle a sample and any rate below 8192, nothing wraps.
-Why it matters: the kick's and toms' pitch sweeps land on the note and stay there, from a start up to five
-times above it, with no undershoot and no step: the drop is the clean exponential a drum's skin makes. -/
+/-- The swept increment never rises and never goes below its target: from above it falls by `rate / 2^20`
+of the distance a sample, at or below it stays on the target; for any increment below half a cycle a
+sample and any rate below 8192, nothing wraps.
+Why it matters: the kick's and toms' pitch sweeps land on the note with no undershoot, from a start up to
+five times above it. -/
 theorem drum_sweep_lands (inc target rate : UInt32) (nyquist : inc.toNat < 2 ^ 31)
     (small : rate.toNat < 8192) :
     (target ≤ inc → target ≤ Drum.sweep inc target rate ∧ Drum.sweep inc target rate ≤ inc) ∧
@@ -263,9 +260,9 @@ theorem drum_sweep_lands (inc target rate : UInt32) (nyquist : inc.toNat < 2 ^ 3
       · omega
       · rw [UInt32.le_iff_toNat_le, share]; omega
 
-/-- A sweep's start is below half a cycle a sample, whatever the tuning and the colour.
-Why it matters: `drum_sweep_lands` needs the swept increment under Nyquist, and the start is the highest
-it ever is; a note above the 1.4 kHz hold simply starts on its tuning. -/
+/-- A sweep's start is below half a cycle a sample for any tuning and colour.
+Why it matters: `drum_sweep_lands` needs the swept increment below Nyquist, and the start is its highest
+value; a note above the 1.4 kHz hold starts on its tuning. -/
 theorem drum_sweep_start_below_nyquist (target colour : UInt32) :
     (Drum.sweepStart target colour).toNat < 2 ^ 31 := by
   unfold Drum.sweepStart
@@ -286,22 +283,21 @@ theorem drum_sweep_start_below_nyquist (target colour : UInt32) :
     rw [UInt32.toNat_mul, top, Nat.mod_eq_of_lt]; omega
   rw [UInt32.toNat_add, prod, Nat.mod_eq_of_lt] <;> omega
 
-/-- Six squares of 5461 either way sum within 32766, for any six phases.
-Why it matters: the metal (the hi-hats and the cymbal) enters its filters as a signal in range, like a sine
-or the noise, so the same filter and gain bounds cover all three sources. -/
+/-- Six squares of ±5461 sum within 32766 for any six phases.
+Why it matters: the hi-hats and the cymbal enter their filters in the same range as a sine or the noise,
+so the same filter and gain bounds cover them. -/
 theorem drum_metal_sum_fits (p1 p2 p3 p4 p5 p6 : UInt32) :
     (Drum.metal p1 p2 p3 p4 p5 p6).toInt.natAbs ≤ 32766 := by
   simp only [Drum.metal, Drum.square]
   split <;> split <;> split <;> split <;> split <;> split <;> decide
 
-/-- A square is 5461 either way.
-Why it matters: the cowbell's two squares sum within 10922, well inside the bound the band needs. -/
+/-- A square is ±5461.
+Why it matters: the cowbell's two squares sum within 10922, inside the bound the band filter needs. -/
 theorem drum_square_in_range (phase : UInt32) : (Drum.square phase).toInt.natAbs ≤ 5461 := by
   unfold Drum.square; split <;> decide
 
 /-- A gain is at most its level, for any envelope up to one and level up to 32767.
-Why it matters: an envelope can only take from a level, never add to it, so a shape's loudest moment is its
-level table, and the shapes' levels are what `drum_output_never_wraps` relies on. -/
+Why it matters: a shape's loudest moment is its level table, which `drum_output_never_wraps` relies on. -/
 theorem drum_gain_never_amplifies (env level : UInt32) (unit : env.toNat ≤ 2 ^ 24)
     (lv : level.toNat ≤ 32767) : (Drum.gain env level).toNat ≤ level.toNat := by
   unfold Drum.gain
@@ -371,13 +367,12 @@ private theorem drum_band_states (input lp1 lp2 aH aL : Int32) (xs : input.toInt
   · have := second.2.1 le; omega
   · have := second.2.2.1 le; omega
 
-/-- Six squares through the band and the gain: the sum is within 32766 (`drum_metal_sum_fits`), the first
-low-pass state stays within 32767, the high-pass within 65534, the second low-pass within 65535, and the
-gained output within 262140, for filter coefficients from 0 to 16384 (Q14) and a gain up to 32767 (Q13):
-no stage wraps, and the states handed to the next sample satisfy the same bounds.
-Why it matters: the hi-hats and the cymbal are six squares and two filters a sample, the most arithmetic of
-any shape, and every intermediate is accounted for: the metal cannot blow up its own filters however the
-colour sets the band. -/
+/-- Six squares through the band filter and the gain: the sum is within 32766 (`drum_metal_sum_fits`), the
+first low-pass state within 32767, the high-pass within 65534, the second low-pass within 65535 and the
+gained output within 262140, for filter coefficients from 0 to 16384 (Q14) and a gain up to 32767 (Q13);
+no stage wraps and the states handed on satisfy the same bounds.
+Why it matters: the hi-hats and the cymbal are the most arithmetic of any shape, and no colour setting can
+overflow their filters. -/
 theorem drum_metal_chain_bounded (p1 p2 p3 p4 p5 p6 : UInt32) (lp1 lp2 aH aL : Int32) (gain : UInt32)
     (l1 : lp1.toInt.natAbs ≤ 32767) (l2 : lp2.toInt.natAbs ≤ 65535)
     (h : 0 ≤ aH.toInt ∧ aH.toInt ≤ 16384) (l : 0 ≤ aL.toInt ∧ aL.toInt ≤ 16384) (g : gain.toNat ≤ 32767) :
@@ -391,13 +386,12 @@ theorem drum_metal_chain_bounded (p1 p2 p3 p4 p5 p6 : UInt32) (lp1 lp2 aH aL : I
   exact ⟨fits, states.1, states.2.2, drum_scale_bounded _ _ states.2.2 g⟩
 
 /-- Every shape's mix, as `voices/drum_glue.c` composes it, is exact and within 524280 (under 2^19), for
-filter states within their bounds (a first stage within 32767, a second within 65535), coefficients from 0
-to 16384 and gains up to 32767: the kick and the toms (`Drum.tunedOut`), the snare (`Drum.snareOut`), the
-clap (`Drum.clapOut`), the hi-hats and the cowbell (`Drum.bandOut`, with `drum_metal_chain_bounded` and
-`drum_square_in_range`) and the cymbal (`Drum.cymbalOut`); and the sample out is the mix held to 16 bits,
-unchanged when the mix is already within 32767.
-Why it matters: whatever the knobs, the note and the phases, no drum's arithmetic ever wraps: the loudest
-a shape can be is a flat top at full scale, never a sign flip. -/
+filter states within their bounds (first stage within 32767, second within 65535), coefficients from 0 to
+16384 and gains up to 32767: the kick and toms (`Drum.tunedOut`), the snare (`Drum.snareOut`), the clap
+(`Drum.clapOut`), the hi-hats and cowbell (`Drum.bandOut`, with `drum_metal_chain_bounded` and
+`drum_square_in_range`) and the cymbal (`Drum.cymbalOut`); the sample out is the mix clipped to 16 bits,
+unchanged when already within 32767.
+Why it matters: no drum's arithmetic wraps at any knob, note or phase; an overloaded shape clips. -/
 theorem drum_output_never_wraps (phase p2 p3 p4 p5 p6 noise : UInt32) (lp1 lp2 lp3 lp4 aH aL uH uL : Int32)
     (gA gB : UInt32) (l1 : lp1.toInt.natAbs ≤ 32767) (l2 : lp2.toInt.natAbs ≤ 65535)
     (l3 : lp3.toInt.natAbs ≤ 32767) (l4 : lp4.toInt.natAbs ≤ 65535)
@@ -450,12 +444,12 @@ theorem drum_output_never_wraps (phase p2 p3 p4 p5 p6 noise : UInt32) (lp1 lp2 l
     have b := (drum_metal_chain_bounded phase p2 p3 p4 p5 p6 lp3 lp4 uH uL gB l3 l4 uh ul gb).2.2.2
     exact (drum_mix_fits _ _ a b).2
 
-/-- Every shape's tables are in the ranges the theorems above need: rates below 65536 at every timbre (so
-`drum_envelope_only_falls` applies), sweep rates below 8192 (`drum_sweep_lands`), levels up to 32767
-(`drum_gain_never_amplifies`), filter coefficients up to 16384 (`drum_one_pole_stays_between`) at every
+/-- Every shape's tables are in the ranges the theorems above need: rates below 65536 at every timbre
+(`drum_envelope_only_falls`), sweep rates below 8192 (`drum_sweep_lands`), levels up to 32767
+(`drum_gain_never_amplifies`) and filter coefficients up to 16384 (`drum_one_pole_stays_between`) at every
 colour.
-Why it matters: the numbers in the tables are checked against the bounds, not trusted; a knob at either end
-still gives every theorem its hypotheses. -/
+Why it matters: the table values are checked against the bounds, so a knob at either end still meets
+every hypothesis. -/
 theorem drum_shapes_in_range (shape timbre colour : UInt32) :
     (Drum.decay (Drum.rate shape) timbre).toNat < 65536 ∧
       (Drum.decay (Drum.secondRate shape) timbre).toNat < 65536 ∧
@@ -503,14 +497,12 @@ theorem drum_shapes_in_range (shape timbre colour : UInt32) :
       omega
   · unfold Drum.lowCoefficient; split <;> decide
 
-/-- Each shape's tail from a full envelope at its own rate (the nominal timbre), sample by sample in the
-kernel: the first sample at which the envelope is under a hundredth, with the sample before still above. BD
-(rate 219) in 21984 samples (0.50 s), SD and the clap's tail (729) in 6617 (0.15 s), CH (2200) in 2193
-(50 ms), OH (270) in 17842 (0.40 s), LT (365) in 13206 (0.30 s), MT (437) in 11033 (0.25 s), HT and CB
-(547) in 8817 (0.20 s), CY (73) in 65568 (1.49 s).
-Why it matters: these are the decay times a player hears, computed from the arithmetic the chip runs: the
-closed hat is a tick, the open hat a splash, the kick half a second, the cymbal a second and a half, and no
-shape's tail is a surprise. -/
+/-- Each shape's tail from a full envelope at its nominal rate, stepped sample by sample in the kernel: the
+first sample at which the envelope is under a hundredth, with the sample before still above. BD (rate 219)
+in 21984 samples (0.50 s), SD and the clap's tail (729) in 6617 (0.15 s), CH (2200) in 2193 (50 ms), OH
+(270) in 17842 (0.40 s), LT (365) in 13206 (0.30 s), MT (437) in 11033 (0.25 s), HT and CB (547) in 8817
+(0.20 s), CY (73) in 65568 (1.49 s).
+Why it matters: these are the decay times a player hears, computed from the arithmetic the chip runs. -/
 theorem drum_tails :
     (2 ^ 24 / 100 ≤ (Drum.envelopeAfter (2 ^ 24) (Drum.rate 0) 21983).toNat ∧
       (Drum.envelopeAfter (2 ^ 24) (Drum.rate 0) 21984).toNat < 2 ^ 24 / 100) ∧

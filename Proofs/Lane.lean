@@ -12,9 +12,8 @@ private theorem lane_draw_below (rng : UInt32) (limit : Nat) (positive : 0 < lim
     (by rw [limitSmall]; exact small)
   rwa [limitSmall] at this
 
-/-- Whatever settings are asked for, `make` gives a consistent lane.
-Why it matters: bad numbers from the screen or a saved file cannot put a lane into a state the rest of the
-code does not expect. -/
+/-- `make` gives a valid lane for any settings.
+Why it matters: out-of-range values from the screen or a saved file cannot produce an invalid lane. -/
 theorem lane_make_valid (hits steps div mask low span : Nat) (seed : UInt32) :
     Lane.Valid (Lane.make hits steps div mask low span seed) := by
   have notes : ∀ n, 0 < n → n ≤ 108 → NoteState.Valid n 4 (Notes.start n seed) :=
@@ -28,8 +27,8 @@ theorem lane_make_valid (hits steps div mask low span : Nat) (seed : UInt32) :
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
     simp [empty, Lane.clamp, Notes.regLen] at * <;> omega
 
-/-- `reconfigure` keeps a consistent lane consistent, even for nonsense settings.
-Why it matters: turning a knob mid-song can never leave the lane with a position or timer out of range. -/
+/-- `reconfigure` keeps a valid lane valid for any settings.
+Why it matters: turning a knob mid-song cannot push a position or timer out of range. -/
 theorem lane_reconfigure_valid (l : Lane) (valid : Lane.Valid l) (hits steps div mask : Nat) :
     Lane.Valid (Lane.reconfigure l hits steps div mask) := by
   have timer := valid.soundingHasTimer
@@ -39,9 +38,8 @@ theorem lane_reconfigure_valid (l : Lane) (valid : Lane.Valid l) (hits steps div
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
     simp_all <;> first | omega | exact Nat.mod_lt _ (by omega)
 
-/-- Changing the note algorithm keeps a consistent lane consistent, whatever numbers are given.
-Why it matters: switching a lane from random to loop in the middle of a song cannot leave its loop position
-outside the loop. -/
+/-- `setNotes` keeps a valid lane valid for any settings.
+Why it matters: switching note algorithm mid-song cannot leave the loop position outside the loop. -/
 theorem lane_set_notes_valid (l : Lane) (valid : Lane.Valid l) (algo prob amount mutate : Nat) :
     Lane.Valid (Lane.setNotes l algo prob amount mutate) := by
   have timer := valid.soundingHasTimer
@@ -74,9 +72,8 @@ private theorem lane_pick_ok (l : Lane) (valid : Lane.Valid l) :
 private theorem lane_gate_now (l : Lane) (gate : 1 ≤ l.gate) : 1 ≤ l.gateNow ∧ l.gateNow ≤ l.gate := by
   unfold Lane.gateNow; split <;> omega
 
-/-- A tick keeps a consistent lane consistent.
-Why it matters: however long the music runs, the counters stay in range, the note memory stays sound, and the
-sounding note and its timer stay in step. -/
+/-- A tick keeps a valid lane valid.
+Why it matters: counters, note memory and the sounding note stay consistent for any number of ticks. -/
 theorem lane_tick_valid (l : Lane) (valid : Lane.Valid l) : Lane.Valid (Lane.tick l) := by
   have ⟨countOk, stepOk, divSame, stepsSame⟩ := lane_moved_counters l valid
   have ⟨_, choiceOk⟩ := lane_pick_ok l valid
@@ -95,7 +92,7 @@ theorem lane_tick_valid (l : Lane) (valid : Lane.Valid l) : Lane.Valid (Lane.tic
         first | exact notesOk | (simp_all [Lane.moved] <;> omega)
 
 /-- When a sounding note's gate runs out, the tick reports it as stopped.
-Why it matters: no note stays on after its gate, so no stuck notes. -/
+Why it matters: no stuck notes. -/
 theorem lane_gate_end_stops_note (l : Lane) (note : Nat) (playing : l.playing = some note)
     (ending : l.gateLeft ≤ 1) : (Lane.tick l).off = some note := by
   unfold Lane.tick
@@ -104,16 +101,14 @@ theorem lane_gate_end_stops_note (l : Lane) (note : Nat) (playing : l.playing = 
   · simp [playing]
 
 /-- A tick that starts a note also stops the one sounding before it.
-Why it matters: a lane never has two notes on at once, so every note-on has exactly one note-off. -/
+Why it matters: a lane never has two notes on at once. -/
 theorem lane_new_note_stops_old (l : Lane) (note : Nat) (starts : (Lane.tick l).on = some note) :
     (Lane.tick l).off = l.playing := by
   unfold Lane.tick at *
   split at starts <;> split <;> first | rfl | (split at starts <;> simp_all)
 
-/-- A note starts only on a step the rhythm marks as a hit (the step the note belongs to: for a ratchet's
-sub-hit, the step that just pulsed).
-Why it matters: the rhythm's pattern is respected, whichever rhythm source makes it; a rest never plays,
-whatever the note algorithm or the play chance say. -/
+/-- A note starts only on a step the rhythm marks as a hit (for a ratchet sub-hit, the step that just pulsed).
+Why it matters: a rest never plays, regardless of note algorithm or play chance. -/
 theorem lane_note_only_on_hit (l : Lane) (note : Nat) (starts : (Lane.tick l).on = some note) :
     Rhythm.hit l.rhythm l.hits l.steps l.hitStep = true := by
   have plays : l.plays = true → Rhythm.hit l.rhythm l.hits l.steps l.hitStep = true := by
@@ -129,9 +124,8 @@ theorem lane_note_only_on_hit (l : Lane) (note : Nat) (starts : (Lane.tick l).on
   · exact plays (by assumption)
   · split at starts <;> simp at starts
 
-/-- A note a tick starts is a valid MIDI note and is in the lane's scale.
-Why it matters: the lane can never play a note the voices reject, or a note outside the key you chose,
-whichever note algorithm it uses. -/
+/-- A note a tick starts is at most 127 and is in the lane's scale.
+Why it matters: the lane never plays a note the voices reject or one outside the chosen key. -/
 theorem lane_note_in_scale (l : Lane) (valid : Lane.Valid l) (note : Nat)
     (starts : (Lane.tick l).on = some note) : note ≤ 127 ∧ Quantizer.inScale l.mask note = true := by
   have ⟨offset, _⟩ := lane_pick_ok l valid
@@ -146,26 +140,25 @@ theorem lane_note_in_scale (l : Lane) (valid : Lane.Valid l) (note : Nat)
     exact ⟨by omega, quantizer_snap_in_scale _ _ valid.maskSmall valid.maskNotEmpty (by omega)⟩
   · split at starts <;> simp at starts
 
-/-- Silencing a consistent lane leaves it consistent.
-Why it matters: stopping the clock cannot leave the lane with a timer and no note, or a note and no timer. -/
+/-- `silence` keeps a valid lane valid.
+Why it matters: stopping the clock cannot leave a timer without a note or a note without a timer. -/
 theorem lane_silence_valid (l : Lane) (valid : Lane.Valid l) : Lane.Valid l.silence := by
   have timer := valid.soundingHasTimer
   obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _⟩ := valid
   unfold Lane.silence
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp_all <;> omega
 
-/-- Silencing reports the sounding note as stopped and leaves nothing sounding.
-Why it matters: pressing stop never leaves a note hanging. -/
+/-- `silence` reports the sounding note as stopped and leaves nothing sounding.
+Why it matters: stop never leaves a note hanging. -/
 theorem lane_silence_stops_note (l : Lane) : l.silence.off = l.playing ∧ l.silence.playing = none := by
   simp [Lane.silence]
 
-/-- Applying a lane's own settings back to it changes nothing, for a consistent lane whose settings are the
-ones the knobs can reach (steps up to 32, speed up to 96 ticks, algorithm 0 to 10, mutation up to 100 percent,
-a rhythm source in range with a live automaton row that fits the bar, the step sequencer's cursor inside its loop) and whose
-gate is the one its speed gives. `make`, `reconfigure`, `setNotes` and `setRhythm` only ever produce such
-lanes.
-Why it matters: saving a patch and loading it again, or redrawing a knob at its current value, cannot alter
-the music by a tick: the lane is exactly where it was. -/
+/-- Applying a lane's own settings back to it changes nothing, for a valid lane whose settings are ones the
+knobs can reach (steps ≤ 32, div ≤ 96, algo ≤ 10, mutate ≤ 100, rhythm source in range with a live row that
+fits the bar, step-sequencer cursor inside its loop) and whose gate is `gateFor div`. `make`, `reconfigure`,
+`setNotes` and `setRhythm` only produce such lanes.
+Why it matters: saving and reloading a patch, or redrawing a knob at its current value, does not change the
+lane. -/
 theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.steps ≤ 32)
     (divMax : l.div ≤ 96) (algoMax : l.rule.algo ≤ 10) (mutateMax : l.rule.mutate ≤ 100) (gate : l.gate = Lane.gateFor l.div)
     (cursor : l.notes.cursor < l.rule.amount) (kind : l.rhythm.kind ≤ 3) (rotate : l.rhythm.rotate < l.steps)
@@ -201,9 +194,8 @@ theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.st
     simp only [clampAmount, Nat.min_eq_left prob, Nat.min_eq_left algoMax, Nat.min_eq_left mutateMax,
       Nat.mod_eq_of_lt slot, Nat.mod_eq_of_lt cursor]
 
-/-- Changing the rhythm source keeps a consistent lane consistent, whatever numbers are given.
-Why it matters: switching from Euclid to the automaton or the ratchet mid-song touches nothing but the
-rhythm; counters, memory and the sounding note stay as they were. -/
+/-- `setRhythm` keeps a valid lane valid for any settings.
+Why it matters: switching rhythm source mid-song cannot break the lane. -/
 theorem lane_set_rhythm_valid (l : Lane) (valid : Lane.Valid l) (kind rotate accents rule ratchet subHits : Nat)
     (reseed : Bool) : Lane.Valid (Lane.setRhythm l kind rotate accents rule ratchet subHits reseed) := by
   obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _⟩ := valid
@@ -212,8 +204,8 @@ theorem lane_set_rhythm_valid (l : Lane) (valid : Lane.Valid l) (kind rotate acc
     by assumption, by assumption, by assumption, by assumption, by assumption, by assumption, by assumption,
     by assumption, by assumption, by assumption, by assumption⟩
 
-/-- A key the player presses keeps a consistent lane consistent.
-Why it matters: playing along, or programming the step sequencer, can never break the lane. -/
+/-- `learn` (a key press) keeps a valid lane valid.
+Why it matters: playing along or programming the step sequencer cannot break the lane. -/
 theorem lane_learn_valid (l : Lane) (valid : Lane.Valid l) (note : Nat) : Lane.Valid (Lane.learn l note) := by
   have notesOk := notes_learn_keeps_valid l.rule l.span l.notes (note - l.low) valid.spanPositive valid.notesValid
   obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _⟩ := valid
@@ -222,10 +214,9 @@ theorem lane_learn_valid (l : Lane) (valid : Lane.Valid l) (note : Nat) : Lane.V
     by assumption, by assumption, by assumption, by assumption, by assumption, by assumption, notesOk,
     by assumption, by assumption, by assumption, by assumption⟩
 
-/-- A patch lane that fits gives a lane with exactly the rhythm source the patch holds: none of the clamps on
-the way (`Lane.make`, `Rhythm.make`) change a fitting value.
-Why it matters: the FEEL settings a patch saves are the ones it plays back; what you hear after loading is
-what you heard before saving. -/
+/-- A patch lane that fits (`PatchLane.Fits`) gives a lane with exactly the patch's rhythm settings: no clamp
+in `Lane.make` or `Rhythm.make` changes a fitting value.
+Why it matters: the FEEL settings a patch saves are the ones it plays back. -/
 theorem lane_from_patch_keeps_feel (p : PatchLane) (fits : p.Fits) (div mask : Nat) (seed : UInt32) :
     let l := (Lane.make p.hits p.steps div mask p.low p.span seed).setRhythm p.feel p.rotate p.accents p.rule
       p.ratchet p.subHits true

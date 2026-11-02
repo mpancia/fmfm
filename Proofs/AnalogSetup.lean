@@ -57,12 +57,11 @@ private theorem analog_setup_variable_saw_parameter_range (parameter : Int16) (n
     rw [Int16.toInt_toInt32]
     omega
 
-/-- For a parameter that is not negative (Braids' parameters are 0 to 32767), the square's pulse turns on
-between 768/32768 and 32768/32768 of the cycle and the variable saw's second slope starts between
-1024/32768 and 32767/32768 of it.
-Why it matters: the sample code divides the distance to the pulse edge by the phase step to place its
-correction; an edge at phase 0 would fall on the wrap and be corrected twice, and one past the cycle would
-never be reached. -/
+/-- For a non-negative parameter (Braids' parameters are 0 to 32767), the square's pulse turns on between
+768/32768 and 32768/32768 of the cycle and the variable saw's second slope starts between 1024/32768 and
+32767/32768 of it.
+Why it matters: the sample code places its edge correction by dividing the distance to the edge by the phase
+step; an edge at phase 0 would be corrected twice and one past the cycle never reached. -/
 theorem analog_setup_pulse_width_in_range (parameter : Int16) (nonneg : 0 ≤ parameter) :
     (768 * 65536 ≤ (AnalogSetup.squarePulseWidth parameter).toNat ∧
       (AnalogSetup.squarePulseWidth parameter).toNat ≤ 32768 * 65536) ∧
@@ -85,9 +84,9 @@ theorem analog_setup_pulse_width_in_range (parameter : Int16) (nonneg : 0 ≤ pa
     rw [analog_setup_shift_sixteen _ (by omega)]
     omega
 
-/-- The buzz reads two of the 15 comb tables, both inside the set, whatever the pitch and parameter.
-Why it matters: the comb tables are C data read without a check; the clamp to the last zone is what keeps a
-high pitch, or a pitch that was never clamped, from reading past them. -/
+/-- The buzz reads two of the 15 comb tables, both inside the set, for any pitch and parameter.
+Why it matters: the comb tables are C data read without a check; the clamp to the last zone keeps a high or
+unclamped pitch from reading past them. -/
 theorem analog_setup_buzz_zone_in_table (pitch parameter : Int16) :
     (AnalogSetup.buzzZone pitch parameter).toNat ≤ 14 ∧
       (AnalogSetup.buzzZone2 pitch parameter).toNat ≤ 14 := by

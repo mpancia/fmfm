@@ -48,9 +48,9 @@ private theorem digital_setup_succ_toNat (x : UInt32) (small : x.toNat < 4294967
   simp
   omega
 
-/-- A parameter that is not negative reads two neighbouring entries of the 129-entry FM ratio quantizer,
-both inside it. Braids' parameters are 0 to 32767, so `nonneg` holds for every block; a negative one would
-read 65535 entries past the table, which is why the limit is stated.
+/-- A non-negative parameter reads two neighbouring entries of the 129-entry FM ratio quantizer, both inside
+it. Braids' parameters are 0 to 32767, so `nonneg` holds for every block; a negative one would read 65535
+entries past the table.
 Why it matters: the quantizer is C data read without a check, once per block for the three FM engines. -/
 theorem digital_setup_fm_quantizer_in_table (param : Int16) (nonneg : 0 ≤ param) :
     (DigitalSetup.fmQuantizerIndex param).toNat < 129 ∧
@@ -60,11 +60,10 @@ theorem digital_setup_fm_quantizer_in_table (param : Int16) (nonneg : 0 ≤ para
   omega
 
 /-- Every phase step the setup hands to the FM, ring modulator, toy and digital modulation sample code is
-below half a cycle per sample. The detuned pitches are cut to 16 bits before the lookup, so no offset can
-escape the clamp.
-Why it matters: the sample code's steps come from here, and a step at or above half a cycle would alias;
-the modulators' detunes can reach pitches far outside the carrier's range, and this says the clamp still
-holds them. -/
+below half a cycle per sample. The detuned pitches are cut to 16 bits before the lookup, so no offset escapes
+the clamp.
+Why it matters: a step at or above half a cycle would alias, and the modulators' detunes can reach pitches
+far outside the carrier's range. -/
 theorem digital_setup_increments_half_cycle (pitch param : Int16) (increment : UInt32) :
     (DigitalSetup.fmModulatorIncrement pitch param).toNat < 2 ^ 31 ∧
       (DigitalSetup.ringIncrement pitch param).toNat < 2 ^ 31 ∧
@@ -127,7 +126,7 @@ private theorem digital_setup_folded_lt (pitch : Int16) : (DigitalSetup.delayFol
 
 /-- Every pitch reads two neighbouring entries of the 97-entry delay table, both inside it.
 Why it matters: the table is C data read without a check; the clamp to note 128 and the fold into one octave
-are what keep the read inside it for any 16-bit pitch, including the lowest a filtered comb pitch reaches. -/
+keep the read inside for any 16-bit pitch, including the lowest a filtered comb pitch reaches. -/
 theorem digital_setup_delay_in_table (pitch : Int16) :
     (DigitalSetup.delayIndex pitch).toNat < 97 ∧ (DigitalSetup.delayIndex pitch + 1).toNat < 97 := by
   have folded := digital_setup_folded_lt pitch

@@ -78,16 +78,25 @@ note-off (`arp_every_note_on_has_a_note_off`); UP plays what you hold through, n
 
 ## The demo songs
 
-The first seven patches (the DEMOS group of the browser, and the DEMO knob on GLO > BANKS, which steps through
-them) each show the sequencers off; CLOCKWORK is the boot patch. Rendered by `tools/render_web.mjs`, none
-clips (peaks -7 to -15 dBFS).
+The first 17 patches (the DEMOS group of the browser, and the DEMO knob on GLO > BANKS, which steps through
+them) each show something off; CLOCKWORK is the boot patch. `make test` renders them all and checks none clips.
 
 | Demo | What it shows |
 |---|---|
-| CLOCKWORK (104, D dorian) | a locked TURING bass with an accent, a rule-30 AUTOMATON ticking on a dark plucked string, RATCHET stabs, a MARKOV bell on a turned bar |
-| AIRPORTS (64, D pentatonic) | after Eno: bars of 7, 11, 13 and 5 steps (coprime: they realign every 5005 steps), a CHORD pad, a locked TURING flute, a MARKOV bell, a GRAMMAR pad that rests |
+| CLOCKWORK (104, D dorian) | a locked TURING bass with an accent, a rule-30 AUTOMATON on a dark plucked string, RATCHET stabs, a MARKOV bell on a turned bar |
+| AIRPORTS (64, D pentatonic) | after Eno: bars of 7, 11, 13 and 5 steps (coprime, so they realign every 5005 steps), a CHORD pad, a locked TURING flute, a MARKOV bell, a GRAMMAR pad |
 | PHASES (120, G pentatonic) | after Reich: the same locked twelve-note phrase on 12 and on 13 steps, drifting apart and back |
-| SIERPINSKI (96, A lydian) | rule 90 draws its triangle on 32 steps, rule 110 crawls on 16, rule 30 boils underneath, a CHORD pad |
+| SIERPINSKI (96, A lydian) | rule 90 draws its triangle on 32 steps, rule 110 crawls on 16, rule 30 underneath, a CHORD pad |
 | MARKET (96, F dorian) | MARKOV in every style over a walking bass; play the keys and the chosen lane learns |
 | FIBONACCI (80, C lydian) | the three GRAMMARS at three depths over a CHORD pad |
-| RATCHETS (128, chromatic drums) | a four-on-the-floor kick, a RATCHET snare and hats, a TURING bass that doubles up |
+| RATCHETS (128, chromatic) | a four-on-the-floor kick, a RATCHET snare and hats, a TURING bass |
+| TONNETZ (72) | WALK LR through all 24 triads, a chord a bar |
+| HEXATONIC (66) | WALK PL, six triads around E minor, bowed and slow |
+| OCTATONIC (112) | WALK PR, eight triads, plucked and quick |
+| BLACK KEYS (88, C major) | two lanes in the key, two on COMPL: the pentatonic it leaves out |
+| ELECTRIC (84, F) | the FM voice: an electric piano ballad on I-V-vi-IV |
+| LANTERNS (108, D pentatonic) | a gamelan of FM bells and mallets, bars of 16, 8 and 12 against each other |
+| VESPERS (60, A minor) | an organ holding a slow i-VI-III-VII, brass, glass and a bell |
+| FACTORY (126, E phrygian) | an 808 kick, a filtered FM bass loop, clang stabs, a ratcheted hat |
+| 808 ROOM (118) | the 808 kit as a drum machine |
+| NIGHT DRIVE (124, A minor) | 808 kick and snare, a filtered FM bass on a mutating loop, a filtered saw lead on a MARKOV chain, i-VI-III-VII |

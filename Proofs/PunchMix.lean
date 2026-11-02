@@ -56,11 +56,9 @@ private theorem punchmix_gate_size (sample : Int32) (gain : UInt32) (inLimit : s
     punchmix_mul_exact _ _ fits, gv, Int.natAbs_mul, sixteenth.1, c16, Int.natAbs_tdiv, Int.natAbs_natCast]
   rfl
 
-/-- The gate only ever lowers: the output is within the sample, and within 524287 whenever the sample is.
-The gain is at most one (32768, Q15); both divisions truncate toward zero, so there is no rounding away
-from zero to add level.
-Why it matters: the gate is a chop, never a boost: with the mix within the limiter's range, what comes out
-of the gate is still within it and cannot wrap. -/
+/-- The gate never amplifies: with gain at most 32768 (Q15 unity) and a sample within 524287, the output is no
+larger than the sample and within 524287. Both divisions truncate toward zero.
+Why it matters: a sample inside the limiter's range stays inside it through the gate and cannot wrap. -/
 theorem punch_gate_never_amplifies (sample : Int32) (gain : UInt32) (inLimit : sample.toInt.natAbs ≤ 524287)
     (unit : gain.toNat ≤ 32768) :
     (Punch.gateSample sample gain).toInt.natAbs ≤ sample.toInt.natAbs ∧
@@ -73,20 +71,19 @@ theorem punch_gate_never_amplifies (sample : Int32) (gain : UInt32) (inLimit : s
       Nat.mul_div_cancel _ (by decide)]
   omega
 
-/-- The crush hands back one of its two inputs, so a mix and a held sample both within the limit give a
-sample within it.
-Why it matters: CRUSH only repeats samples that were already in range; it adds no level and cannot wrap. -/
+/-- The crush returns one of its two inputs, so a mix and a held sample both within 524287 give a sample
+within 524287.
+Why it matters: CRUSH cannot wrap. -/
 theorem punch_crush_keeps_limit (factor index : UInt32) (heldSample sample : Int32)
     (h1 : heldSample.toInt.natAbs ≤ 524287) (h2 : sample.toInt.natAbs ≤ 524287) :
     (Punch.crushSample factor index heldSample sample).toInt.natAbs ≤ 524287 := by
   unfold Punch.crushSample
   split <;> assumption
 
-/-- The whole PUNCH audio path on a mix sample within the limiter's range (524287, what
-`mix_machine_sample_bounded` delivers), with a held sample within the same range, any crush factor and
-index, and a gate gain of at most one: the master stays within 524287.
-Why it matters: with every punch-in on at once the master stays inside the limiter's range: the gate only
-ever lowers, the crush only repeats, so nothing on the PUNCH page can wrap. -/
+/-- The whole PUNCH audio path keeps the master within 524287, given a mix sample within 524287 (what
+`mix_machine_sample_bounded` delivers), a held sample within the same bound, any crush factor and index, and
+a gate gain of at most 32768.
+Why it matters: with every punch-in on at once, nothing on the PUNCH page can wrap. -/
 theorem punch_master_never_wraps (factor index gain : UInt32) (held m : Int32)
     (mixBounded : m.toInt.natAbs ≤ 524287) (heldBounded : held.toInt.natAbs ≤ 524287)
     (unit : gain.toNat ≤ 32768) :
