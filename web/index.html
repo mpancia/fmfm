@@ -13,14 +13,24 @@
   <header class="bar">
     <h1>FM-1 simulator <small>the real firmware</small></h1>
     <div class="bar-controls">
-      <button id="power" class="primary" type="button">Power on</button>
-      <button id="demo" type="button" title="The demo songs play themselves, a variation every 8 bars (GLO &gt; BANKS &gt; AUTO)">Demo</button>
-      <label class="vol">Volume <input id="vol" type="range" min="0" max="100" value="70"></label>
-      <label class="vol">Patch <select id="patch" disabled aria-label="Patch to load"><option>power on first</option></select></label>
-      <button id="midi" type="button">Connect MIDI in</button>
-      <button id="record" type="button" disabled title="Record what you hear to a file (WebM/Opus)">Record</button>
-      <button id="shot" type="button" disabled title="Save the screen as a 240x240 PNG">Screenshot</button>
-      <button id="share" type="button" disabled title="Copy a link to this patch">Copy link</button>
+      <div class="group">
+        <button id="power" class="primary" type="button">Power on</button>
+        <button id="demo" type="button"
+          title="The demo songs play themselves, a variation every 8 bars (GLO &gt; BANKS &gt; AUTO)">Demo</button>
+      </div>
+      <div class="group">
+        <label class="vol">Volume <input id="vol" type="range" min="0" max="100" value="70"></label>
+        <label class="vol">Patch
+          <select id="patch" disabled aria-label="Patch to load"><option>power on first</option></select></label>
+      </div>
+      <div class="group">
+        <button id="midi" type="button">Connect MIDI in</button>
+      </div>
+      <div class="group">
+        <button id="record" type="button" disabled title="Record what you hear to a file (WebM/Opus)">Record</button>
+        <button id="shot" type="button" disabled title="Save the screen as a 240x240 PNG">Screenshot</button>
+        <button id="share" type="button" disabled title="Copy a link to this patch">Copy link</button>
+      </div>
     </div>
     <p id="status" role="status" aria-live="polite">Off. Power on to boot the firmware (browser audio needs a click).</p>
   </header>
@@ -36,14 +46,23 @@
         <div id="buttons" class="buttons"></div>
       </div>
     </div>
-    <div id="keys" class="keys" aria-label="Keys F3 to G5"></div>
+    <div class="keybed">
+      <div id="keys" class="keys" aria-label="Keys F3 to G5"></div>
+    </div>
   </section>
+  <figure id="scope-wrap" class="scope">
+    <figcaption>line out</figcaption>
+    <canvas id="scope" role="img" aria-label="Line out, the waveform as it plays"></canvas>
+  </figure>
 
   <section class="watch" aria-label="The proofs, watched">
     <h2>The proofs, watched <small>the theorems' statements, checked on the running machine</small></h2>
     <p class="help">The theorems are about the Lean. The C that calls it and the compiler are trusted; here twelve of the statements are also
       asserted at the point the C uses the Lean's answer. A failure could only come from those trusted parts.</p>
-    <table id="watch"><tbody></tbody></table>
+    <table id="watch">
+      <thead><tr><th>theorem</th><th>checks</th><th>state</th></tr></thead>
+      <tbody><tr><td class="empty" colspan="3">power on first</td></tr></tbody>
+    </table>
   </section>
   <p class="help">
     Keys: computer rows <kbd>Z</kbd>–<kbd>/</kbd> play from C4 and <kbd>Q</kbd>–<kbd>T</kbd> from C5, or click the keys.

@@ -11,6 +11,7 @@ git and the web build, so build it after the last commit.
 | N | the presenter's notes, as a band at the foot of the screen |
 | S | starts the five-minute bar along the top (rose; black once the five minutes are up) and the clock in the corner |
 | P | on slide 7: the film plays or pauses; R starts it again. On slide 1, R plays the opening again |
+| `?all=1` | every slide on one page with its notes under it; printing that page gives one slide a page |
 
 ## The film
 

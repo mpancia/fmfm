@@ -1,11 +1,15 @@
 // Arrow keys or space: the next card or line, then the next slide. N: the presenter's notes. P: the demo video on
-// its slide, R rewinds it. S: a five-minute bar across the top of the screen. The hash keeps the place.
+// its slide, R rewinds it. S: a five-minute bar across the top of the screen. The hash keeps the place. ?all=1 lays
+// every slide out on one page with its notes, which is also how it prints.
 const slides = [...document.querySelectorAll(".slide")];
 const count = document.querySelector(".count");
+const progress = document.querySelector(".progress");
 const bar = document.querySelector(".clock .bar");
 const MINUTES = 5;
+const all = new URLSearchParams(location.search).get("all") === "1";
 let at = Math.min(slides.length - 1, Math.max(0, parseInt(location.hash.slice(1) || "0", 10) || 0));
 let started = 0;
+slides.forEach(() => progress.append(document.createElement("span")));
 
 // The opening's animations run when its slide gets the class `play`: the first key on it (or R) starts them, so the
 // screen stays dark until the presenter is ready; taking the class off and putting it back replays them.
@@ -25,6 +29,8 @@ function show(i, fragsOn) {
     if (notes) notes.classList.toggle("on", k === i);
   });
   slides[i].querySelectorAll(".frag").forEach(f => f.classList.toggle("on", fragsOn));
+  [...progress.children].forEach((tick, k) => tick.classList.toggle("on", k === i));
+  document.body.classList.toggle("dark", slides[i].classList.contains("vitrine"));
   location.hash = i;
   count.textContent = `${i + 1} / ${slides.length}`;
 }
@@ -47,13 +53,25 @@ function prev() {
 // the picture plays or pauses it, as P does; if the browser refuses, its reason is written where the cue goes.
 function toggle(video) {
   const cue = video.closest(".slide").querySelector(".cue");
-  if (video.paused) video.play().catch(e => { if (cue) cue.textContent = `The browser would not play it: ${e.message}`; });
+  if (video.paused) {
+    video.play().catch(e => { if (cue) cue.textContent = `The browser would not play it: ${e.message}`; });
+  }
   else video.pause();
 }
 for (const video of document.querySelectorAll("video")) {
   const slide = video.closest(".slide");
+  video.addEventListener("click", () => toggle(video));
+  const dur = slide.querySelector(".dur");                     // the film's length beside it, from its metadata
+  if (dur) {
+    const length = () => {
+      const s = Math.round(video.duration);
+      if (s) dur.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    };
+    video.addEventListener("loadedmetadata", length);
+    length();
+  }
   const cue = slide.querySelector(".cue");
-  if (!cue) { video.addEventListener("click", () => toggle(video)); continue; }
+  if (!cue) continue;
   const cues = [...slide.querySelectorAll(".cues li")]
     .map(li => ({ at: Number(li.dataset.at), text: li.textContent, card: li.dataset.card }));
   video.addEventListener("timeupdate", () => {
@@ -78,8 +96,6 @@ for (const video of document.querySelectorAll("video")) {
   video.addEventListener("error", () => {
     cue.textContent = `The browser could not load the video (${video.error ? video.error.message : "unknown"}).`;
   });
-  video.addEventListener("click", () => toggle(video));
-  cue.textContent = "P, or a click on the picture, plays the recording.";
 }
 
 function tick() {
@@ -91,26 +107,37 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
-// The stage is 1600 x 900; scale it to the window and keep it centred.
+// The stage is 1600 x 900; scale it to the window and keep it centred. On the single page it is zoomed to the
+// window's width instead, and every slide is on with its opening played out.
 const stage = document.querySelector(".stage");
 function fit() {
+  if (all) { stage.style.setProperty("--z", innerWidth / 1600); return; }
   const s = Math.min(innerWidth / 1600, innerHeight / 900);
   stage.style.transform = `translate(-50%, -50%) scale(${s})`;
 }
 addEventListener("resize", fit);
+if (all) {
+  document.documentElement.classList.add("all");
+  slides.forEach(s => { s.classList.add("on"); if (s.classList.contains("vitrine")) s.classList.add("play"); });
+}
 fit();
 
 document.addEventListener("keydown", e => {
+  if (all) return;                                             // the single page scrolls as any page does
   const video = slides[at].querySelector("video");
-  if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown" || e.key === "ArrowDown") { e.preventDefault(); next(); }
-  else if (e.key === "ArrowLeft" || e.key === "PageUp" || e.key === "ArrowUp") { e.preventDefault(); prev(); }
+  const forward = e.key === "ArrowRight" || e.key === " " || e.key === "PageDown" || e.key === "ArrowDown";
+  const back = e.key === "ArrowLeft" || e.key === "PageUp" || e.key === "ArrowUp";
+  if (forward) { e.preventDefault(); next(); }
+  else if (back) { e.preventDefault(); prev(); }
   else if (e.key === "n" || e.key === "N") document.body.classList.toggle("notes");
   else if ((e.key === "p" || e.key === "P") && video) toggle(video);
   else if ((e.key === "r" || e.key === "R") && video) { video.currentTime = 0; toggle(video); }
   else if ((e.key === "r" || e.key === "R") && slides[at].classList.contains("vitrine")) replay(slides[at]);
-  else if (e.key === "s" || e.key === "S") { started = started ? 0 : Date.now(); bar.style.width = "0"; delete count.dataset.time; tick(); }
+  else if (e.key === "s" || e.key === "S") {
+    started = started ? 0 : Date.now(); bar.style.width = "0"; delete count.dataset.time; tick();
+  }
   else if (e.key === "Home") show(0, false);
   else if (e.key === "End") show(slides.length - 1, true);
 });
-document.addEventListener("click", e => { if (!e.target.closest("a, video")) next(); });
+document.addEventListener("click", e => { if (!all && !e.target.closest("a, video")) next(); });
 show(at, false);

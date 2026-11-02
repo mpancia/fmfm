@@ -1,25 +1,34 @@
 /* The pitch deck: the site's catalogue look, one slide a screen. Every slide is laid out on a 1600 x 900 stage and
  * the stage is scaled to the window (pitch.js), so the layout is the same on any screen. Arrow keys move; N shows
- * the notes. */
+ * the notes; ?all=1 (and print) lays the slides out one under the other with their notes. */
 /* the deck's colours: the device's rose as it renders on its screen, deeper than the site's pastel, and darker
  * greys; both read on the white of a projector */
-:root { --note: #e23d6e; --muted: #555; --hairline: #d8d8d8; }
+:root { --note: #e23d6e; --muted: #555; --hairline: #d8d8d8; --margin: 64px; }
 html, body { height: 100%; overflow: hidden; }
-.stage { position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px; transform: translate(-50%, -50%); transform-origin: center; }
+.stage {
+  position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px;
+  transform: translate(-50%, -50%); transform-origin: center;
+}
 body { font-size: 22px; }
-h1 { font-size: 56px; }
+h1 { font-size: 48px; }
 h2 { font-size: 34px; }
 p { max-width: none; }
 code, kbd, .mono { font-size: 18px; }
 .label { font-size: 14px; }
 table.ledger { font-size: 18px; }
 table.ledger th { font-size: 14px; }
+::selection { background: var(--note); color: var(--canvas); }
 
-.slide { display: none; position: absolute; inset: 0; padding: 48px 64px; flex-direction: column; gap: 33px; }
+.slide {
+  display: none; position: absolute; inset: 0; padding: 48px var(--margin) 56px; flex-direction: column; gap: 33px;
+}
 .slide.on { display: flex; }
-.slide > header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--rule); padding-bottom: 12px; }
+.slide > header {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 48px;
+  border-bottom: 1px solid var(--rule); padding-bottom: 12px;
+}
 .slide > header .label { margin: 0; white-space: nowrap; }
-.slide .body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-content: start; }
+.slide .body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-content: start; min-height: 0; }
 .slide .body.one { grid-template-columns: 1fr; }
 .slide .body.wide { grid-template-columns: 2fr 1fr; }
 
@@ -27,15 +36,23 @@ table.ledger th { font-size: 14px; }
  * right and bows as he does on the device (the rows above his bow tie dip), then the screen appears. The animations
  * run when the slide has the class `play`; pitch.js sets it on arrival and again on R. */
 .slide.vitrine { background: var(--carbon); color: var(--canvas); padding: 0; gap: 0; overflow: hidden; }
-.open { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 640px; align-items: center; padding: 0 96px; gap: 64px; }
+.open {
+  position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 640px; align-items: center;
+  padding: 0 96px; gap: 64px;
+}
 .mark .rule { height: 1px; background: var(--canvas); width: 0; }
-.wordmark { font-size: 112px; font-weight: 300; letter-spacing: -.02em; line-height: 1.1; margin: 22px 0 12px; white-space: nowrap; }
+.wordmark {
+  font-size: 112px; font-weight: 300; letter-spacing: -.02em; line-height: 1.1; margin: 22px 0 12px;
+  white-space: nowrap;
+}
 .wordmark span span { display: inline-block; opacity: 0; transform: translateY(16px); }
 .wordmark .fred { color: var(--note); }                        /* FORM in the canvas colour, then ALFRED in the rose */
 .tag { color: #b2b2b2; opacity: 0; }
 .device { position: relative; width: 540px; height: 540px; justify-self: end; }
 .device .screen { position: absolute; inset: 0; width: 540px; image-rendering: pixelated; opacity: 0; }
-.device .alfred { position: absolute; right: -54px; bottom: -36px; width: 108px; height: 144px; transform: translateX(520px); }
+.device .alfred {
+  position: absolute; right: -54px; bottom: -36px; width: 108px; height: 144px; transform: translateX(520px);
+}
 .device .alfred img { position: absolute; inset: 0; width: 108px; height: 144px; image-rendering: pixelated; }
 .device .alfred .head { clip-path: inset(0 0 59.375% 0); }      /* rows 0 to 12 of 32: the head, which dips */
 .device .alfred .body { clip-path: inset(40.625% 0 0 0); }     /* rows 13 to 31: the suit, which stands */
@@ -57,115 +74,47 @@ table.ledger th { font-size: 14px; }
 @keyframes bob { 0% { margin-bottom: 0; } 50% { margin-bottom: 6px; } 100% { margin-bottom: 0; } }
 @keyframes bow { 0%, 100% { transform: none; } 30%, 70% { transform: translateY(9px); } }
 
-/* the thesis: one line on its own, the rose rule beside it */
-.thesis { border-left: 2px solid var(--note); padding-left: 22px; font-size: 34px; line-height: 1.2; font-weight: 300; }
-blockquote { margin: 0; border-left: 1px solid var(--hairline); padding-left: 22px; }
+/* the thesis: one line on its own, the rose rule beside it; the one thing a slide says */
+.thesis { border-left: 2px solid var(--note); padding-left: 22px; font-size: 36px; line-height: 1.2; font-weight: 300; }
+blockquote { margin: 0; border-left: 1px solid var(--hairline); padding-left: 22px; color: var(--muted); }
 blockquote p { margin-bottom: 6px; }
 
 /* a theorem card: the name, what it says, why it matters */
 .card { border-top: 1px solid var(--rule); padding: 12px 0 0; margin-bottom: 15px; }
-.card .step { display: inline-block; width: 36px; height: 36px; border: 1px solid var(--ink); text-align: center; line-height: 34px; margin-right: 12px; font-weight: 300; }
 .card > code { font-weight: 400; display: block; margin-top: 6px; }
 .card p { margin: 8px 0 0; font-size: 20px; }
 .card p.why { color: var(--muted); font-size: 16px; }
-.card p.why::before { content: "why it matters "; font: 14px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.card p.why::before {
+  content: "why it matters "; font: 14px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .08em;
+}
 
-/* what is revealed one keypress at a time; a card is dimmed rather than hidden, and the one just lit has the rose rule */
+/* what is revealed one keypress at a time; a card is dimmed rather than hidden, the one just lit has the rose rule */
 .frag { visibility: hidden; }
 .frag.on { visibility: visible; }
 .cards .frag { visibility: visible; opacity: .38; }
 .cards .frag.on { opacity: 1; }
 .card.live { border-top-color: var(--note); border-top-width: 2px; }
-
-/* the kinds of theorem: a strip whose segments are the kinds' shares, and the same shades in the ledger's margin */
-.strip { display: flex; height: 10px; margin-bottom: 22px; gap: 2px; }
-.strip span:nth-child(1), i.k1 { background: var(--ink); }
-.strip span:nth-child(2), i.k2 { background: var(--note); }
-.strip span:nth-child(3), i.k3 { background: #444; }
-.strip span:nth-child(4), i.k4 { background: #8a8a8a; }
-.strip span:nth-child(5), i.k5 { background: #c4c4c4; }
-table.kinds i { display: inline-block; width: 10px; height: 10px; }
-table.kinds td { font: 300 17px/1.4 var(--sans); }
-table.kinds td code { font-size: 15px; }
-table.kinds td:nth-child(2) { white-space: nowrap; }
-table.kinds td b { font-weight: 600; }
-table.kinds ul { margin: 0; padding-left: 18px; }
-table.kinds li { margin: 0 0 2px; }
-table.kinds li::marker { color: var(--muted); }
-.cards .card b { font-size: 18px; }
-.cards .card p { font-size: 16px; line-height: 1.35; }
-.cards .card p.why { font-size: 15px; }
-
-/* the diagrams: hairline boxes, ink arrows, the one box that is ours filled */
-svg.tree, svg.pipe { width: 100%; }
-svg.tree { margin-top: 22px; max-height: 360px; }
-svg.pipe { max-height: 306px; margin-bottom: 15px; }
-svg .box rect { fill: var(--canvas); stroke: var(--ink); stroke-width: 1; }
-svg .box text { font: 18px var(--sans); font-weight: 300; fill: var(--ink); }
-svg .box text.sub { font: 11px var(--mono); fill: var(--muted); }
-svg .box.c rect { stroke: var(--hairline); }
-svg .box.c text { fill: var(--muted); }
-svg .box.apart rect { stroke: var(--hairline); }
-svg .box.ours rect { fill: var(--ink); }
-svg .box.ours text { fill: var(--canvas); }
-svg .box.ours text.sub { fill: #b2b2b2; }
-svg .arrow { fill: none; stroke: var(--ink); stroke-width: 1.2; }
-svg .arrow.dashed { stroke: var(--note); stroke-dasharray: 4 4; }
-svg marker path { fill: var(--ink); }
-svg text.on { font: 12px var(--mono); fill: var(--muted); }
-
-/* the demo: the device's screen on the left, the sentence of the moment under it, the cards on the right */
-.body.demo { grid-template-columns: 468px 1fr; }
-.cards .card { padding-top: 8px; margin-bottom: 8px; }
-.cards .card > code { margin-top: 2px; }
-.body.demo video { width: 100%; aspect-ratio: 1; display: block; background: var(--carbon); }
 .cue { margin-top: 15px; min-height: 4.5em; font-size: 20px; }
 .cue.done { color: var(--muted); }
+.cue:empty::before { content: "\00a0"; }
+code.named { color: var(--note); }
 
-/* the five-minute bar along the top: S starts it; past five minutes it turns black */
-.clock { position: fixed; top: 0; left: 0; right: 0; height: 3px; }
-.clock .bar { height: 100%; width: 0; background: var(--note); }
-.clock .bar.over { background: var(--ink); }
-.count::before { content: attr(data-time) "   "; white-space: pre; color: var(--note); }
-
-
-/* the close: three numbers in a row */
-.numbers { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--rule); }
-.numbers div { padding: 15px 22px 15px 0; border-right: 1px solid var(--hairline); }
-.numbers div:last-child { border-right: 0; }
-.numbers b { display: block; font-size: 56px; font-weight: 300; line-height: 1; }
-
-/* presenter notes: a band at the foot, off by default */
-aside.notes { display: none; position: fixed; left: 0; right: 0; bottom: 0; background: var(--carbon); color: var(--canvas); padding: 15px 64px; font-size: 18px; max-height: 32vh; overflow: auto; border-top: 2px solid var(--note); }
-body.notes aside.notes.on { display: block; }
-.count { position: fixed; right: 64px; bottom: 16px; color: var(--muted); font: 14px var(--mono); }
-body.notes .count { display: none; }
-
-/* the scan path: the one rose accent a slide is the claim; weight marks what to read first; context is grey */
-blockquote { color: var(--muted); }
+/* a plain list without bullets, hairlines between items; weight marks what to read first; context is grey; a
+ * ledger's reach into the trusted part is rose */
+ul.lines { list-style: none; margin: 0; padding: 0; }
+ul.lines li { padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+ul.lines li:last-child { border-bottom: 0; }
 ul.lines b, table.ledger td b { font-weight: 600; }
 table.ledger td.reach::before { content: "– –"; color: var(--note); margin-right: 8px; letter-spacing: -2px; }
-table.kinds td.num { font-size: 22px; font-weight: 600; }
-code.named { color: var(--note); }
-.cue:empty::before { content: "\00a0"; }
-
-/* the instrument: three columns divided by hairlines, each a label and a few lines */
-.cols { gap: 0; }
-.cols > div { padding-right: 33px; }
-.cols > div + div { padding-left: 33px; }
-.cols ul.lines li { padding: 10px 0; font-size: 19px; line-height: 1.4; }
-
-/* what it does: four columns, each a page of the firmware over a few lines */
-.features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
-.features img { width: 100%; height: auto; image-rendering: pixelated; display: block; margin-bottom: 12px; border: 1px solid var(--hairline); }
-.features ul.lines li { padding: 5px 0; font-size: 15px; line-height: 1.35; }
-.features .label { margin-bottom: 4px; }
 
 /* the scene: the unit on the left, the pile of firmware screens in the middle, the quote and the claim on the right */
 .body.scene { grid-template-columns: 330px 520px 1fr; gap: 40px; }
 .unit img { display: block; width: 330px; margin-bottom: 12px; }
 .pile { position: relative; height: 720px; }
-.pile figure { position: absolute; margin: 0; width: 230px; background: var(--canvas); border: 1px solid var(--hairline); padding: 4px; box-shadow: 0 1px 0 var(--hairline); }
+.pile figure {
+  position: absolute; margin: 0; width: 230px; background: var(--canvas); border: 1px solid var(--hairline);
+  padding: 4px; box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+}
 .pile figure img { display: block; width: 100%; }
 .pile figcaption { font: 11px/1.4 var(--mono); color: var(--muted); padding: 4px 2px 0; }
 .pile figure:nth-child(1) { left: 0; top: 0; transform: rotate(-4deg); }
@@ -178,19 +127,133 @@ code.named { color: var(--note); }
 .pile figure:nth-child(8) { left: 290px; top: 500px; transform: rotate(-2deg); }
 .pile figure:nth-child(9) { left: 150px; top: 60px; transform: rotate(-1deg); }
 .pile figure:nth-child(10) { left: 130px; top: 390px; transform: rotate(1deg); }
-.pile figure.top { left: 120px; top: 200px; width: 270px; transform: rotate(-2deg); border: 1px solid var(--ink); box-shadow: 0 0 0 3px var(--canvas), 0 0 0 4px var(--note); z-index: 1; }
+.pile figure.top {
+  left: 120px; top: 200px; width: 270px; transform: rotate(-2deg); border: 1px solid var(--ink);
+  box-shadow: 0 0 0 3px var(--canvas), 0 0 0 4px var(--ink), 0 6px 14px rgba(0, 0, 0, .18); z-index: 1;
+}
 .pile figure.top figcaption { color: var(--ink); }
+.scene .label + ul.lines { margin-bottom: 22px; }
+.scene ul.lines li { padding: 8px 0; font-size: 20px; line-height: 1.4; }
 
 /* the instrument: a topline across, then the modular photo and two columns */
-.body.inst { grid-template-columns: 400px 1fr 1fr; gap: 40px; }
-.body.inst .topline { grid-column: 1 / -1; font-size: 30px; line-height: 1.25; font-weight: 600; margin: 0 0 6px; border-left: 2px solid var(--note); padding-left: 22px; }
-.body.inst .photo img { display: block; width: 400px; height: 400px; object-fit: cover; }
+.body.inst { grid-template-columns: 440px 1fr 1fr; gap: 40px 48px; }
+.body.inst .topline {
+  grid-column: 1 / -1; font-size: 34px; line-height: 1.25; font-weight: 600; margin: 0 0 6px;
+  border-left: 2px solid var(--note); padding-left: 22px;
+}
+.body.inst .photo img { display: block; width: 440px; height: 440px; object-fit: cover; }
 .body.inst .photo .label { margin-top: 10px; text-transform: none; letter-spacing: 0; font-size: 12px; }
-.body.inst ul.lines li { padding: 9px 0; font-size: 18px; line-height: 1.4; }
-.cards .where { margin-top: 15px; color: var(--ink); }
+.body.inst .label { margin-bottom: 6px; }
 .body.inst ul.lines { list-style: disc; padding-left: 20px; }
-.body.inst ul.lines li { border-bottom: 0; padding: 5px 0; }
+.body.inst ul.lines li { border-bottom: 0; padding: 8px 0; font-size: 22px; line-height: 1.4; }
 .body.inst ul.lines li::marker { color: var(--muted); }
 
-/* the film: full width, its own cards inside it */
-.body.film video { width: 1472px; height: 828px; display: block; background: var(--carbon); }
+/* what it does: four columns, each a page of the firmware over a few lines */
+.features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
+.features img {
+  width: 100%; height: auto; image-rendering: pixelated; display: block; margin-bottom: 14px;
+  border: 1px solid var(--hairline);
+}
+.features ul.lines li { padding: 6px 0; font-size: 16px; line-height: 1.35; }
+.features .label { margin-bottom: 4px; }
+
+/* the diagram: hairline boxes, ink arrows; the rose, dashed, is a check reaching into the trusted part */
+svg.pipe { width: 100%; max-height: 306px; margin-bottom: 15px; }
+svg .box rect { fill: var(--canvas); stroke: var(--ink); stroke-width: 1; }
+svg .box text { font: 18px var(--sans); font-weight: 300; fill: var(--ink); }
+svg .box text.sub { font: 11px var(--mono); fill: var(--muted); }
+svg .box.c rect { stroke: var(--hairline); }
+svg .box.c text { fill: var(--muted); }
+svg .arrow { fill: none; stroke: var(--ink); stroke-width: 1.2; }
+svg .arrow.dashed { stroke: var(--note); stroke-dasharray: 4 4; }
+svg marker path { fill: var(--ink); }
+svg text.on { font: 12px var(--mono); fill: var(--muted); }
+.body.wide table.ledger td { font: 300 19px/1.4 var(--sans); padding: 9px 22px 9px 0; }
+.body.wide table.ledger td code { font-size: 16px; }
+.body.wide ul.lines li { padding: 9px 0; font-size: 19px; line-height: 1.4; }
+
+/* the kinds of theorem: a strip whose segments are the kinds' shares, and the same shades in the ledger's margin */
+.strip { display: flex; height: 14px; margin-bottom: 26px; gap: 2px; }
+.strip span:nth-child(1), i.k1 { background: var(--ink); }
+.strip span:nth-child(2), i.k2 { background: var(--note); }
+.strip span:nth-child(3), i.k3 { background: #444; }
+.strip span:nth-child(4), i.k4 { background: #8a8a8a; }
+.strip span:nth-child(5), i.k5 { background: #c4c4c4; }
+table.kinds i { display: inline-block; width: 12px; height: 12px; }
+table.kinds td { font: 300 18px/1.4 var(--sans); padding: 10px 22px 10px 0; }
+table.kinds td code { font-size: 16px; }
+table.kinds td:nth-child(2) { white-space: nowrap; }
+table.kinds td b { font-weight: 600; }
+table.kinds td.num {
+  font-size: 28px; font-weight: 300; line-height: 1; padding-top: 12px; font-variant-numeric: tabular-nums;
+}
+table.kinds ul { margin: 0; padding-left: 18px; }
+table.kinds li { margin: 0 0 2px; }
+table.kinds li::marker { color: var(--muted); }
+
+/* the film: in the device's black bezel, as wide as the slide allows; its name, length and keys beside it */
+.body.film { grid-template-columns: 1fr 260px; gap: 40px; align-items: start; }
+.reel { margin: 0; background: var(--carbon); padding: 14px; border: 1px solid var(--ink); }
+.reel video { width: 100%; aspect-ratio: 16 / 9; display: block; background: var(--carbon); }
+.reel-side { padding-top: 2px; }
+.reel-side p { margin: 0 0 4px; }
+.reel-side .name { font-size: 20px; }
+.reel-side .dur {
+  font-size: 48px; font-weight: 300; line-height: 1.1; margin: 10px 0 18px; font-variant-numeric: tabular-nums;
+}
+.reel-side .dur:empty { display: none; }
+.reel-side .keys { border-top: 1px solid var(--hairline); padding-top: 12px; }
+
+/* the five-minute bar along the top: S starts it; past five minutes it turns black */
+.clock { position: fixed; top: 0; left: 0; right: 0; height: 3px; }
+.clock .bar { height: 100%; width: 0; background: var(--note); }
+.clock .bar.over { background: var(--ink); }
+
+/* the foot of the stage: a tick a slide on the left, the one lit the slide shown; the count and the clock right */
+.progress { position: absolute; left: var(--margin); bottom: 24px; display: flex; gap: 6px; }
+.progress span { width: 28px; height: 2px; background: var(--hairline); }
+.progress span.on { background: var(--ink); }
+.count { position: absolute; right: var(--margin); bottom: 16px; color: var(--muted); font: 14px var(--mono); }
+.count::before { content: attr(data-time) "   "; white-space: pre; color: var(--note); }
+body.dark .progress span { background: #3a3a3a; }
+body.dark .progress span.on { background: var(--canvas); }
+body.dark .count { color: #8a8a8a; }
+
+/* presenter notes: a band at the foot, off by default */
+aside.notes {
+  display: none; position: fixed; left: 0; right: 0; bottom: 0; background: var(--carbon); color: var(--canvas);
+  padding: 15px var(--margin); font-size: 18px; max-height: 32vh; overflow: auto; border-top: 2px solid var(--note);
+}
+body.notes aside.notes.on { display: block; }
+body.notes .count { display: none; }
+
+/* every slide on one page, each with its notes under it: ?all=1, and the printed deck, one slide a page. pitch.js
+ * puts the class on <html> and sets --z, the window's width over the stage's. */
+html.all, html.all body { height: auto; overflow: auto; }
+.all .stage { position: static; transform: none !important; height: auto; zoom: var(--z, 1); }
+.all .slide { display: flex; position: relative; min-height: 900px; height: auto; }
+.all .slide + .slide { border-top: 1px solid var(--rule); }
+.all .slide.vitrine .open { position: relative; inset: auto; height: 900px; }
+.all .frag { visibility: visible; }
+.all .cards .frag { opacity: 1; }
+.all aside.notes {
+  display: block; position: static; max-height: none; margin: 0 calc(0px - var(--margin)) -56px; font-size: 20px;
+}
+.all .vitrine aside.notes { margin: 0; border-top-color: #333; }
+.all .clock, .all .count, .all .progress { display: none; }
+@media print {
+  @page { size: 1600px 1100px; margin: 0; }
+  html, body { height: auto; overflow: visible; background: #fff; }
+  .stage { position: static; transform: none !important; height: auto; zoom: 1; }
+  .slide { display: flex; position: relative; min-height: 900px; height: auto; break-after: page; break-inside: avoid; }
+  .slide + .slide { border-top: 0; }
+  .slide.vitrine .open { position: relative; inset: auto; height: 900px; }
+  .slide.vitrine, aside.notes { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .frag { visibility: visible; }
+  .cards .frag { opacity: 1; }
+  aside.notes {
+    display: block; position: static; max-height: none; margin: 0 calc(0px - var(--margin)) -56px; font-size: 20px;
+  }
+  .vitrine aside.notes { margin: 0; border-top-color: #333; }
+  .clock, .count, .progress { display: none; }
+}

@@ -237,8 +237,16 @@
 <!-- 7 · the song: one piece from four presets playing at once, the film -->
 <section class="slide">
   <header><h1>The song</h1><p class="label">four presets playing at once, 78 seconds (P) · mpancia.github.io/fmfm · make install &amp;&amp; make run</p></header>
-  <div class="body one film">
-    <video src="formalfred.webm?{{stamp}}" playsinline preload="auto" controls></video>
+  <div class="body film">
+    <figure class="reel">
+      <video src="formalfred.webm?{{stamp}}" playsinline preload="auto" controls></video>
+    </figure>
+    <div class="reel-side">
+      <p class="label">the film</p>
+      <p class="mono name">formalfred.webm</p>
+      <p class="mono dur" aria-label="length"></p>
+      <p class="label keys">P plays · R from the start</p>
+    </div>
   </div>
   <aside class="notes">2:35. P. One song: the pad, then the keys, then the 808 with the filtered bass under a line
     played on the keys, then the flute for the lift, then down. Four runs of the firmware, four clocks, never a tick
@@ -246,8 +254,9 @@
     and that is the end.</aside>
 </section>
 
-</div>
+<div class="progress" aria-hidden="true"></div>
 <div class="count"></div>
+</div>
 <script src="pitch.js"></script>
 </body>
 </html>

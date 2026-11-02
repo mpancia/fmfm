@@ -36,7 +36,7 @@ let noteUntil = 0;                                           // a message that s
 const status = (t) => { if (performance.now() >= noteUntil) $('status').textContent = t; };
 const note = (t, ms = 4000) => { $('status').textContent = t; noteUntil = performance.now() + ms; };
 
-let ctl, ring, frame, worker, audio, gain, running = false, lastFrame = 0, lastLeds = [0, 0];
+let ctl, ring, frame, worker, audio, gain, analyser, running = false, lastFrame = 0, lastLeds = [0, 0];
 const mouseKeys = new Set(), pcKeys = new Set();
 const keyEls = [], ledKey = [], ledBtn = [], btnEls = [];
 
@@ -140,9 +140,10 @@ window.addEventListener('blur', () => { pcKeys.clear(); mouseKeys.clear(); if (r
 // ---- screen ----
 const ctx = $('screen').getContext('2d');
 const img = ctx.createImageData(240, 240);
-function draw() {
+function draw(now) {
   requestAnimationFrame(draw);
   if (!running) return;
+  drawScope(now);
   const n = Atomics.load(ctl, 17);
   if (n !== lastFrame) {
     lastFrame = n;
@@ -169,6 +170,47 @@ function draw() {
   }
 }
 
+// ---- scope ----
+// One ink line of what leaves the gain node: ~30 fps, one read into a buffer allocated once, drawn from the first
+// rising zero crossing so a steady tone stands still.
+const scope = $('scope'), sctx = scope.getContext('2d'), scopeBuf = new Float32Array(2048);
+let lastScope = 0;
+function sizeScope() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(scope.clientWidth * dpr), h = Math.round(scope.clientHeight * dpr);
+  if (scope.width !== w || scope.height !== h) { scope.width = w; scope.height = h; }
+  sctx.lineWidth = Math.max(1, Math.round(dpr)); sctx.strokeStyle = '#000'; sctx.lineJoin = 'round';
+}
+let scopePeak = 0;                                            // the trace fills the strip at any level: it ranges
+function drawScope(now) {                                    // on the last frame's peak, let down slowly
+  if (now - lastScope < 33) return;
+  lastScope = now;
+  sizeScope();
+  const W = scope.width, H = scope.height, mid = H / 2, span = scopeBuf.length / 2;
+  analyser.getFloatTimeDomainData(scopeBuf);
+  let t = 0;
+  for (let i = 1; i < span; i++) if (scopeBuf[i - 1] < 0 && scopeBuf[i] >= 0) { t = i; break; }
+  const scale = (mid - 2) / Math.max(scopePeak, .02);
+  let peak = scopePeak * .96;
+  sctx.clearRect(0, 0, W, H);
+  sctx.beginPath();
+  for (let x = 0; x < W; x++) {
+    const v = scopeBuf[t + ((x * span / W) | 0)], a = v < 0 ? -v : v;
+    if (a > peak) peak = a;
+    const y = Math.min(H - 1, Math.max(1, mid - v * scale));
+    if (x) sctx.lineTo(x, y); else sctx.moveTo(x, y);
+  }
+  sctx.stroke();
+  scopePeak = peak;
+}
+function flatScope() {                                       // powered off: a resting trace
+  sizeScope();
+  const mid = Math.round(scope.height / 2) + .5;
+  sctx.clearRect(0, 0, scope.width, scope.height);
+  sctx.beginPath(); sctx.moveTo(0, mid); sctx.lineTo(scope.width, mid); sctx.stroke();
+}
+window.addEventListener('resize', () => { if (!running) flatScope(); });
+
 // ---- power ----
 async function powerOn() {
   if (!crossOriginIsolated) { status('This page must be served by tools/serve_web.py (needs SharedArrayBuffer). Run make run.'); return; }
@@ -181,7 +223,9 @@ async function powerOn() {
   await audio.audioWorklet.addModule('worklet.js');
   const node = new AudioWorkletNode(audio, 'fm1-out', { outputChannelCount: [2], processorOptions: { ctl: ctl.buffer, ring: ring.buffer, ringFrames: RING } });
   gain = audio.createGain(); gain.gain.value = $('vol').value / 100;
+  analyser = audio.createAnalyser(); analyser.fftSize = scopeBuf.length; analyser.smoothingTimeConstant = 0;
   node.connect(gain).connect(audio.destination);
+  gain.connect(analyser);
   await audio.resume();
   worker = new Worker('worker.js');
   worker.onmessage = (e) => {
@@ -195,12 +239,13 @@ async function powerOn() {
         tr.insertCell().textContent = checks.toLocaleString() + ' checks';
         const f = tr.insertCell();
         f.textContent = fails ? fails.toLocaleString() + ' failed' : checks ? 'held' : 'not yet';
-        f.className = fails ? 'fail' : 'ok';
+        f.className = fails ? 'fail' : checks ? 'held' : 'wait';
         return tr;
       }));
     }
     else if (e.data.ready) {
       running = true; $('off').hidden = true; $('power').textContent = 'Power off'; $('power').disabled = false; status('Booting...');
+      $('scope-wrap').classList.add('live');
       const sel = $('patch');
       sel.replaceChildren(...e.data.patches.map((name, i) => new Option(`${i + 1}  ${name}`, i)));
       sel.disabled = false;
@@ -213,7 +258,8 @@ function powerOff(why) {
   running = false;
   if (worker) worker.terminate();
   if (audio) audio.close();
-  worker = audio = tap = null;
+  worker = audio = gain = analyser = tap = null;
+  $('scope-wrap').classList.remove('live'); flatScope();
   mouseKeys.clear(); pcKeys.clear();
   keyEls.forEach((el) => el.classList.remove('down'));
   [...ledBtn, ...ledKey].forEach((l) => l.classList.remove('lit'));
@@ -283,4 +329,5 @@ $('share').addEventListener('click', async () => {
 });
 
 build();
+flatScope();
 requestAnimationFrame(draw);

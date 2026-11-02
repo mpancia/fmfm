@@ -1,5 +1,7 @@
 # FORMALFRED
 
+<img src="docs/card.png" width="240" height="240" align="right" alt="The HOME screen: four lanes, their bars, the key and the chord">
+
 Firmware for the M-VAVE FM-1 that makes music on its own. Four lanes of generative rhythm and melody, Braids
 voices, an FM voice, an 808, a filter, reverb and delay. The sequencer, the voices' arithmetic, the effects and
 the patch format are Lean 4, and 313 theorems about that code are checked on every build. Alfred, a little

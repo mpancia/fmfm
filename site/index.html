@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <meta name="description" content="FORMALFRED: generative music firmware for the M-VAVE FM-1, written in Lean 4 with {{theorems}} theorems about it.">
 <title>formalfred</title>
 <link rel="icon" href="alfred.svg">
@@ -12,7 +13,7 @@
 
 <div class="bar"><div class="wrap">
   <a class="wordmark" href="./">formalfred</a>
-  <nav>
+  <nav aria-label="Sections">
     <a href="sim/">simulator</a>
     <a href="installer.html">install</a>
     <a href="pitch/">pitch</a>
@@ -22,9 +23,14 @@
 </div></div>
 
 <div class="vitrine"><div class="wrap">
-  <img src="screen-home.png" width="360" height="360" alt="The FM-1's screen running FORMALFRED: four lanes, their bars, the key and the chord">
-  <span class="corner mono">FORMALFRED &nbsp;·&nbsp; M-VAVE FM-1 &nbsp;·&nbsp; firmware {{version}}</span>
-  <img class="alfred" src="alfred.svg" width="72" height="96" alt="Alfred, the butler, in pixels">
+  <figure class="case">
+    <img class="screen" src="screen-home.png" width="480" height="480"
+         alt="The FM-1's screen running FORMALFRED: four lanes, their bars, the key and the chord">
+    <figcaption class="plate">
+      <span class="mono">FORMALFRED &nbsp;·&nbsp; M-VAVE FM-1 &nbsp;·&nbsp; firmware {{version}}</span>
+      <img class="alfred" src="alfred.svg" width="72" height="96" alt="Alfred, the butler, in pixels">
+    </figcaption>
+  </figure>
 </div></div>
 
 <section class="ruled"><div class="wrap">
@@ -42,25 +48,31 @@
     then to the chip. {{theorems}} theorems about that code go through Lean's kernel on every build. What is
     trusted (the screen, the drivers, the loops that call the Lean, Braids' tables, Lean's C backend, JieLi's
     clang and the runtime) is listed in the README.</p>
-    <p>
+    <p class="actions">
       <a class="button solid" href="sim/">Try it in the browser</a>
       <a class="button" href="installer.html">Install on an FM-1</a>
     </p>
-    <p class="label">The simulator is the same firmware compiled to WebAssembly. Chrome or Edge for MIDI in.</p>
+    <p class="dek">The simulator is the same firmware compiled to WebAssembly. Chrome or Edge for MIDI in.</p>
   </div>
 </div></section>
 
 <section class="ruled"><div class="wrap">
-  <div><h2>Hear it</h2><p class="label">Each link opens the simulator on a demo song; press Power on.</p></div>
-  <table class="ledger">
-    <tr><th>Demo</th><th>What it shows</th></tr>
-    <tr><td><a href="sim/?patch=1">CLOCKWORK</a></td><td>the boot patch: a locked Turing bass, a rule-30 automaton, ratchets, a Markov bell</td></tr>
-    <tr><td><a href="sim/?patch=2">AIRPORTS</a></td><td>after Eno: bars of 7, 11, 13 and 5 steps that realign every 5005 steps</td></tr>
-    <tr><td><a href="sim/?patch=8">TONNETZ</a></td><td>a walk through all 24 triads, one note changing at a time</td></tr>
-    <tr><td><a href="sim/?patch=11">BLACK KEYS</a></td><td>two lanes in C major, two on the notes it leaves out</td></tr>
-    <tr><td><a href="sim/?patch=12">ELECTRIC</a></td><td>the FM voice: an electric piano ballad</td></tr>
-    <tr><td><a href="sim/?patch=17">NIGHT DRIVE</a></td><td>the 808 and the filter: kick, snare, a filtered bass that mutates</td></tr>
-  </table>
+  <div><h2>Hear it</h2><p class="dek">Each link opens the simulator on a demo song; press Power on.</p></div>
+  <ol class="demos">
+    <li><a href="sim/?patch=1"><span class="name">CLOCKWORK</span>
+      <span class="what">the boot patch: a locked Turing bass, a rule-30 automaton, ratchets,
+        a Markov bell</span></a></li>
+    <li><a href="sim/?patch=2"><span class="name">AIRPORTS</span>
+      <span class="what">after Eno: bars of 7, 11, 13 and 5 steps that realign every 5005 steps</span></a></li>
+    <li><a href="sim/?patch=8"><span class="name">TONNETZ</span>
+      <span class="what">a walk through all 24 triads, one note changing at a time</span></a></li>
+    <li><a href="sim/?patch=11"><span class="name">BLACK KEYS</span>
+      <span class="what">two lanes in C major, two on the notes it leaves out</span></a></li>
+    <li><a href="sim/?patch=12"><span class="name">ELECTRIC</span>
+      <span class="what">the FM voice: an electric piano ballad</span></a></li>
+    <li><a href="sim/?patch=17"><span class="name">NIGHT DRIVE</span>
+      <span class="what">the 808 and the filter: kick, snare, a filtered bass that mutates</span></a></li>
+  </ol>
 </div></section>
 
 <section class="ruled"><div class="wrap">
@@ -77,7 +89,8 @@
     <div>
       <p class="label">Notes</p>
       <p>Eleven note sources, among them a random draw, walks, a mutating loop, a Turing register, a Markov chain
-      that learns from the keys, and a grammar. Chord progressions are written as degrees; a lane can follow the chord, its
+      that learns from the keys, and a grammar. Chord progressions are written as degrees; a lane can follow the
+      chord, its
       seventh, or the notes outside the key. The last three progressions walk the Tonnetz by P, L and R. The note
       that comes out is always in the scale (<code>lane_note_in_scale</code>).</p>
     </div>
@@ -91,7 +104,8 @@
 </div></section>
 
 <section class="ruled"><div class="wrap">
-  <div><h2>The panel</h2><p class="label">Each group button opens its pages; the same button again moves to the next page. The four knobs set the four values on screen.</p></div>
+  <div><h2>The panel</h2><p class="dek">Each group button opens its pages; the same button again moves to the next
+    page. The four knobs set the four values on screen.</p></div>
   <table class="ledger">
     <tr><th>Group</th><th>Pages</th></tr>
     <tr><td>HOME</td><td>the four lanes: hits, steps, speed, chance; Alfred when stopped</td></tr>
@@ -112,14 +126,15 @@
 <section class="ruled" id="proved"><div class="wrap">
   <div>
     <h2>What is proved</h2>
-    <p class="label">{{theorems}} theorems on the three standard axioms, checked by Lean's kernel and by <code>lake comparator</code>, and each run on concrete inputs too.</p>
+    <p class="dek">{{theorems}} theorems on the three standard axioms, checked by Lean's kernel and by
+      <code>lake comparator</code>, and each run on concrete inputs too.</p>
   </div>
   <div>
-    <table class="ledger">
+    <table class="ledger proofs">
       <tr><th>Area</th><th class="num">Theorems</th><th>What is promised</th></tr>
       {{groups}}
     </table>
-    <p style="margin-top: 22px">Every theorem is in
+    <p class="after-table">Every theorem is in
     <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a> with its statement, why it
     matters and the definitions it depends on. The README lists what is trusted: the screen, the drivers, the
     accessors that read Braids' tables, and the C loops that call the Lean. The proofs are about the Lean the
@@ -130,20 +145,20 @@
 
 <section class="ruled"><div class="wrap">
   <div><h2>Before you flash</h2></div>
-  <div class="warning">
-    <ul class="lines">
-      <li>Put the unit on the official V15 firmware first, and take a full-flash backup.
-        Steps in <a href="https://github.com/mpancia/fmfm/blob/main/docs/FM1.md">docs/FM1.md</a>.</li>
-      <li>The installer works over USB from Chrome or Edge and keeps the update path and the OCT- rescue.</li>
-      <li>Tested on one FM-1, installed over the stock firmware and over itself. Use at your own risk.</li>
-    </ul>
-  </div>
+  <ol class="warning">
+    <li>Put the unit on the official V15 firmware first, and take a full-flash backup.
+      Steps in <a href="https://github.com/mpancia/fmfm/blob/main/docs/FM1.md">docs/FM1.md</a>.</li>
+    <li>The installer works over USB from Chrome or Edge and keeps the update path and the OCT- rescue.</li>
+    <li>Tested on one FM-1, installed over the stock firmware and over itself. Use at your own risk.</li>
+  </ol>
 </div></section>
 
 <footer class="foot"><div class="wrap">
-  GPL-3.0-only. Built on <a href="https://github.com/zvenson/dinghy">Dinghy</a> and Felucca; the voice is
+  <a class="wordmark" href="./">formalfred</a>
+  <p>GPL-3.0-only. Built on <a href="https://github.com/zvenson/dinghy">Dinghy</a> and Felucca; the voice is
   <a href="https://github.com/pichenettes/eurorack">Braids</a>, the reverb is Clouds' (Mutable Instruments, MIT);
-  the installer follows <a href="https://github.com/dspaudio/orbit">ORBIT</a>. <a href="https://github.com/mpancia/fmfm">Source</a>.
+  the installer follows <a href="https://github.com/dspaudio/orbit">ORBIT</a>.
+  <a href="https://github.com/mpancia/fmfm">Source</a>.</p>
 </div></footer>
 
 </body>
