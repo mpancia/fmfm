@@ -117,6 +117,10 @@ def render(rows):
            "One entry per public theorem in `Proofs/`. The spec surface is the definitions the statement uses, in",
            "`Firmware/` (the code) and `Spec/` (definitions needed to state it). `Examples/Sequencer.lean` and",
            "`Examples/Voices.lean` instantiate every theorem on concrete inputs.", ""]
+    counts = {}
+    for mod, *_ in rows:
+        counts[mod] = counts.get(mod, 0) + 1
+    out += ["Modules: " + ", ".join(f"[{m}](#{m.lower()}) ({n})" for m, n in counts.items()), ""]
     module = None
     for mod, name, claim, why, surface in rows:
         if mod != module:
