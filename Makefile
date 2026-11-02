@@ -30,7 +30,7 @@ web:
 	sh tools/build_web.sh
 
 # The five-minute pitch deck (site/pitch, docs/PITCH.md is the run-sheet): build/pitch/index.html, open it in a browser.
-pitch: web
+pitch: video
 	.venv/bin/python tools/make_pitch.py
 
 # The demo film, about a minute and a half: build/video/formalfred.mp4 (and .webm); one song from four presets played

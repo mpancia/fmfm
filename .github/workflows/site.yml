@@ -29,7 +29,7 @@ jobs:
       - name: make install
         run: make install
       - name: Build the simulator and the package
-        run: make web && make fw && make test
+        run: make web && make fw && make test && make video
       - name: Assemble the site
         run: .venv/bin/python tools/make_site.py "1.0.${{ github.run_number }}"
       - uses: actions/upload-pages-artifact@v3

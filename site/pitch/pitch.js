@@ -47,12 +47,13 @@ function prev() {
 // the picture plays or pauses it, as P does; if the browser refuses, its reason is written where the cue goes.
 function toggle(video) {
   const cue = video.closest(".slide").querySelector(".cue");
-  if (video.paused) video.play().catch(e => { cue.textContent = `The browser would not play it: ${e.message}`; });
+  if (video.paused) video.play().catch(e => { if (cue) cue.textContent = `The browser would not play it: ${e.message}`; });
   else video.pause();
 }
 for (const video of document.querySelectorAll("video")) {
   const slide = video.closest(".slide");
   const cue = slide.querySelector(".cue");
+  if (!cue) { video.addEventListener("click", () => toggle(video)); continue; }
   const cues = [...slide.querySelectorAll(".cues li")]
     .map(li => ({ at: Number(li.dataset.at), text: li.textContent, card: li.dataset.card }));
   video.addEventListener("timeupdate", () => {
