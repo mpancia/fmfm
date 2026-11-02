@@ -500,7 +500,8 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 
 Proofs cover the Lean code in `Firmware/`. What is proved is listed in `docs/PROOFS.md`; the same statements are
 in `Challenge.lean`, and `make comparator` (Lean 4.35's `lake comparator`) checks in a sandbox that `Proofs/`
-proves each of them with no axiom but `propext`, `Classical.choice` and `Quot.sound`. `PARANOID=1` also runs
+proves each of them with no axiom but `propext`, `Classical.choice` and `Quot.sound`; `lake check` replays the
+whole build (every module, the examples included) through the kernel with the same result. `PARANOID=1` also runs
 the five external checkers bundled with Lean (leanchecker-paranoid, lean4lean, nanoda, con-leche, con-ron);
 all accept. They do not cover:
 
