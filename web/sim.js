@@ -10,7 +10,17 @@
  *   ring: 16-bit stereo audio.   frame: 240x240 RGB565. */
 const RING = 16384;
 const BUTTONS = ['OCT-', 'OCT+', 'FX', 'SEL', 'ENV', 'LFO', 'EDIT', 'GLO', 'HOME', 'SAVE', 'ARP', 'SEQ', 'PLAY', 'REC'];
+const BUTTON_HELP = {
+  'OCT-': 'keys an octave down', 'OCT+': 'keys an octave up',
+  FX: 'REVERB page, again for DELAY', SEL: 'mute the chosen lane', ENV: 'ENVELOPE page', LFO: 'LFO page for the chosen lane',
+  EDIT: 'SOUND page, again for FILTER, ENVELOPE, MIX, PAN', GLO: 'HARMONY page, again for SYSTEM, MIDI, BANKS',
+  HOME: 'the four lanes', SAVE: 'save the patch to the chosen slot', ARP: 'the arpeggiator, again to latch or for QUANT',
+  SEQ: 'RHYTHM page, again for FEEL, NOTES, RANGE', PLAY: 'start or stop', REC: 'PUNCH: the keys as momentary effects',
+};
 const ENCODERS = ['Select', 'Algorithm', 'Knob 1', 'Knob 2', 'Knob 3', 'Knob 4', 'Presets'];
+const ENCODER_HELP = ['the lane (in a browser: the group)', 'tempo (in the sound browser: the grouping)',
+  'the first value on screen', 'the second value', 'the third value', 'the fourth value', 'open the browser and scroll'];
+const PLAY = 12, HOME = 8, SELECT = 0;
 const NKEYS = 27, FIRST_MIDI = 53;                       // key 0 = F3
 const NOTE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const isBlack = (k) => [1, 3, 6, 8, 10].includes((FIRST_MIDI + k) % 12);
@@ -22,7 +32,9 @@ const PC_KEYS = {};
 'q2w3er5t'.split('').forEach((c, i) => { PC_KEYS[c] = 19 + i; });
 
 const $ = (id) => document.getElementById(id);
-const status = (t) => { $('status').textContent = t; };
+let noteUntil = 0;                                           // a message that should outlast the running ticker
+const status = (t) => { if (performance.now() >= noteUntil) $('status').textContent = t; };
+const note = (t, ms = 4000) => { $('status').textContent = t; noteUntil = performance.now() + ms; };
 
 let ctl, ring, frame, worker, audio, gain, running = false, lastFrame = 0, lastLeds = [0, 0];
 const mouseKeys = new Set(), pcKeys = new Set();
@@ -68,7 +80,7 @@ function build() {
   BUTTONS.forEach((name, id) => {
     const wrap = document.createElement('div'); wrap.className = 'btn';
     const led = document.createElement('span'); led.className = 'led';
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = name;
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = name; b.title = BUTTON_HELP[name];
     b.addEventListener('pointerdown', (e) => { b.setPointerCapture(e.pointerId); buttonDown(id); });
     b.addEventListener('pointerup', () => buttonUp(id)); b.addEventListener('pointercancel', () => buttonUp(id));
     b.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); buttonDown(id); } });
@@ -78,7 +90,7 @@ function build() {
   ENCODERS.forEach((name, id) => {
     const wrap = document.createElement('div'); wrap.className = 'enc';
     const knob = document.createElement('div'); knob.className = 'knob'; knob.tabIndex = 0;
-    knob.setAttribute('role', 'spinbutton'); knob.setAttribute('aria-label', name);
+    knob.setAttribute('role', 'spinbutton'); knob.setAttribute('aria-label', name); knob.title = ENCODER_HELP[id];
     let pos = 0, y0 = null, moved = false;
     const step = (d) => { pos += d; knob.style.setProperty('--rot', pos * 14 + 'deg'); turn(id, d); };
     knob.addEventListener('wheel', (e) => { e.preventDefault(); step(e.deltaY < 0 ? 1 : -1); }, { passive: false });
@@ -101,18 +113,27 @@ function build() {
   });
 }
 
+const KEY_BUTTON = { '-': 0, '=': 1, ' ': PLAY, Escape: HOME };          // held like the panel button
+const inField = (e) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName);
+function loadPatch(i) {
+  const n = $('patch').options.length;
+  if (!running || !n) return;
+  i = ((i % n) + n) % n;
+  $('patch').value = String(i); Atomics.store(ctl, 20, i + 1);
+}
 document.addEventListener('keydown', (e) => {
-  if (!running || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!running || e.repeat || e.ctrlKey || e.metaKey || e.altKey || inField(e)) return;
+  if (e.key in KEY_BUTTON) { e.preventDefault(); buttonDown(KEY_BUTTON[e.key]); return; }
+  if (e.key === '[' || e.key === ']') { turn(SELECT, e.key === ']' ? 1 : -1); return; }
+  if (e.key === 'PageUp' || e.key === 'PageDown') { e.preventDefault(); loadPatch(Number($('patch').value) + (e.key === 'PageDown' ? 1 : -1)); return; }
   const c = e.key.toLowerCase();
-  if (c === '-') { buttonDown(0); return; }
-  if (c === '=') { buttonDown(1); return; }
   if (c in PC_KEYS) { pcKeys.add(PC_KEYS[c]); pushNotes(); }
 });
 document.addEventListener('keyup', (e) => {
-  const c = e.key.toLowerCase();
   if (!running) return;
-  if (c === '-') buttonUp(0); else if (c === '=') buttonUp(1);
-  else if (c in PC_KEYS) { pcKeys.delete(PC_KEYS[c]); pushNotes(); }
+  if (e.key in KEY_BUTTON) { buttonUp(KEY_BUTTON[e.key]); return; }
+  const c = e.key.toLowerCase();
+  if (c in PC_KEYS) { pcKeys.delete(PC_KEYS[c]); pushNotes(); }
 });
 window.addEventListener('blur', () => { pcKeys.clear(); mouseKeys.clear(); if (running) pushNotes(); });
 
@@ -142,6 +163,7 @@ function draw() {
     const playing = Atomics.load(ctl, 21);                     // the device's own browser may have changed the patch
     if (document.activeElement !== $('patch') && String(playing) !== $('patch').value) $('patch').value = String(playing);
     if (demoWanted && Atomics.load(ctl, 19) > 1000) { demoWanted = false; Atomics.store(ctl, 22, 1); }
+    if (patchWanted !== null && Atomics.load(ctl, 19) > 1000) { loadPatch(patchWanted); patchWanted = null; }
     $('demo').textContent = Atomics.load(ctl, 23) ? 'Stop demo' : 'Demo';
     $('demo').classList.toggle('on', !!Atomics.load(ctl, 23));
   }
@@ -182,6 +204,7 @@ async function powerOn() {
       const sel = $('patch');
       sel.replaceChildren(...e.data.patches.map((name, i) => new Option(`${i + 1}  ${name}`, i)));
       sel.disabled = false;
+      for (const id of ['record', 'shot', 'share']) $(id).disabled = false;
     }
   };
   worker.postMessage({ ctl: ctl.buffer, ring: ring.buffer, frame: frame.buffer, base: location.href });
@@ -190,12 +213,14 @@ function powerOff(why) {
   running = false;
   if (worker) worker.terminate();
   if (audio) audio.close();
-  worker = audio = null;
+  worker = audio = tap = null;
   mouseKeys.clear(); pcKeys.clear();
   keyEls.forEach((el) => el.classList.remove('down'));
   [...ledBtn, ...ledKey].forEach((l) => l.classList.remove('lit'));
   $('off').hidden = false; $('power').textContent = 'Power on'; $('power').disabled = false;
   $('patch').disabled = true;
+  if (recorder) stopRecording();
+  for (const id of ['record', 'shot', 'share']) $(id).disabled = true;
   $('demo').textContent = 'Demo'; $('demo').classList.remove('on');
   status(why || 'Off. Power on to boot the firmware (the firmware\'s saved settings are lost when it powers off).');
 }
@@ -203,13 +228,16 @@ $('power').addEventListener('click', () => (running ? powerOff() : powerOn()));
 $('vol').addEventListener('input', () => { if (gain) gain.gain.value = $('vol').value / 100; });
 $('patch').addEventListener('change', () => { if (running) Atomics.store(ctl, 20, Number($('patch').value) + 1); $('patch').blur(); });
 let demoWanted = false;                                      // Demo pressed while off: start AUTO once the firmware is up
+const linkPatch = new URLSearchParams(location.search).get('patch');   // ?patch=N (1-based, as the list shows)
+let patchWanted = linkPatch && Number(linkPatch) >= 1 ? Number(linkPatch) - 1 : null;
+if (patchWanted !== null) status(`Off. Power on to boot the firmware and load patch ${linkPatch}.`);
 $('demo').addEventListener('click', async () => {
   if (!running) { demoWanted = true; await powerOn(); return; }
   Atomics.store(ctl, 22, Atomics.load(ctl, 23) ? 2 : 1);
 });
 
 $('midi').addEventListener('click', async () => {
-  if (!navigator.requestMIDIAccess) { status('This browser has no Web MIDI. Use Chrome or Edge.'); return; }
+  if (!navigator.requestMIDIAccess) { note('This browser has no Web MIDI. Use Chrome or Edge.'); return; }
   try {
     const access = await navigator.requestMIDIAccess();
     const hook = () => {
@@ -221,7 +249,37 @@ $('midi').addEventListener('click', async () => {
       $('midi').textContent = n ? `MIDI in: ${n} device${n > 1 ? 's' : ''}` : 'No MIDI devices';
     };
     access.onstatechange = hook; hook();
-  } catch (err) { status('MIDI access refused: ' + err.message); }
+  } catch (err) { note('MIDI access refused: ' + err.message); }
+});
+
+// ---- record, screenshot, link ----
+let recorder = null, tap = null;
+const download = (blob, name) => {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+};
+const patchName = () => ($('patch').selectedOptions[0]?.textContent || 'fm1').replace(/^\d+\s+/, '').toLowerCase().replace(/\W+/g, '-');
+function stopRecording() {
+  recorder.stop(); recorder = null;
+  $('record').textContent = 'Record'; $('record').classList.remove('on');
+}
+$('record').addEventListener('click', () => {
+  if (recorder) { stopRecording(); return; }
+  if (!window.MediaRecorder) { note('This browser cannot record audio.'); return; }
+  if (!tap) { tap = audio.createMediaStreamDestination(); gain.connect(tap); }
+  const chunks = [];
+  recorder = new MediaRecorder(tap.stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '' });
+  recorder.ondataavailable = (e) => chunks.push(e.data);
+  recorder.onstop = () => download(new Blob(chunks, { type: 'audio/webm' }), `formalfred-${patchName()}.webm`);
+  recorder.start();
+  $('record').textContent = 'Stop recording'; $('record').classList.add('on');
+  note('Recording what you hear; Stop recording saves a .webm.');
+});
+$('shot').addEventListener('click', () => $('screen').toBlob((b) => download(b, `formalfred-${patchName()}.png`)));
+$('share').addEventListener('click', async () => {
+  const url = new URL(location.href); url.searchParams.set('patch', String(Number($('patch').value) + 1));
+  try { await navigator.clipboard.writeText(url.toString()); note(`Copied ${url}`); }
+  catch { history.replaceState(null, '', url); note(`Link: ${url}`); }
 });
 
 build();

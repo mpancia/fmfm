@@ -20,8 +20,11 @@ the audio buffer is full, so the audio clock sets the speed. Pages need `SharedA
 headers `tools/serve_web.py` sends; opening `build/web/index.html` from disk does not work.
 
 ## Controls
-Click the keys, or use the computer keyboard (`Z`..`/` from C4, `Q`..`T` from C5; `-`/`=` are OCT-/OCT+).
-Knobs: wheel, drag, click left/right half, arrow keys. **Connect MIDI in** feeds Web MIDI devices to the USB
+Click the keys, or use the computer keyboard (`Z`..`/` from C4, `Q`..`T` from C5; `-`/`=` are OCT-/OCT+). Space is
+PLAY, Escape is HOME, `[` and `]` turn Select, PageUp and PageDown step through the patches.
+Knobs: wheel, drag, click left/right half, arrow keys. Every button and knob has a tooltip.
+**Record** saves what you hear as a WebM (Opus) file; **Screenshot** saves the 240x240 screen as a PNG; **Copy link**
+puts `?patch=N` on the URL, and opening such a link loads that patch after Power on. **Connect MIDI in** feeds Web MIDI devices to the USB
 MIDI input (Chrome/Edge). The **Patch** list loads any factory patch or user slot without touching the device
 (the page asks the firmware for the names at boot and follows the patch the device changes to). **Demo** turns
 AUTO on (GLO > BANKS) and the demo songs play themselves; from power-off it boots first. Press it again, or PLAY,
