@@ -52,6 +52,7 @@ link would fail loudly if firmware code needed anything from them.
 ## Status
 - Tested: `make test` runs the web build in node (sound, PLAY, screen) and the chip link builds. The lane code is
   proved in `Proofs/Lane.lean`.
-- Not tested: the chip build on a real FM-1. Not measured: time and RAM cost of Lean calls on the chip, or whether
-  the 32 KiB pool is enough for four lanes: the smoke test drives every page, patch load and save and every shape,
-  and its high-water mark is about 11 KiB; `make test` fails if it passes 16 KiB.
+- Tested on an FM-1: the install, the lanes, the keys, the screen, the sound. Not measured: time and RAM cost of
+  Lean calls on the chip, or whether the 32 KiB pool is enough for four lanes over a long run: the smoke test drives
+  every page, patch load and save and every shape, and its high-water mark is about 11 KiB; `make test` fails if
+  it passes 16 KiB.

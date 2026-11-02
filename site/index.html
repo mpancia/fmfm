@@ -41,7 +41,7 @@
     <p>Most of what runs is Lean 4: the lanes, the arithmetic of every Braids engine, the two effects, the mix and
     the patch format are compiled from Lean to C and then to the chip, and {{theorems}} theorems about that code go
     through Lean's kernel on every build. What is left in C (the screen, the drivers, the loops that call the Lean)
-    the README lists as trusted rather than proved, and nobody has yet heard any of it on a physical FM-1.</p>
+    the README lists as trusted rather than proved. It runs on an FM-1.</p>
     <p>
       <a class="button solid" href="sim/">Try it in the browser</a>
       <a class="button" href="installer.html">Install on an FM-1</a>
@@ -110,7 +110,7 @@
     sentence on why anyone should care, and the README says which parts are trusted instead: the screen, the drivers,
     the one-line accessors that read Braids' tables, and the C loops that call the Lean. The proofs are about the
     code the chip runs, generated from the same Lean, with the arithmetic of every engine checked sample for sample
-    against the original Braids. They are not about the hardware, which none of this has touched.</p>
+    against the original Braids. They are not about the hardware, on which the firmware runs but which nothing here models.</p>
   </div>
 </div></section>
 

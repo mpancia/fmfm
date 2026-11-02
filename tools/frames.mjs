@@ -1,6 +1,7 @@
 // Run a firmware wasm headless and save the screen at the given times as raw RGB565 files.
 //   node tools/frames.mjs build/web/dinghy.wasm OUT_DIR 300,1000,2000
-// Optional script of panel input: ... 300,1000 "4000:press:7,4500:turn:5:1"  (ms:press:button, ms:turn:encoder:detents)
+// Optional script of panel input: ... 300,1000 "4000:press:7,4500:turn:5:1"  (ms:press:button, ms:turn:encoder:detents,
+// ms:key:k:1 or :0 to hold or let go of key k, ms:patch:index to load a factory patch), as render_web.mjs.
 import fs from 'fs';
 const [wasm, outDir, times, script = ''] = process.argv.slice(2);
 const wanted = times.split(',').map(Number);
@@ -14,6 +15,8 @@ const imports = { env: {
     for (const [at, kind, a, b] of input) if (Number(at) === t) {
       if (kind === 'press') d.setUint32(8, d.getUint32(8, true) | 1 << Number(a), true);
       if (kind === 'turn') d.setInt32(16 + 4 * Number(a), Number(b), true);
+      if (kind === 'key') d.setUint32(0, Number(b) ? d.getUint32(0, true) | 1 << Number(a) : d.getUint32(0, true) & ~(1 << Number(a)), true);
+      if (kind === 'patch') d.setUint32(112, Number(a) + 1, true);
     }
     if (wanted.includes(t)) fs.writeFileSync(`${outDir}/${t}.raw`, frame);
     if (t > Math.max(...wanted)) throw new Error('done');

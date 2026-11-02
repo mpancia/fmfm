@@ -1,15 +1,18 @@
 // Run a firmware wasm headless and write what it plays as a stereo 16-bit WAV, with a few numbers about it.
-//   node tools/render_web.mjs build/web/dinghy.wasm out.wav 12000 "800:press:8,3000:press:2,3100:turn:5:-20"
+//   node tools/render_web.mjs build/web/dinghy.wasm out.wav 12000 "800:press:8,3000:press:2,3100:turn:5:-20" [frames.raw FPS]
 // The script is as for frames.mjs (ms:press:button, ms:turn:encoder:detents, ms:key:k:1 or :0 to hold or let go of
-// key k, 0 = F3). Prints the peak, the loudness
-// (RMS, dBFS) of each second and how many samples clipped.
+// key k, 0 = F3, ms:patch:index to load a factory patch as the page's list does). Prints the peak, the loudness
+// (RMS, dBFS) of each second and how many samples clipped. With a frames path, the screen is also written FPS times a
+// second as raw RGB565 (240x240), one frame after another: a video for ffmpeg.
 import fs from 'fs';
-const [wasm, out, lengthMs, script = ''] = process.argv.slice(2);
+const [wasm, out, lengthMs, script = '', framesOut, fpsArg] = process.argv.slice(2);
 const END = Number(lengthMs);
 const input = script.split(',').filter(Boolean).map((e) => e.split(':'));
 const mod = await WebAssembly.compile(fs.readFileSync(wasm));
 let mem, inp, ms = 0;
 const chunks = [];
+const frameEvery = framesOut ? 1000 / Number(fpsArg || 30) : 0;
+let frame = Buffer.alloc(240 * 240 * 2), video = framesOut ? fs.openSync(framesOut, 'w') : 0, nextFrame = 0;
 const imports = { env: {
   js_sync(t) {
     ms = t;
@@ -18,11 +21,13 @@ const imports = { env: {
       if (kind === 'press') d.setUint32(8, d.getUint32(8, true) | 1 << Number(a), true);
       if (kind === 'turn') d.setInt32(16 + 4 * Number(a), Number(b), true);
       if (kind === 'key') d.setUint32(0, Number(b) ? d.getUint32(0, true) | 1 << Number(a) : d.getUint32(0, true) & ~(1 << Number(a)), true);
+      if (kind === 'patch') d.setUint32(112, Number(a) + 1, true);
     }
+    while (video && t >= nextFrame) { fs.writeSync(video, frame); nextFrame += frameEvery; }
     if (t >= END) throw new Error('done');
   },
   js_audio(ptr, n) { chunks.push(new Int16Array(mem.buffer.slice(ptr, ptr + n * 4))); },
-  js_frame() {},
+  js_frame(ptr) { if (video) frame = Buffer.from(mem.buffer.slice(ptr, ptr + 240 * 240 * 2)); },
   js_report(ptr, fatal) {
     const b = new Uint8Array(mem.buffer, ptr); let n = 0; while (b[n]) n++;
     console.error((fatal ? 'FATAL ' : '') + Buffer.from(b.subarray(0, n)).toString());
@@ -31,6 +36,7 @@ const imports = { env: {
 const inst = await WebAssembly.instantiate(mod, imports);
 mem = inst.exports.memory; inp = inst.exports.web_in_ptr();
 try { inst.exports.web_run(); } catch (e) { if (e.message !== 'done') throw e; }
+if (video) fs.closeSync(video);
 
 const frames = chunks.reduce((n, c) => n + c.length / 2, 0);
 const pcm = new Int16Array(frames * 2);

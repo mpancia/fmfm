@@ -13,10 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }                      # the pitch deck counts the commits and the hours
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: System packages
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential python3 python3-venv bubblewrap
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential python3 python3-venv bubblewrap ffmpeg
       - name: Cache toolchains
         uses: actions/cache@v4
         with:

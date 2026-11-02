@@ -7,7 +7,7 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
 
-.PHONY: install run web test test-lean test-exports audit build check lean-check fw flash-deps clean lint proofs comparator perf
+.PHONY: install run web pitch test test-lean test-exports audit build check lean-check fw flash-deps clean lint proofs comparator perf
 
 
 install:
@@ -28,6 +28,10 @@ run: web
 
 web:
 	sh tools/build_web.sh
+
+# The five-minute pitch deck (site/pitch, docs/PITCH.md is the run-sheet): build/pitch/index.html, open it in a browser.
+pitch: web
+	.venv/bin/python tools/make_pitch.py
 
 # Headless tests of the web build: boots the firmware in node, plays notes, checks sound, screen and LEDs; renders
 # every demo song and checks its level; plays every factory patch and fails on clipping or silence.

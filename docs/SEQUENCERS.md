@@ -80,7 +80,7 @@ note-off (`arp_every_note_on_has_a_note_off`); UP plays what you hold through, n
 
 The first seven patches (the DEMOS group of the browser, and the DEMO knob on GLO > BANKS, which steps through
 them) each show the sequencers off; CLOCKWORK is the boot patch. Rendered by `tools/render_web.mjs`, none
-clips (peaks -7 to -15 dBFS); nobody has listened to them.
+clips (peaks -7 to -15 dBFS).
 
 | Demo | What it shows |
 |---|---|

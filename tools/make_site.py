@@ -2,7 +2,7 @@
 """Assemble the GitHub Pages site into build/site:
    index.html, the installer (with manifest.json and the .fwsc), and the simulator under sim/.
 Run after `make web` and `make fw`.  tools/make_site.py [VERSION]"""
-import hashlib, json, re, shutil, subprocess, sys
+import hashlib, json, re, shutil, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from proof_index import collect, GROUPS
 rows = collect()
 by_module = {}
-for mod, _, _, _ in rows:
+for mod, _, _, _, _ in rows:
     by_module[mod] = by_module.get(mod, 0) + 1
 groups = "\n      ".join(
     f"<tr><td>{title}</td><td class=\"num\">{sum(by_module.get(m, 0) for m in mods)}</td><td>{about}</td></tr>"
@@ -37,20 +37,8 @@ groups = "\n      ".join(
 index = OUT / "index.html"
 index.write_text(index.read_text().replace("{{theorems}}", str(len(rows))).replace("{{groups}}", groups)
                  .replace("{{version}}", version))
-frames = OUT / "frames"
-subprocess.run(["node", str(ROOT / "tools/frames.mjs"), str(ROOT / "build/web/dinghy.wasm"), str(frames), "4000",
-                "800:press:8"], check=True)
-try:
-    from PIL import Image
-    raw = (frames / "4000.raw").read_bytes()
-    img = Image.new("RGB", (240, 240))
-    px = img.load()
-    for i in range(240 * 240):
-        v = raw[2 * i] | raw[2 * i + 1] << 8
-        px[i % 240, i // 240] = ((v >> 11) * 255 // 31, ((v >> 5) & 63) * 255 // 63, (v & 31) * 255 // 31)
-    img.resize((480, 480), Image.NEAREST).save(OUT / "screen-home.png")
-except ImportError:
-    pass
-shutil.rmtree(frames)
+from make_pitch import home_screen, render as render_pitch
+home_screen(OUT)
 shutil.copy(ROOT / "web/alfred.svg", OUT / "alfred.svg")          # the icon of every page, and the butler in the vitrine
+render_pitch(OUT / "pitch", OUT / "screen-home.png")             # the five-minute deck, at pitch/
 print(OUT, product, len(data))

@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FORMALFRED · the pitch</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="alfred.svg">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="pitch.css">
+</head>
+<body>
+<div class="clock"><div class="bar"></div></div>
+<div class="stage">
+
+<!-- 1 · the cold open: the wordmark draws in, Alfred walks in and bows as he does on the device, the screen appears.
+     R plays it again. The device on the speaker is playing; nothing is said for fifteen seconds. -->
+<section class="slide vitrine">
+  <div class="open">
+    <div class="mark">
+      <div class="rule"></div>
+      <h1 class="wordmark" aria-label="FORMALFRED"><span class="form"><span>F</span><span>O</span><span>R</span><span>M</span></span><span class="fred"><span>A</span><span>L</span><span>F</span><span>R</span><span>E</span><span>D</span></span></h1>
+      <p class="label tag">a sequencer for the M-VAVE FM-1 · proved in Lean · {{theorems}} theorems</p>
+    </div>
+    <div class="device">
+      <img class="screen" src="screen-rhythm.png" width="480" height="480" alt="The FM-1's RHYTHM page: a bar of sixteen steps drawn as a circle, its seven hits joined">
+      <div class="alfred" aria-label="Alfred, the butler, walks in and bows">
+        <img class="body" src="alfred.svg" width="72" height="96" alt="">
+        <img class="head" src="alfred.svg" width="72" height="96" alt="">
+      </div>
+    </div>
+  </div>
+  <aside class="notes">0:00. The device is on the speaker with ELECTRIC playing. Say nothing for fifteen seconds;
+    Alfred walks in and bows on the screen behind you. Then: "This is a sixty-dollar keyboard. Everything you are
+    hearing is decided by Lean code running on its chip, and {{theorems}} theorems about that code went through
+    Lean's kernel this morning." R plays the opening again.</aside>
+</section>
+
+<!-- 2 · the scene: the unit, and the pile of firmwares written for it in six weeks -->
+<section class="slide">
+  <header><h1>The FM-1</h1><p class="label">M-VAVE · $60 · JieLi AC7911B · 213 firmwares listed on 1 November</p></header>
+  <div class="body scene">
+    <div class="unit">
+      <img src="scene/fm1-black.webp" alt="The M-VAVE FM-1: a black pocket keyboard with 27 keys, seven knobs and a small square screen">
+      <img src="scene/ars-doom.jpg" alt="The FM-1 running Doom, a pen beside it for scale">
+      <p class="label">photos: M-VAVE; Nick Indge, Ars Technica</p>
+    </div>
+    <div class="pile" aria-label="Screens of a dozen community firmwares, Fart Machine One on top">
+      <figure><img src="scene/felucca.webp" alt=""><figcaption>Felucca</figcaption></figure>
+      <figure><img src="scene/sloop.webp" alt=""><figcaption>SLOOP</figcaption></figure>
+      <figure><img src="scene/melodee.webp" alt=""><figcaption>Melodee</figcaption></figure>
+      <figure><img src="scene/x0x.webp" alt=""><figcaption>X0X</figcaption></figure>
+      <figure><img src="scene/amb-1.webp" alt=""><figcaption>AMB-1</figcaption></figure>
+      <figure><img src="scene/fm1-quest.webp" alt=""><figcaption>FM1 Quest</figcaption></figure>
+      <figure><img src="scene/ghoulbox.webp" alt=""><figcaption>GHOULBOX</figcaption></figure>
+      <figure><img src="scene/purplemonkey.webp" alt=""><figcaption>PurpleMonkey</figcaption></figure>
+      <figure><img src="scene/obervave.webp" alt=""><figcaption>OberVave</figcaption></figure>
+      <figure><img src="scene/rainbow-mode.webp" alt=""><figcaption>Rainbow mode</figcaption></figure>
+      <figure class="top"><img src="scene/fart-machine-one.webp" alt=""><figcaption>Fart Machine One · "eleven artisanal farts on the keys, a reverb, a delay, and a 16-step sequencer"</figcaption></figure>
+    </div>
+    <div>
+      <blockquote>
+        <p>"We're not even through October, and there are already more community firmware projects available to
+        install on the FM-1 than I could ever hope to cover. And just in case you were wondering: yes, it plays
+        <i>Doom</i>."</p>
+        <p class="label">Ars Technica, 26 October 2026</p>
+      </blockquote>
+      <p class="label" style="margin-top: 22px">the chip they all run on</p>
+      <ul class="lines">
+        <li>JieLi AC7911B: an integer core with <b>no floating point</b>, 1 MiB of flash run in place.</li>
+        <li><b>No debug header</b> and no recovery button.</li>
+      </ul>
+      <p class="thesis" style="margin-top: 22px">The other firmwares were written in weeks, in C, with an AI, for a chip that has no debugger. So was this one, in Lean, and {{theorems}} theorems about that Lean go through the kernel on every build.</p>
+    </div>
+  </div>
+  <aside class="notes">0:25. The unit, sixty dollars. In six weeks it grew two hundred firmwares, nearly all of them C
+    written with an AI: synths, grooveboxes, Doom, a karaoke robot, a fart machine. The chip has no floating point
+    and no debugger. Ours was written the same way, in Lean, and the kernel checks the theorems on every build.
+    The proofs stand in for the debugger the chip does not have.</aside>
+</section>
+
+<!-- 3 · the instrument: what it is, and why proofs fit it -->
+<section class="slide">
+  <header><h1>The instrument</h1><p class="label">a generative sequencer, and why prove one</p></header>
+  <div class="body inst">
+    <p class="topline">A generative sequencer, with a modular synth's oscillator inside a $60 keyboard, and a theorem for every promise it makes.</p>
+    <div class="photo">
+      <img src="scene/modular.jpg" alt="A Eurorack modular synthesizer; in its middle row a Mutable Instruments Braids with CSAW on its display">
+      <p class="label">a Eurorack case; middle row, a Mutable Instruments Braids reading CSAW: the oscillator this firmware compiles from source. Photo Paul Anthony, CC BY-SA 4.0</p>
+    </div>
+    <div>
+      <p class="label">what it is</p>
+      <ul class="lines">
+        <li><b>Four lanes</b>, each a <b>Euclidean rhythm</b> choosing its own notes.</li>
+        <li>Nothing written down: <b>the rules are the song</b>.</li>
+        <li><b>Braids</b> (Mutable Instruments), an <b>FM voice</b> and an <b>808 kit</b> written in Lean.</li>
+        <li>All in <b>integers</b>: the chip has no floating point.</li>
+      </ul>
+    </div>
+    <div>
+      <p class="label">why prove any of this</p>
+      <ul class="lines">
+        <li><b>Promises you can hear</b>: in key, on the beat, nothing stuck.</li>
+        <li>A test plays some settings; <b>a theorem covers every one</b>.</li>
+        <li>Fixed-point bugs are <b>silent</b> until they are noise or a crash.</li>
+        <li><b>No debugger</b> on the chip, so prove it before flashing.</li>
+        <li>The rhythm <b>is</b> a Christoffel word; the chord walks <b>are</b> a group.</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">0:55. What it is: four lanes, each a rhythm and a way of choosing notes, always in the scale;
+    no sequence is written down, the rules are the song. The sound is Braids and an FM voice written in Lean, all
+    in integers. Why prove it: the promises are audible and a theorem covers every knob position; fixed-point bugs
+    are silent until they are noise; the chip has no debugger. Twenty-five seconds.</aside>
+</section>
+
+<!-- 4 · what it does: the sequencer, the engines, the effects, the punch-in page, each with its screen -->
+<section class="slide">
+  <header><h1>What it does</h1><p class="label">four lanes · Braids, FM, an 808 kit, a filter · two sends · the PUNCH page · seven looks</p></header>
+  <div class="body one">
+    <div class="features">
+      <div>
+        <img src="screen-notes.png" width="720" height="720" alt="SEQ > NOTES: the Turing note source, its length, flip chance and range">
+        <p class="label">the sequencer</p>
+        <ul class="lines">
+          <li><b>Four lanes</b>, each with hits, steps, speed and chance; the bar as a <b>circle</b> on the screen.</li>
+          <li>FEEL: <b>Euclid</b>, a turned bar with accents, a <b>cellular automaton</b>, ratchets.</li>
+          <li>NOTES: random, walk, up, down, bounce, loop, <b>Turing</b>, step, <b>Markov</b>, grammar, chord.</li>
+          <li>HARMONY: key, scale lock, progressions as degrees, <b>Tonnetz walks</b>; swing; MIDI in and out, an external clock; an arpeggiator; quantized keys.</li>
+        </ul>
+      </div>
+      <div>
+        <img src="screen-filter.png" width="720" height="720" alt="EDIT > FILTER: cutoff, resonance, envelope amount and type of the chosen lane's sound">
+        <p class="label">the engines</p>
+        <ul class="lines">
+          <li><b>Braids, all 48 shapes</b>: analog, filter, voice, FM, physical, percussion, wavetable, noise.</li>
+          <li>The <b>four-operator FM voice in Lean</b>: piano, bell, bass, brass, glass, mallet, organ, clang.</li>
+          <li>An <b>808 kit in Lean</b>: kick, snare, clap, hats, toms, cowbell, cymbal.</li>
+          <li>A <b>per-voice filter</b>, low, band or high pass, the envelope opening it; in Lean, its states proved in range.</li>
+          <li>In the browser, by engine or by type; per lane an envelope, an <b>LFO</b>, pan and level.</li>
+        </ul>
+      </div>
+      <div>
+        <img src="screen-reverb.png" width="720" height="720" alt="FX > REVERB: send, decay, bright and return">
+        <p class="label">the effects</p>
+        <ul class="lines">
+          <li><b>Clouds' reverb</b> on a send: decay, brightness, return; a shimmering tail that is proved to die away.</li>
+          <li>A <b>ping-pong delay</b> on the same send, its time a note value at the song's tempo, feedback, tone.</li>
+          <li>Each lane sets its own send, so one lane can be dry while another swims.</li>
+        </ul>
+      </div>
+      <div>
+        <img src="screen-punch.png" width="720" height="720" alt="REC > PUNCH: the keys as effects, CRUSH, STUTTER and WASH lit">
+        <p class="label">punch-in effects</p>
+        <ul class="lines">
+          <li>REC makes the keys <b>momentary effects</b> on the whole performance, as the OP-XY's punch-in FX.</li>
+          <li>HALF and DOUBLE time, <b>STUTTER</b> and ROLL, octaves and SHIFT, GATE, <b>CRUSH</b>, <b>WASH</b>, THROW, BREAK, four mutes, four rolls.</li>
+          <li>A key let go is the effect gone, <b>exactly</b>: there is no effect state, only the keys.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">1:20. What it does, in four pages. The sequencer: four lanes with a rhythm and a note source
+    each, harmony on top, MIDI, an arpeggiator. The engines: Braids, all 48 shapes, and the FM voice written in
+    Lean, an 808 kit in Lean, a per-voice filter. The effects: Clouds' reverb and a ping-pong delay on a send. The PUNCH page: the keys as
+    momentary effects, and letting go restores the performance exactly, which is a theorem. Twenty-five seconds.
+    The third slide to cut.</aside>
+</section>
+
+<!-- 5 · how -->
+<section class="slide">
+  <header><h1>Lean on the chip</h1><p class="label">Firmware/ → C → the FM-1 and the browser; Proofs/ about the Firmware</p></header>
+  <div class="body wide">
+    <div>
+      <svg class="pipe" viewBox="0 0 760 300" role="img" aria-label="Firmware/*.lean compiles to C, then to the FM-1's chip and to WebAssembly for the browser. Proofs/*.lean are about the Firmware; the kernel and five checkers check the proofs; the compiler check asks the kernel for the compiled code's values; the watch asserts twelve theorems while the firmware runs.">
+        <g class="box"><rect x="10" y="20" width="200" height="56"/><text x="24" y="44">Proofs/*.lean</text><text class="sub" x="24" y="66">{{theorems}} theorems</text></g>
+        <g class="box"><rect x="10" y="150" width="200" height="56"/><text x="24" y="174">Firmware/*.lean</text><text class="sub" x="24" y="196">what the chip runs</text></g>
+        <g class="box c"><rect x="290" y="150" width="120" height="56"/><text x="304" y="174">C</text><text class="sub" x="304" y="196">lean -c</text></g>
+        <g class="box"><rect x="490" y="110" width="250" height="56"/><text x="504" y="134">the FM-1</text><text class="sub" x="504" y="156">JieLi clang → pi32v2</text></g>
+        <g class="box"><rect x="490" y="200" width="250" height="56"/><text x="504" y="224">the browser</text><text class="sub" x="504" y="246">clang → wasm, the same C</text></g>
+        <g class="box"><rect x="290" y="20" width="250" height="56"/><text x="304" y="44">kernel + five checkers</text><text class="sub" x="304" y="66">lake comparator, three axioms</text></g>
+        <defs><marker id="head-pipe" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
+        <path class="arrow" marker-end="url(#head-pipe)" d="M110 76 V150"/><text class="on" x="120" y="118">about</text>
+        <path class="arrow" marker-end="url(#head-pipe)" d="M210 178 H290"/>
+        <path class="arrow" marker-end="url(#head-pipe)" d="M410 178 H450 V138 H490"/>
+        <path class="arrow" marker-end="url(#head-pipe)" d="M410 178 H450 V228 H490"/>
+        <path class="arrow" marker-end="url(#head-pipe)" d="M210 48 H290"/>
+        <path class="arrow dashed" marker-end="url(#head-pipe)" d="M350 76 V150"/><text class="on" x="360" y="118">the same values?</text>
+        <path class="arrow dashed" marker-end="url(#head-pipe)" d="M540 48 H690 V110"/><text class="on" x="552" y="42">asserted while it runs</text>
+      </svg>
+      <table class="ledger">
+        <tr><th>Check</th><th>What it establishes</th></tr>
+        <tr><td><b>Proved</b></td><td>{{theorems}} theorems about the Lean the chip runs: the sequencer, the FM voice, every Braids engine's arithmetic, the reverb, the delay, the mix, the patch format. Three standard axioms and nothing else.</td></tr>
+        <tr><td class="reach"><b>The compiler, checked</b></td><td>291 exported functions compiled to C, run on random inputs, and the kernel asked whether the definition gives the same value: 1746 values a run. It found one bug.</td></tr>
+        <tr><td class="reach"><b>The proofs, watched</b></td><td>Twelve theorem statements asserted on the running firmware where the C takes the Lean's answer: 30 million checks in the test run, none failing.</td></tr>
+      </table>
+    </div>
+    <div>
+      <p class="label">trusted, and listed in the README</p>
+      <ul class="lines">
+        <li>Braids' C++. Its sample arithmetic is Lean, checked sample for sample against the original.</li>
+        <li>The C loops that call the Lean; the screen, the drivers, Dinghy's update path.</li>
+        <li>Lean's C backend, JieLi's clang, and the 14 KB runtime.</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">1:45. One pipeline. The Lean is compiled to C and then to the chip; the same C goes to
+    WebAssembly for the browser. There is no model of the firmware: the theorems are about the definitions the chip
+    runs. Two checks reach into the trusted part: the compiled code is run and the kernel is asked for the same
+    values, and twelve theorems are asserted on the firmware while it runs. What stays in C is on the right.</aside>
+</section>
+
+<!-- 6 · the kinds of theorem, and what each kind is good for -->
+<section class="slide">
+  <header><h1>What is proved</h1><p class="label">{{theorems}} theorems, in five kinds</p></header>
+  <div class="body one">
+    <div>
+      <div class="strip" aria-hidden="true">
+        <span style="width: {{share:Lane,Run,Rhythm,Swing,Divider,Notes,Quantizer,Random,Arp,Machine,Lfo,Punch,Keys,KeysChord,PunchMix,Clock}}%"></span><span style="width: {{share:Euclid,Harmony,Tonnetz}}%"></span><span style="width: {{share:Pitch,Tables,BraidsData,Fm,FmLock,FmSymmetry,FmEnvelope,FmAlgorithms,FmDeviation,FmRange,Analog,Digital,Blend,Filters,Filter,Drum,Noise,Percussion,Physical,Vowels,Wavetables,VoiceSetup,Smooth,AnalogSetup,DigitalSetup,MacroSetup,FiltersSetup,NoiseSetup,PercussionSetup,PhysicalSetup,VowelsSetup,WavetablesSetup}}%"></span><span style="width: {{share:Mix,Reverb,Delay}}%"></span><span style="width: {{share:Patch,Presets}}%"></span>
+      </div>
+      <table class="ledger kinds">
+        <tr><th></th><th>Kind</th><th class="num">Theorems</th><th>For example</th><th>What it is good for</th></tr>
+        <tr><td><i class="k1"></i></td><td><b>The music it plays</b></td><td class="num">{{count:Lane,Run,Rhythm,Swing,Divider,Notes,Quantizer,Random,Arp,Machine,Lfo,Punch,Keys,KeysChord,PunchMix,Clock}}</td><td><code>run_every_note_on_has_a_note_off</code><br><code>run_clock_never_drifts</code><br><code>run_bar_plays_every_hit</code></td><td><ul><li><b>No stuck note</b>, over a whole performance.</li><li>Four lanes that <b>never drift</b> apart.</li><li>A bar plays <b>exactly the hits</b> the screen shows.</li><li>The keyboard <b>cannot play a wrong note</b>.</li></ul></td></tr>
+        <tr><td><i class="k2"></i></td><td><b>Music theory</b></td><td class="num">{{count:Euclid,Harmony,Tonnetz}}</td><td><code>euclid_is_christoffel</code><br><code>tonnetz_group_is_dihedral</code><br><code>harmony_hexachord_theorem</code></td><td><ul><li>The rhythm is a <b>Christoffel word</b>, so it is maximally even.</li><li>The chord walks are the <b>PLR group of order 24</b>, so they come home.</li><li>A six-note set and its complement <b>share their intervals</b> (Babbitt): why BLACK KEYS sounds as it does.</li></ul></td></tr>
+        <tr><td><i class="k3"></i></td><td><b>Sound, in fixed point</b></td><td class="num">{{count:Pitch,Tables,BraidsData,Fm,FmLock,FmSymmetry,FmEnvelope,FmAlgorithms,FmDeviation,FmRange,Analog,Digital,Blend,Filters,Filter,Drum,Noise,Percussion,Physical,Vowels,Wavetables,VoiceSetup,Smooth,AnalogSetup,DigitalSetup,MacroSetup,FiltersSetup,NoiseSetup,PercussionSetup,PhysicalSetup,VowelsSetup,WavetablesSetup}}</td><td><code>fm_sine_bounded</code><br><code>drum_output_never_wraps</code><br><code>filter_states_stay_bounded</code></td><td><ul><li><b>No sample wraps</b> into a burst of the opposite sign.</li><li>No oscillator runs <b>past Nyquist</b>.</li><li>No table is read <b>past its end</b>; the 808 and the filter <b>never wrap</b>.</li><li>On a chip with no floating point, these are the bugs heard as <b>noise</b> or seen as a <b>crash screen</b>.</li></ul></td></tr>
+        <tr><td><i class="k4"></i></td><td><b>The mix and the effects</b></td><td class="num">{{count:Mix,Reverb,Delay}}</td><td><code>mix_bus_never_wraps</code><br><code>reverb_tail_dies_away</code><br><code>delay_echoes_die_away</code></td><td><ul><li>Six voices and two sends fit the mix <b>without wrapping</b>.</li><li>A reverb tail and an echo <b>die away</b> at every knob setting: nothing builds into a howl.</li></ul></td></tr>
+        <tr><td><i class="k5"></i></td><td><b>Patches</b></td><td class="num">{{count:Patch,Presets}}</td><td><code>patch_decode_encode_round_trip</code><br><code>patch_decode_only_fits</code><br><code>presets_all_fit</code></td><td><ul><li>A saved patch <b>loads back as saved</b>.</li><li>A foreign or corrupt flash slot is <b>rejected whole</b>, never read as settings.</li><li>Every factory patch is <b>in range</b> of the tables it indexes.</li></ul></td></tr>
+      </table>
+    </div>
+  </div>
+  <aside class="notes">2:10. Five kinds. The first is about the music over a whole performance: no stuck notes, no
+    drift, every hit played. The second is music theory, proved about the firmware's own tables: the rhythm is a
+    Christoffel word, the chord walks are a group of order 24. The third, the largest, is fixed-point arithmetic:
+    on a chip with no floating point, a wrap is noise and a table read past its end is a crash. Then the mix and the
+    effects, which cannot howl, and the patch format, which round-trips. Twenty-five seconds.</aside>
+</section>
+
+<!-- 7 · the walks: the chord progressions that are group theory, recorded -->
+<section class="slide">
+  <header><h1>The walks</h1><p class="label">chord progressions that are group theory: TONNETZ, HEXATONIC, BLACK KEYS, 44 seconds (P)</p></header>
+  <div class="body demo">
+    <div>
+      <video src="demo-walks.webm?{{stamp:walks}}" poster="demo-walks-poster.png" playsinline preload="auto" controls></video>
+      <p class="cue"></p>
+      <ol class="cues" hidden>
+{{cues:walks}}
+      </ol>
+    </div>
+    <div class="cards">
+      <div class="card frag" data-card="tonnetz_group_is_dihedral"><span class="step">1</span><b>P, L and R generate the dihedral group of order 24.</b>{{claim:tonnetz_group_is_dihedral}}</div>
+      <div class="card frag" data-card="harmony_walk_keeps_two_notes"><span class="step">2</span><b>Every move keeps two notes.</b>{{claim:harmony_walk_keeps_two_notes}}</div>
+      <div class="card frag" data-card="tonnetz_walks_are_cycles"><span class="step">3</span><b>Cycles of 24, 6 and 8.</b>{{claim:tonnetz_walks_are_cycles}}</div>
+      <div class="card frag" data-card="harmony_hexachord_theorem"><span class="step">4</span><b>Babbitt's hexachord theorem, on the firmware's own masks.</b>{{claim:harmony_hexachord_theorem}}</div>
+    </div>
+  </div>
+  <aside class="notes">2:35. P. TONNETZ walks the 24 triads one note at a time, the HARMONY page names the walk, the
+    screen names each chord; HEXATONIC is the cycle of six; BLACK KEYS plays the complement of the key against the
+    key. "These are theorems about the firmware's own tables, and this is what they sound like."</aside>
+</section>
+
+<!-- 8 · ELECTRIC: the ballad, improvised over; the firmware on its own, recorded -->
+<section class="slide">
+  <header><h1>ELECTRIC</h1><p class="label">the ballad on the FM voice, played over and punched in, 40 seconds (P)</p></header>
+  <div class="body demo">
+    <div>
+      <video src="demo-electric.webm?{{stamp:electric}}" poster="demo-electric-poster.png" playsinline preload="auto" controls></video>
+      <p class="cue"></p>
+      <ol class="cues" hidden>
+{{cues:electric}}
+        <li data-at="39">{{checks:electric}} checks of twelve theorems while this ran; {{fails:electric}} failed.</li>
+      </ol>
+    </div>
+    <div class="cards">
+      <div class="card frag" data-card="keys_in_scale"><span class="step">1</span><b>A line on the keys, quantized to F major.</b>{{claim:keys_in_scale}}</div>
+      <div class="card frag" data-card="punch_nothing_held_changes_nothing"><span class="step">2</span><b>THROW, WASH, HALF, an octave up: each let go.</b>{{claim:punch_nothing_held_changes_nothing}}</div>
+      <div class="card frag" data-card="run_every_note_on_has_a_note_off"><span class="step">3</span><b>Stop.</b>{{claim:run_every_note_on_has_a_note_off}}</div>
+    </div>
+  </div>
+  <aside class="notes">3:20. P. ELECTRIC plays; QUANT goes on and a line is played over it on the white keys; then
+    REC: THROW, WASH, HALF time, an octave up, each let go; then stop. With a judge instead: hand the device over,
+    QUANT on, "play anything", then REC and any three keys, then PLAY; light the cards with →.</aside>
+</section>
+
+<!-- 9 · NIGHT DRIVE: the electronic track; the 808, the filtered bass, a drop, the filter swept -->
+<section class="slide">
+  <header><h1>NIGHT DRIVE</h1><p class="label">the 808, a filtered FM bass, a drop, the filter swept, 41 seconds (P)</p></header>
+  <div class="body demo">
+    <div>
+      <video src="demo-nightdrive.webm?{{stamp:nightdrive}}" poster="demo-nightdrive-poster.png" playsinline preload="auto" controls></video>
+      <p class="cue"></p>
+      <ol class="cues" hidden>
+{{cues:nightdrive}}
+        <li data-at="40">{{checks:nightdrive}} checks of twelve theorems while this ran; {{fails:nightdrive}} failed.</li>
+      </ol>
+    </div>
+    <div class="cards">
+      <div class="card frag" data-card="run_bar_plays_every_hit"><span class="step">1</span><b>Kick, snare, bass, lead, let in one at a time.</b>{{claim:run_bar_plays_every_hit}}</div>
+      <div class="card frag" data-card="punch_nothing_held_changes_nothing"><span class="step">2</span><b>STUTTER, GATE, CRUSH, BREAK.</b>{{claim:punch_nothing_held_changes_nothing}}</div>
+      <div class="card frag" data-card="filter_coefficients_in_range"><span class="step">3</span><b>The bass's filter, swept.</b>{{claim:filter_coefficients_in_range}}</div>
+      <div class="card frag" data-card="run_every_note_on_has_a_note_off"><span class="step">4</span><b>Stop.</b>{{claim:run_every_note_on_has_a_note_off}}</div>
+      <p class="label where">mpancia.github.io/fmfm &nbsp;·&nbsp; make install &amp;&amp; make run</p>
+    </div>
+  </div>
+  <aside class="notes">4:05. P. NIGHT DRIVE comes in kick and bass first, the snare and the lead let in from the PUNCH
+    page; STUTTER, GATE, CRUSH, a BREAK drop; the bass's filter swept on the FILTER page; DOUBLE and HALF; stop. The
+    URL and the one-line install are on the label. At 4:55 press PLAY on the device: Alfred bows, and that is the
+    end.</aside>
+</section>
+
+</div>
+<div class="count"></div>
+<script src="pitch.js"></script>
+</body>
+</html>
