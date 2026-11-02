@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 files = subprocess.check_output(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT, text=True).split()
 files = [f for f in files if (ROOT / f).is_file()]
-skip = ("fw/", "vendor/", "build/", ".lake/", "rules.md", "lake-manifest.json", "voices/braids/", "voices/stmlib/",
+skip = ("fw/", "vendor/", "build/", ".lake/", "lake-manifest.json", "voices/braids/", "voices/stmlib/",
         "voices/presets.h", "tests/reference/", "site/coi-serviceworker.min.js")
 files = [f for f in files if not f.startswith(skip)]
 
