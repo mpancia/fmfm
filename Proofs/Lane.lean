@@ -153,10 +153,9 @@ Why it matters: stop never leaves a note hanging. -/
 theorem lane_silence_stops_note (l : Lane) : l.silence.off = l.playing ∧ l.silence.playing = none := by
   simp [Lane.silence]
 
-/-- Applying a lane's own settings back to it changes nothing, for a valid lane whose settings are ones the
-knobs can reach (steps ≤ 32, div ≤ 96, algo ≤ 10, mutate ≤ 100, rhythm source in range with a live row that
-fits the bar, step-sequencer cursor inside its loop) and whose gate is `gateFor div`. `make`, `reconfigure`,
-`setNotes` and `setRhythm` only produce such lanes.
+/-- Applying a lane's own settings back to it changes nothing, for a valid lane whose settings are within knob
+range and whose gate is `gateFor div`. `make`, `reconfigure`, `setNotes` and `setRhythm` only produce such
+lanes.
 Why it matters: saving and reloading a patch, or redrawing a knob at its current value, does not change the
 lane. -/
 theorem lane_reconfigure_self (l : Lane) (valid : Lane.Valid l) (stepsMax : l.steps ≤ 32)

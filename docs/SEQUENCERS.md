@@ -1,15 +1,14 @@
 # The sequencers
 
-Each lane is one `Lane` (`Firmware/Lane.lean`): a clock divider drives a rhythm source, each hit may play a
-note, a note source picks the pitch and the scale snaps it. Both sources are chosen on the SEQ pages and combine
-freely: four rhythms by eleven note sources.
+Each lane is one `Lane` (`Firmware/Lane.lean`). A clock divider drives a rhythm source; on each hit a note source
+picks a pitch and the scale snaps it. Both are chosen on the SEQ pages, any rhythm with any note source.
 
 ## Rhythm sources (SEQ > FEEL)
 
 | FEEL | Knobs | What it does |
 |---|---|---|
 | EUCLID | (HITS, STEPS on RHYTHM) | `hits` spread as evenly as whole steps allow (`Euclid.hit`) |
-| ROTATE | ROTATE, ACCENTS | the Euclidean bar turned by `rotate` steps; `accents` of the hits spread by a second Euclidean pattern over the hits are played louder, the rest softer |
+| ROTATE | ROTATE, ACCENTS | the Euclidean bar turned by `rotate` steps; `accents` of its hits, picked by a second Euclidean pattern laid over the hits, play louder and the rest softer |
 | AUTOMAT | RULE | an elementary cellular automaton (rule 0 to 255) on a ring of `steps` cells, seeded from the Euclidean bar, one generation a bar; a dead row is reseeded. Rule 90 is the Sierpinski triangle, 30 is chaos, 204 freezes |
 | RATCHET | RATCHET, SUBHITS | each hit split into `ratchet` (1 to 4) sub-hits, of which `subhits` play (the hit itself always); each sub-hit's gate is cut to its share of the step |
 
@@ -27,7 +26,7 @@ white; the automaton's row changes every bar.
 | LOOP | LENGTH, MUTATE | replay a memory of `length` notes; each slot has `mutate` percent chance to be replaced when it plays |
 | TURING | LENGTH, FLIP | a shift register of `length` bits; the recycled bit flips with `flip` percent chance; the low byte sets the pitch. FLIP 0 is a locked loop |
 | STEP | LENGTH, MUTATE | LOOP whose memory you play in: with the lane chosen and STEP on, each key writes the next slot |
-| MARKOV | STYLE, JUMP | a move of -3 to +3 positions chosen from the last move's row of weights: a style (STEPS, LEAPS, REPEATS, ARCS) until you play keys, which it learns from (REC forgets); JUMP doubles a move sometimes |
+| MARKOV | STYLE, JUMP | each move (-3 to +3 positions) is drawn from a row of weights picked by the last move. The weights start as a style (STEPS, LEAPS, REPEATS, ARCS) and learn from the keys you play; ROLL on the PUNCH page forgets. JUMP sometimes doubles a move |
 | GRAMMAR | GRAMMAR, DEPTH | an L-system (FIBO, CANTOR, THUE, ROUND) expanded `depth` levels; each symbol moves the line by a step or a third |
 | CHORD | TONES, OCTAVE | climbs `tones` notes of the lane's scale from its bottom note (with chord follow, the chord); OCTAVE is the chance of an octave jump |
 
@@ -51,15 +50,17 @@ A4 to C5) reseed a lane: a new random loop, register and automaton row, and an u
   settings come back exactly when it loads (`lane_from_patch_keeps_feel`).
 - GRAMMAR always has a phrase (`notes_grammar_phrase_never_empty`); CHORD's tones are scale tones
   (`notes_scale_tone_in_scale`).
-- The whole instrument: over any performance of the four lanes and the arpeggiator, every note-on has a note-off
-  and PLAY stopping leaves nothing sounding (`machine_every_note_on_has_a_note_off`, `Spec/Machine.lean`).
-- Not proved: which other rules live or die, or the markov chain's learnt weights beyond their range.
+- The four lanes and the arpeggiator together, as `Spec/Machine.lean` models them (each part run by its own list
+  of operations; the C that passes the notes to the voices is trusted): over any performance every note-on has a
+  note-off and PLAY stopping leaves nothing sounding (`machine_every_note_on_has_a_note_off`).
+- Not proved: what rules other than 0, 204 and 255 do over time, or anything about the Markov chain's learnt
+  weights beyond their range.
 
 ## In patches
 
-The FEEL settings are saved with the lane (`Firmware/Patch.lean`, layout version 2: 22 bytes a lane, 98 a
+The FEEL settings are saved with the lane (`Firmware/Patch.lean`, layout version 4: 23 bytes a lane, 106 a
 patch; `patch_decode_encode_round_trip` covers them, and a slot with a rotation past its steps or more
-accents than hits does not load). Version 1 slots do not load.
+accents than hits does not load). Slots of layout versions 1 to 3 do not load.
 
 ## The arpeggiator (ARP)
 
@@ -76,8 +77,9 @@ note-off (`arp_every_note_on_has_a_note_off`); UP plays what you hold in order, 
 
 ## The demo songs
 
-The first 17 patches (the DEMOS group of the browser, and the DEMO knob on GLO > BANKS, which steps through
-them) each show one thing; CLOCKWORK is the boot patch. `make test` renders them all and checks none clips.
+The first 21 patches are the DEMOS group of the browser (the DEMO knob on GLO > BANKS steps through them). Each
+shows one thing; CLOCKWORK is the boot patch. The last four, STEM PAD, KEYS, DRUMS and LEAD, are one song in F
+major at 92 cut into parts that also stand alone. `make test` renders them all and checks none clips.
 
 | Demo | What it shows |
 |---|---|
@@ -98,3 +100,4 @@ them) each show one thing; CLOCKWORK is the boot patch. `make test` renders them
 | FACTORY (126, E phrygian) | an 808 kick, a filtered FM bass loop, clang stabs, a ratcheted hat |
 | 808 ROOM (118) | the 808 kit as a drum machine |
 | NIGHT DRIVE (124, A minor) | 808 kick and snare, a filtered FM bass on a mutating loop, a filtered saw lead on a MARKOV chain, i-VI-III-VII |
+| STEM PAD · KEYS · DRUMS · LEAD (92, F major) | the stems of one song on vi-IV-I-V; play them together or alone |

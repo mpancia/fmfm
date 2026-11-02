@@ -948,11 +948,11 @@ Why it matters: a COMPL lane never shares a note with a lane in the key.
 
 Spec surface: `harmonyMask`
 
-**`harmony_complement_interval_content`**: Babbitt's hexachord theorem for any cycle `Z_n` and any set: the ordered
-count of pairs at distance `d` in the complement equals the count in the set plus `n - 2 * size`. For `size = n / 2` the
-two are equal.
+**`harmony_complement_interval_content`**: The complement theorem (Lewin's generalisation of Babbitt's hexachord
+theorem) for any cycle `Z_n` and any set: the ordered count of pairs at distance `d` in the complement equals the count
+in the set plus `n - 2 * size`. For `size = n / 2` the two are equal.
 
-Why it matters: a hexachord and its complement have the same interval content, which is why COMPL sounds like the scale
+Why it matters: a scale and the notes it leaves out share their interval content, which is why COMPL sounds like the key
 it was cut from.
 
 Spec surface: `Harmony.count`, `Harmony.pairs`
@@ -1080,9 +1080,8 @@ Why it matters: stop never leaves a note hanging.
 Spec surface: `Lane.silence`
 
 **`lane_reconfigure_self`**: Applying a lane's own settings back to it changes nothing, for a valid lane whose settings
-are ones the knobs can reach (steps ≤ 32, div ≤ 96, algo ≤ 10, mutate ≤ 100, rhythm source in range with a live row that
-fits the bar, step-sequencer cursor inside its loop) and whose gate is `gateFor div`. `make`, `reconfigure`, `setNotes`
-and `setRhythm` only produce such lanes.
+are within knob range and whose gate is `gateFor div`. `make`, `reconfigure`, `setNotes` and `setRhythm` only produce
+such lanes.
 
 Why it matters: saving and reloading a patch, or redrawing a knob at its current value, does not change the lane.
 
@@ -1811,7 +1810,7 @@ Spec surface: `Pitch.phaseIncrement`, `phaseIncrement`, `pitch`
 
 ## Presets
 
-**`presets_all_fit`**: All 128 factory patches satisfy `Patch.Fits`, checked value by value.
+**`presets_all_fit`**: Every factory patch in `Presets.all` satisfies `Patch.Fits`, checked value by value.
 
 Why it matters: the firmware trusts its own patch table without the checks a loaded slot gets, and a generated patch
 that strays out of range fails the build.

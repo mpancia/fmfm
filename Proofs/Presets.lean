@@ -1,6 +1,6 @@
 import Spec.Presets
 
-/-- All 128 factory patches satisfy `Patch.Fits`, checked value by value.
+/-- Every factory patch in `Presets.all` satisfies `Patch.Fits`, checked value by value.
 Why it matters: the firmware trusts its own patch table without the checks a loaded slot gets, and a
 generated patch that strays out of range fails the build. -/
 theorem presets_all_fit : ∀ p ∈ Presets.all, p.Fits := by

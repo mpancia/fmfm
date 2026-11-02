@@ -303,10 +303,11 @@ private theorem harmony_count_turn (n : Nat) (positive : 0 < n) (f : Nat → Boo
     intro k _
     rw [Nat.mod_add_mod, show k + 1 + d = k + (d + 1) by omega]
 
-/-- Babbitt's hexachord theorem for any cycle `Z_n` and any set: the ordered count of pairs at distance `d` in
-the complement equals the count in the set plus `n - 2 * size`. For `size = n / 2` the two are equal.
-Why it matters: a hexachord and its complement have the same interval content, which is why COMPL sounds like
-the scale it was cut from. -/
+/-- The complement theorem (Lewin's generalisation of Babbitt's hexachord theorem) for any cycle `Z_n` and any
+set: the ordered count of pairs at distance `d` in the complement equals the count in the set plus
+`n - 2 * size`. For `size = n / 2` the two are equal.
+Why it matters: a scale and the notes it leaves out share their interval content, which is why COMPL sounds
+like the key it was cut from. -/
 theorem harmony_complement_interval_content (n d : Nat) (positive : 0 < n) (S : Nat → Bool) :
     Harmony.pairs n d (fun k => !S k) + 2 * Harmony.count n S = Harmony.pairs n d S + n := by
   unfold Harmony.pairs Harmony.count

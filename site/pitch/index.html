@@ -19,7 +19,7 @@
     <div class="mark">
       <div class="rule"></div>
       <h1 class="wordmark" aria-label="FORMALFRED"><span class="form"><span>F</span><span>O</span><span>R</span><span>M</span></span><span class="fred"><span>A</span><span>L</span><span>F</span><span>R</span><span>E</span><span>D</span></span></h1>
-      <p class="label tag">a sequencer for the M-VAVE FM-1 · proved in Lean · {{theorems}} theorems</p>
+      <p class="label tag">a sequencer for the M-VAVE FM-1 · written in Lean · {{theorems}} theorems about it</p>
     </div>
     <div class="device">
       <img class="screen" src="screen-rhythm.png" width="480" height="480" alt="The FM-1's RHYTHM page: a bar of sixteen steps drawn as a circle, its seven hits joined">
@@ -75,14 +75,14 @@
   <aside class="notes">0:25. The unit, sixty dollars. In six weeks, two hundred firmwares, nearly all C written
     with an AI: synths, grooveboxes, Doom, a karaoke robot, a fart machine. The chip has no floating point and no
     debugger. Ours was written the same way, in Lean, and the kernel checks the theorems on every build. The
-    proofs stand in for the debugger the chip lacks.</aside>
+    proofs are the part of the firmware we could check without one.</aside>
 </section>
 
 <!-- 3 · the instrument: what it is, and why proofs fit it -->
 <section class="slide">
   <header><h1>The instrument</h1><p class="label">a generative sequencer, and why prove one</p></header>
   <div class="body inst">
-    <p class="topline">A generative sequencer with a modular synth's oscillator, in a $60 keyboard, with a theorem for every promise it makes.</p>
+    <p class="topline">A generative sequencer with a modular synth's oscillator in a $60 keyboard, with {{theorems}} theorems about the promises it makes.</p>
     <div class="photo">
       <img src="scene/modular.jpg" alt="A Eurorack modular synthesizer; in its middle row a Mutable Instruments Braids with CSAW on its display">
       <p class="label">a Eurorack case; middle row, a Mutable Instruments Braids reading CSAW, the oscillator this firmware compiles from source. Photo Paul Anthony, CC BY-SA 4.0</p>
@@ -90,7 +90,7 @@
     <div>
       <p class="label">what it is</p>
       <ul class="lines">
-        <li><b>Four lanes</b>, each a <b>Euclidean rhythm</b> choosing its own notes.</li>
+        <li><b>Four lanes</b>, each a <b>rhythm</b> (Euclidean by default) choosing its own notes.</li>
         <li>Nothing written down: <b>the rules are the song</b>.</li>
         <li><b>Braids</b> (Mutable Instruments), an <b>FM voice</b> and an <b>808 kit</b>, in Lean.</li>
         <li>All <b>integers</b>: the chip has no floating point.</li>
@@ -100,7 +100,7 @@
       <p class="label">why prove any of this</p>
       <ul class="lines">
         <li><b>Promises you can hear</b>: in key, on the beat, nothing stuck.</li>
-        <li>A test plays some settings; <b>a theorem covers all of them</b>.</li>
+        <li>A test plays some settings; <b>a theorem holds at all of them</b>.</li>
         <li>Fixed-point bugs are <b>silent</b> until they are noise or a crash.</li>
         <li><b>No debugger</b> on the chip: prove it before flashing.</li>
         <li>The rhythm <b>is</b> a Christoffel word; the chord walks <b>are</b> a group.</li>
@@ -109,7 +109,7 @@
   </div>
   <aside class="notes">0:55. What it is: four lanes, each a rhythm and a way of choosing notes, always in the scale;
     nothing is written down, the rules are the song. The sound is Braids and an FM voice in Lean, all integers.
-    Why prove it: the promises are audible and a theorem covers every knob position; fixed-point bugs are silent
+    Why prove it: the promises are audible and a theorem holds at every knob position; fixed-point bugs are silent
     until they are noise; the chip has no debugger. Twenty-five seconds.</aside>
 </section>
 
@@ -135,7 +135,7 @@
           <li><b>Braids, all 48 shapes</b>: analog, filter, voice, FM, physical, percussion, wavetable, noise.</li>
           <li><b>Four-operator FM voice in Lean</b>: piano, bell, bass, brass, glass, mallet, organ, clang.</li>
           <li><b>808 kit in Lean</b>: kick, snare, clap, hats, toms, cowbell, cymbal.</li>
-          <li><b>Per-voice filter</b>, low, band or high pass, opened by the envelope; in Lean, its states proved in range.</li>
+          <li><b>Per-voice filter</b> (low, band or high), opened by the envelope; in Lean, states proved in range.</li>
           <li>Browser by engine or by type; per lane an envelope, an <b>LFO</b>, pan and level.</li>
         </ul>
       </div>
@@ -154,7 +154,7 @@
         <ul class="lines">
           <li>REC makes the keys <b>momentary effects</b> on the whole mix, like the OP-XY's punch-in FX.</li>
           <li>HALF and DOUBLE time, <b>STUTTER</b>, ROLL, octaves, SHIFT, GATE, <b>CRUSH</b>, <b>WASH</b>, THROW, BREAK, four mutes, four rolls.</li>
-          <li>Let go and the effect is gone, <b>exactly</b>: no effect state, only the keys.</li>
+          <li>Let go and it is gone: with no key held every effect is <b>the identity</b>, a theorem; the gate fades out in 1.5 ms.</li>
         </ul>
       </div>
     </div>
@@ -162,7 +162,7 @@
   <aside class="notes">1:20. Four pages. The sequencer: four lanes, each a rhythm and a note source, harmony on
     top, MIDI, an arpeggiator. The engines: Braids, all 48 shapes, the FM voice in Lean, an 808 kit in Lean, a
     per-voice filter. The effects: Clouds' reverb and a ping-pong delay on a send. The PUNCH page: the keys as
-    momentary effects; letting go restores the mix exactly, which is a theorem. Twenty-five seconds. The third
+    momentary effects; letting go restores the mix, which is a theorem. Twenty-five seconds. The third
     slide to cut.</aside>
 </section>
 
@@ -189,22 +189,22 @@
       </svg>
       <table class="ledger">
         <tr><th>Check</th><th>What it establishes</th></tr>
-        <tr><td><b>Proved</b></td><td>{{theorems}} theorems about the Lean the chip runs: sequencer, FM voice, every Braids engine's arithmetic, reverb, delay, mix, patch format. Three standard axioms, nothing else.</td></tr>
-        <tr><td class="reach"><b>The compiler, checked</b></td><td>354 exported functions compiled to C and run on random inputs; the kernel checks each value against the definition. 2124 values a run.</td></tr>
-        <tr><td class="reach"><b>The proofs, watched</b></td><td>Twelve theorem statements asserted on the running firmware where the C takes the Lean's answer. 30 million checks in the test run, none failing.</td></tr>
+        <tr><td><b>Proved</b></td><td>{{theorems}} theorems about the Lean the chip runs: sequencer, FM voice, 808, range and no-wrap facts about every Braids engine, reverb, delay, mix, patch format. Three standard axioms, nothing else.</td></tr>
+        <tr><td class="reach"><b>The compiler, tested</b></td><td>354 exported functions compiled to C and run on random inputs; the kernel checks each value against the definition. 2124 values a run.</td></tr>
+        <tr><td class="reach"><b>The proofs, watched</b></td><td>Twelve theorem statements asserted on the running firmware where the C takes the Lean's answer. Tens of millions of checks over the test run; the count and the failures (zero) are printed by <code>make test</code>.</td></tr>
       </table>
     </div>
     <div>
       <p class="label">trusted, listed in the README</p>
       <ul class="lines">
-        <li>Braids' C++. Its sample arithmetic is Lean, checked sample for sample against the original.</li>
+        <li>What is left of Braids' C++, the per-block setup; the sample arithmetic is Lean, checked sample for sample against the original.</li>
         <li>The C loops that call the Lean; the screen, the drivers, Dinghy's update path.</li>
-        <li>Lean's C backend, JieLi's clang, the 14 KB runtime.</li>
+        <li>Lean's C backend, JieLi's clang, the 14 KB of C runtime, and the 39 accessors that read Braids' tables.</li>
       </ul>
     </div>
   </div>
   <aside class="notes">1:45. One pipeline. The Lean compiles to C, then to the chip; the same C goes to WebAssembly
-    for the browser. There is no model of the firmware: the theorems are about the definitions the chip runs. Two
+    for the browser. There is no separate model of the firmware: the theorems are about the definitions the chip's C is compiled from. Two
     checks reach into the trusted part: the compiled code is run and the kernel asked for the same values, and
     twelve theorems are asserted on the firmware while it runs. What stays in C is on the right.</aside>
 </section>
@@ -219,10 +219,10 @@
       </div>
       <table class="ledger kinds">
         <tr><th></th><th>Kind</th><th class="num">Theorems</th><th>For example</th><th>What it is good for</th></tr>
-        <tr><td><i class="k1"></i></td><td><b>The music it plays</b></td><td class="num">{{count:Lane,Run,Rhythm,Swing,Divider,Notes,Quantizer,Random,Arp,Machine,Lfo,Punch,Keys,KeysChord,PunchMix,Clock}}</td><td><code>run_every_note_on_has_a_note_off</code><br><code>run_clock_never_drifts</code><br><code>run_bar_plays_every_hit</code></td><td><ul><li><b>No stuck note</b> over a whole performance.</li><li>Four lanes <b>never drift</b> apart.</li><li>A bar plays <b>exactly the hits</b> on the screen.</li><li>The keyboard <b>cannot play a wrong note</b>.</li></ul></td></tr>
+        <tr><td><i class="k1"></i></td><td><b>The music it plays</b></td><td class="num">{{count:Lane,Run,Rhythm,Swing,Divider,Notes,Quantizer,Random,Arp,Machine,Lfo,Punch,Keys,KeysChord,PunchMix,Clock}}</td><td><code>run_every_note_on_has_a_note_off</code><br><code>run_clock_never_drifts</code><br><code>run_bar_plays_every_hit</code></td><td><ul><li>Every note the lanes and the arpeggiator start gets its <b>note-off</b>, over a whole performance.</li><li>A lane's step is a <b>function of the tick count</b>: notes cannot make lanes drift apart.</li><li>At chance 100 a bar plays <b>exactly the hits</b> on the screen; never a rest.</li><li>With QUANT on, the keyboard <b>cannot leave the scale or the chord</b>.</li></ul></td></tr>
         <tr><td><i class="k2"></i></td><td><b>Music theory</b></td><td class="num">{{count:Euclid,Harmony,Tonnetz}}</td><td><code>euclid_is_christoffel</code><br><code>tonnetz_group_is_dihedral</code><br><code>harmony_hexachord_theorem</code></td><td><ul><li>The rhythm is a <b>Christoffel word</b>: maximally even.</li><li>The chord walks are the <b>PLR group of order 24</b>: they come home.</li><li>A six-note set and its complement <b>share their intervals</b> (Babbitt): why BLACK KEYS sounds as it does.</li></ul></td></tr>
-        <tr><td><i class="k3"></i></td><td><b>Sound, in fixed point</b></td><td class="num">{{count:Pitch,Tables,BraidsData,Fm,FmLock,FmSymmetry,FmEnvelope,FmAlgorithms,FmDeviation,FmRange,Analog,Digital,Blend,Filters,Filter,Drum,Noise,Percussion,Physical,Vowels,Wavetables,VoiceSetup,Smooth,AnalogSetup,DigitalSetup,MacroSetup,FiltersSetup,NoiseSetup,PercussionSetup,PhysicalSetup,VowelsSetup,WavetablesSetup}}</td><td><code>fm_sine_bounded</code><br><code>drum_output_never_wraps</code><br><code>filter_states_stay_bounded</code></td><td><ul><li><b>No sample wraps</b> to the opposite sign.</li><li>No oscillator runs <b>past Nyquist</b>.</li><li>No table read <b>past its end</b>; the 808 and the filter <b>never wrap</b>.</li><li>With no floating point, these bugs are <b>noise</b> or a <b>crash screen</b>.</li></ul></td></tr>
-        <tr><td><i class="k4"></i></td><td><b>The mix and the effects</b></td><td class="num">{{count:Mix,Reverb,Delay}}</td><td><code>mix_bus_never_wraps</code><br><code>reverb_tail_dies_away</code><br><code>delay_echoes_die_away</code></td><td><ul><li>Six voices and two sends fit the mix <b>without wrapping</b>.</li><li>Reverb tail and echo <b>die away</b> at every knob setting: no howl.</li></ul></td></tr>
+        <tr><td><i class="k3"></i></td><td><b>Sound, in fixed point</b></td><td class="num">{{count:Pitch,Tables,BraidsData,Fm,FmLock,FmSymmetry,FmEnvelope,FmAlgorithms,FmDeviation,FmRange,Analog,Digital,Blend,Filters,Filter,Drum,Noise,Percussion,Physical,Vowels,Wavetables,VoiceSetup,Smooth,AnalogSetup,DigitalSetup,MacroSetup,FiltersSetup,NoiseSetup,PercussionSetup,PhysicalSetup,VowelsSetup,WavetablesSetup}}</td><td><code>fm_sine_bounded</code><br><code>drum_output_never_wraps</code><br><code>filter_states_stay_bounded</code></td><td><ul><li>A proved sample is <b>clipped, not wrapped</b> (four places where Braids itself overflows are matched, not proved: LEAN-ENGINES.md).</li><li>No oscillator runs <b>past Nyquist</b>.</li><li>Every table index the Lean computes <b>stays inside its table</b> (two of Braids' own overruns are kept and listed).</li><li>With no floating point, these bugs are <b>noise</b> or a <b>crash screen</b>.</li></ul></td></tr>
+        <tr><td><i class="k4"></i></td><td><b>The mix and the effects</b></td><td class="num">{{count:Mix,Reverb,Delay}}</td><td><code>mix_bus_never_wraps</code><br><code>reverb_tail_dies_away</code><br><code>delay_echoes_die_away</code></td><td><ul><li>Six voices and two sends fit the mix <b>without wrapping</b>.</li><li>With nothing fed in, reverb tail and echo <b>die away</b> at every knob setting: no howl.</li></ul></td></tr>
         <tr><td><i class="k5"></i></td><td><b>Patches</b></td><td class="num">{{count:Patch,Presets}}</td><td><code>patch_decode_encode_round_trip</code><br><code>patch_decode_only_fits</code><br><code>presets_all_fit</code></td><td><ul><li>A saved patch <b>loads back as saved</b>.</li><li>A foreign or corrupt flash slot is <b>rejected whole</b>, never read as settings.</li><li>Every factory patch is <b>in range</b> of the tables it indexes.</li></ul></td></tr>
       </table>
     </div>

@@ -14,14 +14,14 @@ PAT = re.compile(r"/--((?:(?!-/).)*)-/\s*theorem\s+(\S+)", re.S)
 # README groups: (title, what the group protects, modules in order)
 GROUPS = [
     ("The sequencer",
-     "The four lanes. No note is left sounding when you stop, the lanes stay in phase, a bar plays exactly the "
-     "hits set, and every note is in the scale and the range.",
+     "The four lanes. No note is left sounding when you stop, the lanes stay in phase, at play chance 100 a bar "
+     "plays exactly the hits set and never a rest below it, and every note is in the scale and the range.",
      ["Lane", "Run", "Rhythm", "Swing", "Divider", "Euclid", "Notes", "Quantizer", "Random", "Harmony", "Tonnetz", "Arp", "Machine",
       "Lfo", "Punch", "Keys", "KeysChord", "PunchMix", "Clock"]),
     ("The voices",
      "Braids' engines in Lean, the FM voice, the 808 and the filter. Table reads stay inside their tables, the "
-     "facts about the tables are checked, and a sample is the arithmetic clipped, not wrapped, except where Braids "
-     "itself overflows (docs/LEAN-ENGINES.md).",
+     "shipped tables meet what the proofs assume, and a sample is the arithmetic clipped, not wrapped, except "
+     "where Braids itself overflows (docs/LEAN-ENGINES.md).",
      ["Pitch", "Tables", "BraidsData", "Fm", "FmLock", "FmSymmetry", "FmEnvelope", "FmAlgorithms", "FmDeviation",
       "FmRange", "Drum", "Analog", "Digital", "Blend", "Filters", "Filter", "Noise", "Percussion", "Physical",
       "Vowels", "Wavetables"]),
@@ -177,5 +177,8 @@ if __name__ == "__main__":
             print("docs/PROOFS.md is out of date: run tools/proof_index.py --write"); sys.exit(1)
         if (ROOT / "README.md").read_text() != readme:
             print("README.md's What is proved section is out of date: run tools/proof_index.py --write"); sys.exit(1)
+        head = (ROOT / "README.md").read_text().split(BEGIN, 1)[0]
+        if f"{len(rows)} theorems" not in head:
+            print(f"README.md's opening says a theorem count other than {len(rows)}"); sys.exit(1)
     else:
         print(text)

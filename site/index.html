@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="FORMALFRED: generative music firmware for the M-VAVE FM-1, written in Lean 4 with 313 theorems about it.">
+<meta name="description" content="FORMALFRED: generative music firmware for the M-VAVE FM-1, written in Lean 4 with {{theorems}} theorems about it.">
 <title>formalfred</title>
 <link rel="icon" href="alfred.svg">
 <link rel="stylesheet" href="style.css">
@@ -32,15 +32,16 @@
     <h1>A generative music box for the M-VAVE FM-1, written in Lean, with theorems about what it plays.</h1>
   </div>
   <div>
-    <p>The FM-1 is a pocket keyboard with a 240-pixel screen, seven encoders and a speaker. This firmware replaces
-    the stock one with four lanes. Each divides the clock into a rhythm (Euclidean patterns, cellular automata,
+    <p>The FM-1 is a pocket keyboard with a 240-pixel screen, seven knobs and a speaker. This firmware gives it
+    four lanes. Each divides the clock into a rhythm (Euclidean patterns, cellular automata,
     ratchets) and picks notes from a scale (random walks, Markov chains, grammars, Tonnetz chord walks). The voices
-    are all 48 Braids shapes, a four-operator FM voice and a synthesized 808, each with a filter, plus a reverb and
-    a ping-pong delay. 136 patches and 15 demo songs to start from. Alfred bows at boot and stands in the corner
-    when you stop the clock.</p>
-    <p>The lanes, the voices, the effects, the mix and the patch format are Lean 4, compiled to C and then to the
-    chip. {{theorems}} theorems about that code go through Lean's kernel on every build. What stays C (the screen,
-    the drivers, the loops that call the Lean) the README lists as trusted. It runs on a real FM-1.</p>
+    are all 48 Braids shapes, a four-operator FM voice and an 808, each through a filter, with a reverb and
+    a ping-pong delay on sends. 142 patches to start from, 17 of them demo songs. Alfred bows at boot and stands
+    in the corner when you stop the clock.</p>
+    <p>The lanes, the voices' arithmetic, the effects, the mix and the patch format are Lean 4, compiled to C and
+    then to the chip. {{theorems}} theorems about that code go through Lean's kernel on every build. What is
+    trusted (the screen, the drivers, the loops that call the Lean, Braids' tables, Lean's C backend, JieLi's
+    clang and the runtime) is listed in the README.</p>
     <p>
       <a class="button solid" href="sim/">Try it in the browser</a>
       <a class="button" href="installer.html">Install on an FM-1</a>
@@ -55,14 +56,15 @@
     <div>
       <p class="label">Rhythm</p>
       <p>A lane's bar is Euclidean by default: 1 to 32 steps, hits spread as evenly as possible, at any of eight
-      clock divisions. Or a rotated bar with accents, a cellular automaton, or ratchets. A lane's position in its
+      clock divisions. Or a rotated bar with accents, a cellular automaton, ratchets. A lane's position in its
       bar depends only on the tick count, so four lanes at four speeds stay in phase
-      (<code>run_clock_never_drifts</code>), and a bar plays exactly the hits you set (<code>run_bar_plays_every_hit</code>).</p>
+      (<code>run_clock_never_drifts</code>), and at play chance 100 a bar plays exactly the hits you set
+      (<code>run_bar_plays_every_hit</code>); below 100 it never plays a rest (<code>lane_note_only_on_hit</code>).</p>
     </div>
     <div>
       <p class="label">Notes</p>
-      <p>Eleven note sources: a random draw, walks, a mutating loop, a Turing register, a Markov chain that learns
-      from the keys, a grammar. Chord progressions are written as degrees; a lane can follow the chord, its
+      <p>Eleven note sources, among them a random draw, walks, a mutating loop, a Turing register, a Markov chain
+      that learns from the keys, and a grammar. Chord progressions are written as degrees; a lane can follow the chord, its
       seventh, or the notes outside the key. The last three progressions walk the Tonnetz by P, L and R. The note
       that comes out is always in the scale (<code>lane_note_in_scale</code>).</p>
     </div>
@@ -76,7 +78,7 @@
 </div></section>
 
 <section class="ruled"><div class="wrap">
-  <div><h2>The panel</h2><p class="label">Four buttons pick a group of pages; the same button again moves to the next page. The four knobs set the four values on screen.</p></div>
+  <div><h2>The panel</h2><p class="label">Each group button opens its pages; the same button again moves to the next page. The four knobs set the four values on screen.</p></div>
   <table class="ledger">
     <tr><th>Group</th><th>Pages</th></tr>
     <tr><td>HOME</td><td>the four lanes: hits, steps, speed, chance; Alfred when stopped</td></tr>
@@ -97,7 +99,7 @@
 <section class="ruled" id="proved"><div class="wrap">
   <div>
     <h2>What is proved</h2>
-    <p class="label">{{theorems}} theorems on the three standard axioms, checked by Lean's kernel and by <code>lake comparator</code>; every one is also instantiated on concrete inputs.</p>
+    <p class="label">{{theorems}} theorems on the three standard axioms, checked by Lean's kernel and by <code>lake comparator</code>, and each run on concrete inputs too.</p>
   </div>
   <div>
     <table class="ledger">
@@ -107,9 +109,9 @@
     <p style="margin-top: 22px">Every theorem is in
     <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a> with its statement, why it
     matters and the definitions it depends on. The README lists what is trusted: the screen, the drivers, the
-    accessors that read Braids' tables, and the C loops that call the Lean. The proofs are about the code the chip
-    runs; the engine arithmetic is also checked sample for sample against the original Braids. Nothing here models
-    the hardware.</p>
+    accessors that read Braids' tables, and the C loops that call the Lean. The proofs are about the Lean the
+    chip's code is compiled from (Lean's C backend and JieLi's clang are trusted); the engine arithmetic is also
+    checked sample for sample against the original Braids.</p>
   </div>
 </div></section>
 

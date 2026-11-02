@@ -1,71 +1,78 @@
 # FORMALFRED
 
 Firmware for the M-VAVE FM-1 that makes music on its own. Four lanes of generative rhythm and melody, Braids
-voices, an FM voice, an 808, a filter, reverb and delay. The sequencer, the voices, the effects and the patch
-format are written in Lean 4, and 313 theorems about that code are checked on every build. Made for the
-Vibecheck hackathon. Alfred the butler is the mascot.
+voices, an FM voice, an 808, a filter, reverb and delay. The sequencer, the voices' arithmetic, the effects and
+the patch format are Lean 4, and 313 theorems about that code are checked on every build. Alfred, a little
+pixel-art butler, bows at boot and waits in the corner when you stop. Made for the Vibecheck hackathon.
 
-Site: https://mpancia.github.io/fmfm/ (installer, browser simulator, pitch deck). `docs/FM1.md` covers the
-hardware and flashing.
+Hear it now, no hardware: https://mpancia.github.io/fmfm/sim/ (Chrome or Edge for MIDI in). The site also has
+the installer and the pitch deck.
+
+Or build it:
 
 ```
 make install && make run
 ```
 
-Open http://localhost:8000/, click Power on, and it starts playing. The simulator is the real firmware
-(`fw/firmware/src/dinghy.c`) compiled to WebAssembly: same screen, keys, knobs, audio, MIDI in. You don't need
-an FM-1 to try it. `docs/SIMULATOR.md`.
+Open http://localhost:8000/, click Power on, and it plays. The simulator is the real firmware
+(`fw/firmware/src/dinghy.c`) compiled to WebAssembly: same screen, keys, knobs, audio, MIDI in. `docs/SIMULATOR.md`.
+
+To put it on an FM-1: the installer on the site, and `docs/FM1.md` for the hardware and the backup to take
+first. What is proved is [below](#what-is-proved).
 
 ## Using it
 
-The panel works like Mutable Dreams. Four buttons each open a group of pages; press the same button again for
-the next page. The four knobs set the four values on screen.
+The panel works like Mutable Dreams. Each group button opens its pages; press it again for the next page. The
+four knobs set the four values on screen.
 
 | Group | Pages (knobs 1 to 4) |
 |---|---|
 | HOME | the four lanes: hits, steps, speed, chance |
 | SEQ | RHYTHM: hits, steps, speed, chance, the bar drawn as a circle. FEEL: rhythm source (Euclid, rotate with accents, cellular automaton, ratchet) and its knobs. NOTES: note source (random, walk, up, down, bounce, loop, turing, step, markov, grammar, chord) and its knobs. RANGE: scale, low note, chord follow. `docs/SEQUENCERS.md` |
 | EDIT | SOUND: shape (48 Braids, 8 FM, 10 drums), timbre, colour, level. FILTER: cutoff, resonance, envelope, low/band/high. ENVELOPE: attack, release, envelope to timbre. MIX: lane levels. PAN |
-| ARP, REC | ARP: the arpeggiator, then QUANT (keys snapped to the scale or the chord). REC: PUNCH, the keys as momentary effects |
+| LFO | target (OFF, CHANCE, LEVEL, TIMBRE, COLOUR), rate in bars, depth, for the chosen lane (`lfo_modulate_in_range`) |
+| FX | REVERB: send, decay, bright, return. DELAY: time, feedback, tone, return. `docs/FX.md` |
 | GLO | HARMONY: key, scale lock, chord progression, bars per chord. SYSTEM: tempo, keys octave, LOOK (seven colour schemes), SWING. MIDI: channels, INT or EXT clock. BANKS: patch, save slot, DEMO, AUTO (plays the demo songs in turn, changing a lane every 8 bars) |
 
 | Control | Does |
 |---|---|
 | SELECT | pick a lane (in a browser: the group) |
-| PRESETS | the browser: sounds on EDIT (255, by engine or by type), patches elsewhere (136 factory, 8 user). ALGO changes the grouping while it is open |
+| PRESETS | the browser: sounds on EDIT (255, by engine or by type), patches elsewhere (142 factory, 8 user). ALGO changes the grouping while it is open |
 | ALGORITHM | tempo |
 | PLAY | start or stop; stopping silences everything |
 | SEL | mute the chosen lane |
-| REC | PUNCH: while the page is up the keys are momentary effects on the mix, like the OP-XY's punch-in FX. HALF and DOUBLE time, STUTTER, ROLL, OCT- and OCT+, SHIFT, GATE, CRUSH, WASH (reverb up), THROW (delay up), BREAK (all muted), then mute lane 1 to 4, then re-roll lane 1 to 4. The knobs set the rates. Let go and the effect is gone; there is no state behind it (`punch_nothing_held_changes_nothing`) |
+| REC | PUNCH: while the page is up the keys are momentary effects on the mix, like the OP-XY's punch-in FX. HALF and DOUBLE time, STUTTER, ROLL, OCT- and OCT+, SHIFT, GATE, CRUSH, WASH (reverb up), THROW (delay up), BREAK (all muted), then mute lane 1 to 4, then re-roll lane 1 to 4. The knobs set the rates. Let go and the effect is gone: with no key held every effect is the identity (`punch_nothing_held_changes_nothing`); the gate gain fades over 1.5 ms (`punch_gate_glides`) |
 | SAVE | save the patch to the slot chosen on GLO > BANKS |
 | ARP | held keys play one at a time in step with the clock, on the chosen lane's sound (MODE, RATE, OCTAVES, GATE). ARP again while holding keys latches them. ARP with nothing held opens QUANT: OFF, SCALE (white keys are the scale degrees) or CHORD (white keys are the current chord). `keys_in_scale`, `keys_keep_order` |
-| FX | REVERB (Clouds' reverb in Lean: send, decay, bright, return), then DELAY (tempo-synced ping-pong: time, feedback, tone, return). `docs/FX.md` |
 | keys, OCT- OCT+ | play the chosen lane's sound |
 
 ## How it works
 
 A lane divides the clock into a rhythm, and on every hit picks a note and snaps it to the scale. Rhythms come
-from Euclidean patterns (optionally rotated, with accents), a cellular automaton, or ratchets. Notes come from
+from Euclidean patterns (rotated and accented if you like), a cellular automaton, or ratchets. Notes come from
 the eleven sources above; MARKOV learns from what you play, GRAMMAR rewrites a phrase, TURING is a shift
 register with a flip chance.
 
 Chord progressions (GLO > HARMONY) are written as degrees: 1-4-5-1 is I IV V in a major key and i iv v in a
 minor one. A lane follows them with 7TH or TRIAD on SEQ > RANGE. The chords are stacked from the key's scale, so
-a lane that follows them stays in key (`harmony_follow_in_key`). COMPL does the opposite and plays only the notes
-outside the key, which have the same intervals as the scale, each one the same number of times fewer
-(`harmony_complement_interval_content`, Babbitt's hexachord theorem).
+a lane that follows one of the eight table progressions stays in key (`harmony_follow_in_key`; the three walks
+below leave it on purpose). COMPL does the opposite: only the notes outside the key. Those have the scale's
+intervals, each shifted by the same count (two fewer for a seven-note scale, two more for a pentatonic):
+Babbitt's hexachord theorem in general form (`harmony_complement_interval_content`), and why BLACK KEYS still
+sounds like C major.
 
 The last three progressions walk the Tonnetz (`Firmware/Tonnetz.lean`): each move is P, L or R, which keeps two
 notes of the triad and changes one. WALK LR visits all 24 major and minor triads and comes back; WALK PL is a
-hexatonic cycle of six, WALK PR an octatonic cycle of eight. `Proofs/Tonnetz.lean` proves the group theory: the
-three moves generate the dihedral group of order 24, acting simply transitively on the triads and commuting
-with transposition and inversion.
+hexatonic cycle of six, WALK PR an octatonic cycle of eight. `Proofs/Tonnetz.lean` does the group theory: P, L
+and R generate the dihedral group of order 24, which is why every walk comes home and sounds the same in every
+key.
 
-The voices are all 48 Braids shapes, built from Mutable's source (`voices/`), with the sample arithmetic of each
-engine moved into Lean and checked against the C++ sample for sample (`make test-lean`). Then a four-operator FM
-voice (`Firmware/Fm.lean`: piano, bell, bass, brass, glass, mallet, organ, clang) whose sine is a polynomial, so
-the kernel can reason about it. Then ten 808 drums (`Firmware/Drum.lean`) made from a swept sine, a 16-bit noise
-generator, one-pole filters and the 808's six-square metal bank; TIMBRE is decay, COLOUR is tone. Every sound
+The voices are all 48 Braids shapes from Mutable's source (`voices/`), each engine's sample arithmetic moved
+into Lean and checked against the C++ sample for sample (`make test-lean`). Then a four-operator FM voice
+(`Firmware/Fm.lean`: piano, bell, bass, brass, glass, mallet, organ, clang) whose sine is a polynomial, not a
+table, so its bound, symmetry and continuity are checked at every phase (`fm_sine_bounded`, `fm_sine_half_wave`,
+`fm_sine_continuous`). Then ten 808 drums (`Firmware/Drum.lean`) made from a swept sine, a 16-bit noise
+generator, one-pole filters and the 808's six-square metal bank. TIMBRE is decay, COLOUR is tone. Every sound
 goes through a state-variable filter (`Firmware/Filter.lean`), which at its default is an exact bypass. `make
 audit` checks the level of every factory sound.
 
@@ -77,8 +84,8 @@ in `Proofs/` by `make proofs`; `docs/PROOFS.md` has the full statements.
 
 <details><summary><b>The sequencer</b>: 104 theorems</summary>
 
-The four lanes. No note is left sounding when you stop, the lanes stay in phase, a bar plays exactly the hits set, and
-every note is in the scale and the range.
+The four lanes. No note is left sounding when you stop, the lanes stay in phase, at play chance 100 a bar plays exactly
+the hits set and never a rest below it, and every note is in the scale and the range.
 
 | Theorem | Says | Protects against |
 |---|---|---|
@@ -92,7 +99,7 @@ every note is in the scale and the range.
 | `lane_note_in_scale` | A note a tick starts is at most 127 and is in the lane's scale. | the lane never plays a note the voices reject or one outside the chosen key. |
 | `lane_silence_valid` | `silence` keeps a valid lane valid. | stopping the clock cannot leave a timer without a note or a note without a timer. |
 | `lane_silence_stops_note` | `silence` reports the sounding note as stopped and leaves nothing sounding. | stop never leaves a note hanging. |
-| `lane_reconfigure_self` | Applying a lane's own settings back to it changes nothing, for a valid lane whose settings are ones the knobs can reach (steps ≤ 32, div ≤ 96, algo ≤ 10, mutate ≤ 100, rhythm source in range with a live row that fits the bar, step-sequencer cursor inside its loop) and whose gate is `gateFor div`. | saving and reloading a patch, or redrawing a knob at its current value, does not change the lane. |
+| `lane_reconfigure_self` | Applying a lane's own settings back to it changes nothing, for a valid lane whose settings are within knob range and whose gate is `gateFor div`. | saving and reloading a patch, or redrawing a knob at its current value, does not change the lane. |
 | `lane_set_rhythm_valid` | `setRhythm` keeps a valid lane valid for any settings. | switching rhythm source mid-song cannot break the lane. |
 | `lane_learn_valid` | `learn` (a key press) keeps a valid lane valid. | playing along or programming the step sequencer cannot break the lane. |
 | `lane_from_patch_keeps_feel` | A patch lane that fits (`PatchLane.Fits`) gives a lane with exactly the patch's rhythm settings: no clamp in `Lane.make` or `Rhythm.make` changes a fitting value. | the FEEL settings a patch saves are the ones it plays back. |
@@ -146,7 +153,7 @@ every note is in the scale and the range.
 | `harmony_walk_chord_is_triad` | On a Tonnetz walk (progressions 8 and up) with chord follow 7TH or TRIAD, a lane plays exactly the walk's triad transposed to the key: three notes, the chord the screen names. | walks leave the key on purpose, and the lane plays exactly the named triad. |
 | `harmony_walk_keeps_two_notes` | Consecutive chords of any Tonnetz walk share exactly two pitch classes. | P, L and R each change one note of a triad, so a walk moves one note at a time. |
 | `harmony_complement_outside_key` | COMPL (chord follow 3) plays exactly the notes outside the key's scale, for every scale, key and chord; the chromatic scale plays whole. | a COMPL lane never shares a note with a lane in the key. |
-| `harmony_complement_interval_content` | Babbitt's hexachord theorem for any cycle `Z_n` and any set: the ordered count of pairs at distance `d` in the complement equals the count in the set plus `n - 2 * size`. | a hexachord and its complement have the same interval content, which is why COMPL sounds like the scale it was cut from. |
+| `harmony_complement_interval_content` | The complement theorem (Lewin's generalisation of Babbitt's hexachord theorem) for any cycle `Z_n` and any set: the ordered count of pairs at distance `d` in the complement equals the count in the set plus `n - 2 * size`. | a scale and the notes it leaves out share their interval content, which is why COMPL sounds like the key it was cut from. |
 | `harmony_hexachord_theorem` | Babbitt's hexachord theorem on the 12-bit masks: every six-note mask has the interval vector of its complement, checked for all 4096 masks. | the `n = 12`, `size = 6` instance of `harmony_complement_interval_content` on the masks the lanes play from. |
 | `tonnetz_moves_are_involutions` | Each of P, L and R is an involution. | a walk can always be retraced; this is the first dihedral relation. |
 | `tonnetz_group_has_order_24` | The group generated by P, L and R has exactly 24 elements: every word acts as one of the 24 listed elements, and no two of those act alike. | the walks live in a small, fully known group (the neo-Riemannian PLR group). |
@@ -191,8 +198,8 @@ every note is in the scale and the range.
 
 <details><summary><b>The voices</b>: 133 theorems</summary>
 
-Braids' engines in Lean, the FM voice, the 808 and the filter. Table reads stay inside their tables, the facts about the
-tables are checked, and a sample is the arithmetic clipped, not wrapped, except where Braids itself overflows
+Braids' engines in Lean, the FM voice, the 808 and the filter. Table reads stay inside their tables, the shipped tables
+meet what the proofs assume, and a sample is the arithmetic clipped, not wrapped, except where Braids itself overflows
 (docs/LEAN-ENGINES.md).
 
 | Theorem | Says | Protects against |
@@ -433,7 +440,7 @@ A saved patch loads back as saved, anything else in a slot is rejected, and ever
 | `patch_decode_rejects_wrong_marker` | A slot whose first byte is not the marker 0xA7 never loads. | an unwritten or foreign slot is treated as empty rather than read as settings. |
 | `patch_decode_rejects_wrong_size` | A slot that is not exactly 106 bytes long never loads. | a slot from a firmware with a different patch layout is rejected whole. |
 | `patch_encode_size` | Every encoded patch is 106 bytes long. | the C side reads exactly `FM1_PATCH_BYTES` back from a flash slot. |
-| `presets_all_fit` | All 128 factory patches satisfy `Patch.Fits`, checked value by value. | the firmware trusts its own patch table without the checks a loaded slot gets, and a generated patch that strays out of range fails the build. |
+| `presets_all_fit` | Every factory patch in `Presets.all` satisfies `Patch.Fits`, checked value by value. | the firmware trusts its own patch table without the checks a loaded slot gets, and a generated patch that strays out of range fails the build. |
 
 </details>
 <!-- proofs:end -->
@@ -475,26 +482,32 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`.
 | `make check` | lint, lean-check, test-lean, test-exports, comparator |
 | `make flash-deps` | the MIDI libraries `fw/tools/fm1_install.py` needs |
 
-## Reproducibility
+## Licence, releases, pins
 
 - GPL-3.0 (`LICENSE`). `fw/` is Dinghy, vendored at a fixed commit (`fw/UPSTREAM.md`). Braids and Clouds code
   under `voices/` and `fx/` is MIT (`fw/LICENSING.md`).
 - Releases carry `formalfred.fwsc`, identity `FM-1_960`, with the update loader, so another firmware can be
-  installed over it. The Firmware Hub card is `fmhub.json` and `docs/card.png` (`tools/make_card.py`). There is
-  no project or sample format, and it does not read other firmwares' files.
+  installed over it. The Firmware Hub card is `fmhub.json` and `docs/card.png` (`tools/make_card.py`). It has
+  no project or sample format and reads no other firmware's files.
 - `lean-toolchain` pins Lean; there are no dependencies beyond core Lean.
 
 ## What is trusted
 
-The proofs are about the Lean in `Firmware/`. `lake comparator` checks in a sandbox that `Proofs/` proves every
-statement in `Challenge.lean` using only `propext`, `Classical.choice` and `Quot.sound`; `lake check` replays the
-whole build through the kernel. `docs/PROOFS.md` lists each theorem with the definitions its statement depends on.
-`Examples/` instantiates every theorem on concrete inputs, so the hypotheses are known to be satisfiable, and
-`#guard`s inputs the specs reject. No `axiom`, no `native_decide` (`make lint` refuses both); `maxRecDepth` is
-raised in three proof files for big `decide`s, `maxHeartbeats` never.
+The proofs are about the Lean in `Firmware/`. `Challenge.lean` is the statements of `Proofs/` restated without
+proofs (`tools/gen_challenge.py`); `lake comparator` checks in a sandbox that `Proofs/` proves each of them using
+only `propext`, `Classical.choice` and `Quot.sound`. What the statements mean rests on the definitions in `Spec/`
+and `Firmware/` and the English beside them, which are read, not proved; `lake check` replays the whole build
+through the kernel (run by hand; `make check` runs Comparator, the GitHub workflow runs neither). `docs/PROOFS.md`
+lists each theorem with the definitions its statement depends on. `Examples/` runs every theorem on concrete
+inputs, so the hypotheses are known to be satisfiable, and `#guard`s that the specs reject bad inputs. No
+`axiom`, no `native_decide` (`make lint` refuses both); `maxRecDepth` is raised in three proof files for big
+`decide`s, `maxHeartbeats` never.
 
 Not covered by the proofs:
 
+- The statements themselves: `Lane.Valid`, `Patch.Fits`, `Machine`, `Reverb.loop` and the rest of `Spec/` say
+  what is promised; `Examples/` shows each is satisfiable on real inputs, nothing shows they are the right thing
+  to promise.
 - `rt/lean_rt.c`, the Lean runtime for the chip (`docs/LEAN-ON-CHIP.md`).
 - Lean's compiler to C, and JieLi's clang from C to the chip.
 - The C left in `voices/` and `fx/`: Braids' per-block setup, the delay memories, and the loops that call the
@@ -504,13 +517,18 @@ Not covered by the proofs:
   master gain and clip in `platform.c`.
 - The hardware, and `web/web_host.c` in the simulator.
 - 34 `@[extern] opaque` table readers for Braids' wavetables and lookup tables. Their only contract is the return
-  type, so a theorem that mentions one holds for any value it might return, and the caller proves the index is in
-  bounds (`*_reads_inside_*`). Those engine steps are tested against the C++ instead.
+  type, so a theorem that mentions one holds whatever they return; the caller proves the index is in bounds
+  (`*_reads_inside_*`), and those engine steps are tested against the C++.
+- Five more readers (`incrementTable`, `Percussion.cutoffTable`, `rateTable`, `vowelAmplitudeAt`, `tableSteps`)
+  are `@[extern] def`s whose Lean bodies are copies of Braids' tables (`Firmware/BraidsData.lean`, generated by
+  `tools/gen_tables.py`, kept in step by `make lint`). The `braids_data_*` theorems are about the copies; that the
+  C accessor reads the same table is trusted.
 
-Two tests reach into that list. `make test-exports` compiles every scalar `@[export fm1_*]` function (354 of 439;
-the rest take objects or read the opaque tables) to C, runs it on random inputs, and asks the kernel to confirm
-each value by `decide +kernel`, 2124 values a run: the compiled code against the definitions the theorems are
-about. And `fw/firmware/src/watch.h` asserts twelve of the theorems on the running machine in the simulator and
-host builds, at the point `dinghy.c` uses the Lean's answer (notes in scale and on a hit, note-ons balancing
-note-offs, mix and pan bounds, a swung quarter note being 24 ticks, the chord root in key, a patch decoding back
-to its bytes). `make test` fails if one trips; it runs about 30 million checks over the smoke run and the demos.
+Two tests reach into that list. `make test-exports` compiles 354 of the 469 `@[export fm1_*]` functions to C (85
+read the opaque tables and cannot be evaluated by the kernel; 30 take objects), runs them on random inputs, and
+asks the kernel to confirm each value by `decide +kernel`: 2124 values a run, the compiled code against the
+definitions the theorems are about. And `fw/firmware/src/watch.h` asserts twelve of the theorems on the running
+machine, in the simulator and host builds, at the point `dinghy.c` takes the Lean's answer: notes in scale and on
+a hit, note-ons balancing note-offs, mix and pan bounds, a swung quarter note being 24 ticks, the chord root in
+key, a patch decoding back to its bytes. `make test` fails if one trips, and prints the count (tens of millions
+over the smoke run and the 21 demos) and the failures, which must be zero.
