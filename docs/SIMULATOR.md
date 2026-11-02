@@ -7,7 +7,7 @@ The same `fw/firmware/src/dinghy.c` that goes on the chip, compiled with `-DDING
 clang and lld in the pinned Lean toolchain (`tools/build_web.sh`), with the Lean code in `Firmware/` and its
 runtime (`rt/`). No emscripten, no libc.
 `web/web_host.c` stands in for the hardware (from Dinghy's `tests/host.c`): screen buffer, inputs, RAM-backed
-settings, MIDI queue.
+settings, MIDI queues in and out.
 
 ```
 page (sim.js)  --SharedArrayBuffer-->  worker.js  (runs the wasm; app_main never returns)
@@ -24,8 +24,10 @@ Click the keys, or use the computer keyboard (`Z`..`/` from C4, `Q`..`T` from C5
 PLAY, Escape is HOME, `[` and `]` turn Select, PageUp and PageDown step through the patches.
 Knobs: wheel, drag, click left/right half, arrow keys. Every button and knob has a tooltip.
 **Record** saves what you hear as a WebM (Opus) file; **Screenshot** saves the 240x240 screen as a PNG; **Copy link**
-puts `?patch=N` on the URL, and opening such a link loads that patch after Power on. **Connect MIDI in** feeds Web MIDI devices to the USB
-MIDI input (Chrome/Edge). The **Patch** list loads any factory patch or user slot without touching the device
+puts `?patch=N` on the URL, and opening such a link loads that patch after Power on. **Connect MIDI** (Chrome/Edge)
+feeds every Web MIDI input to the firmware's USB MIDI in and shows a list of outputs; the chosen one gets what the
+firmware sends (the lanes on MIDI OUT CH, the keys on channel 16), with All Notes Off when the output changes or the
+device powers off. The **Patch** list loads any factory patch or user slot without touching the device
 (the page asks the firmware for the names at boot and follows the patch the device changes to). **Demo** turns
 AUTO on (GLO > BANKS) and the demo songs play themselves; from power-off it boots first. Press it again, or PLAY,
 to stop.
@@ -39,6 +41,6 @@ knob, to stop; it ends by loading the boot patch again. The page keeps the firmw
 - CPU time: the chip is far slower than your computer. Check the audio ISR budget on hardware (`fm1_ticks()`) or
   by comparing instruction counts in a build for the chip.
 - Flash: settings live in RAM and vanish at power off. No update path, rescue or boot guard.
-- TRS MIDI, MIDI out, USB audio device behaviour, key scan timing, battery.
+- TRS MIDI, USB audio device behaviour, key scan timing, battery.
 - Hardware rules (no float, no 64-bit division, ROM window addresses) are enforced only by `make fw`. Run
   `make fw` before flashing.

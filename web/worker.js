@@ -3,7 +3,7 @@
  * sleeps until the AudioWorklet has drained some. Audio is the clock. Layout of `ctl`: see sim.js. */
 'use strict';
 const RING = 16384, TARGET = 2048;          // frames; ring must be a power of two
-let ctl, ring, frame, mem, inp, exports, wrote = 0;
+let ctl, ring, frame, mem, inp, out, exports, wrote = 0, sent = 0;
 
 const imports = { env: {
   js_sync(ms) {
@@ -28,6 +28,15 @@ const imports = { env: {
     }
     Atomics.store(ctl, 12, mr);
     dv.setUint32(44, n, true);
+    const ov = new DataView(mem.buffer, out), ow = ov.getUint32(0, true);   // MIDI out, to the page's ring
+    let ww = Atomics.load(ctl, 24);
+    const wr = Atomics.load(ctl, 25);
+    for (; sent !== ow; sent = (sent + 1) >>> 0) {
+      if (((ww - wr) | 0) >= 64) continue;                     // the page is not draining: drop
+      Atomics.store(ctl, 128 + (ww & 63), ov.getUint32(4 + 4 * (sent & 63), true));
+      ww = (ww + 1) | 0;
+    }
+    Atomics.store(ctl, 24, ww);
     dv.setUint32(112, Atomics.exchange(ctl, 20, 0), true);     // a patch to load (index + 1)
     dv.setUint32(116, Atomics.exchange(ctl, 22, 0), true);     // the Demo button: 1 start, 2 stop
     Atomics.store(ctl, 21, exports.web_patch_index());
@@ -65,7 +74,7 @@ onmessage = async (e) => {
   try {
     const { instance } = await WebAssembly.instantiateStreaming(fetch(new URL('dinghy.wasm', e.data.base)), imports);
     exports = instance.exports;
-    mem = exports.memory; inp = exports.web_in_ptr();
+    mem = exports.memory; inp = exports.web_in_ptr(); out = exports.web_out_ptr();
     const patches = [];                      // the patch names, read before the firmware starts
     for (let i = 0; i < exports.web_patch_count(); i++) {
       const b = new Uint8Array(mem.buffer, exports.web_patch_name(i)); let n = 0; while (b[n]) n++;

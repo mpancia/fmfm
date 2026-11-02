@@ -8,7 +8,8 @@
  * input and may block until the audio buffer wants more. Audio, not the wall clock, sets the pace.
  *
  *   JS -> C:  web_in (input struct, written by JS before each ms; address from web_in_ptr())
- *   C  -> JS: js_audio(ptr, frames)  one 256-frame block of 16-bit stereo
+ *   C  -> JS: web_out (MIDI out ring, read by JS in js_sync; address from web_out_ptr())
+ *             js_audio(ptr, frames)  one 256-frame block of 16-bit stereo
  *             js_frame(fb, leds_lo, leds_hi)  the screen, 240x240 RGB565, plus the LEDs
  * FM-1 only (no SMK-37). */
 #include <stdint.h>
@@ -45,6 +46,14 @@ struct web_input {
 static uint32_t web_patch_request, web_demo_request;   /* the same, for the app to take (dinghy.c's main loop) */
 static struct web_input web_in;
 __attribute__((export_name("web_in_ptr"))) struct web_input *web_in_ptr(void) { return &web_in; }
+
+/* what the firmware sends out: MIDI messages, taken by JS every ms (so the ring never fills in practice) */
+struct web_output {
+    uint32_t midi_w;                    /* messages written so far; entry i lives at midi[i % 64] */
+    uint32_t midi[64];                  /* status | d1 << 8 | d2 << 16 */
+};
+static struct web_output web_out;
+__attribute__((export_name("web_out_ptr"))) struct web_output *web_out_ptr(void) { return &web_out; }
 
 static volatile uint32_t fm1_ms;
 static struct { uint32_t notes, buttons; } fm1_in;
@@ -127,7 +136,11 @@ static int midi_get(uint8_t *st, uint8_t *d1, uint8_t *d2)
     mq_r++;
     return src;
 }
-static void midi_send(uint32_t st, uint32_t d1, uint32_t d2) { (void)st; (void)d1; (void)d2; }   /* no MIDI out in the page yet */
+static void midi_send(uint32_t st, uint32_t d1, uint32_t d2)
+{
+    web_out.midi[web_out.midi_w % 64u] = (st & 255u) | (d1 & 127u) << 8 | (d2 & 127u) << 16;
+    web_out.midi_w++;
+}
 
 static void app_audio(int32_t *out, uint32_t n);
 static void app_main(void);

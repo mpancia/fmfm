@@ -6,7 +6,9 @@
  *                      14 audio frames read   15,16 LEDs (lo, hi)   17 screen frame counter   18 audio underruns
  *                      19 simulated ms   20 a patch to load (index + 1)   21 the patch playing
  *                      22 the Demo button (1 start, 2 stop)   23 AUTO is on
- *                      32..95 MIDI queue (status | d1 << 8 | d2 << 16 | source << 24)
+ *                      24 MIDI out write index   25 MIDI out read index
+ *                      32..95 MIDI in queue (status | d1 << 8 | d2 << 16 | source << 24)
+ *                      128..191 MIDI out queue (status | d1 << 8 | d2 << 16)
  *   ring: 16-bit stereo audio.   frame: 240x240 RGB565. */
 const RING = 16384;
 const BUTTONS = ['OCT-', 'OCT+', 'FX', 'SEL', 'ENV', 'LFO', 'EDIT', 'GLO', 'HOME', 'SAVE', 'ARP', 'SEQ', 'PLAY', 'REC'];
@@ -148,6 +150,7 @@ function draw(now) {
   requestAnimationFrame(draw);
   if (!running) return;
   drawScope(now);
+  midiOutDrain();
   const n = Atomics.load(ctl, 17);
   if (n !== lastFrame) {
     lastFrame = n;
@@ -219,7 +222,7 @@ window.addEventListener('resize', () => { if (!running) flatScope(); });
 async function powerOn() {
   if (!crossOriginIsolated) { status('This page must be served by tools/serve_web.py (needs SharedArrayBuffer). Run make run.'); return; }
   $('power').disabled = true;
-  ctl = new Int32Array(new SharedArrayBuffer(4 * 128));
+  ctl = new Int32Array(new SharedArrayBuffer(4 * 256));
   ring = new Int16Array(new SharedArrayBuffer(2 * 2 * RING));
   frame = new Uint16Array(new SharedArrayBuffer(2 * 240 * 240));
   lastFrame = 0; lastLeds = [0, 0];
@@ -260,6 +263,7 @@ async function powerOn() {
   worker.postMessage({ ctl: ctl.buffer, ring: ring.buffer, frame: frame.buffer, base: location.href });
 }
 function powerOff(why) {
+  midiOutSilence();
   running = false;
   if (worker) worker.terminate();
   if (audio) audio.close();
@@ -291,17 +295,53 @@ $('demo').addEventListener('click', async () => {
   tourInput(); Atomics.store(ctl, 22, Atomics.load(ctl, 23) ? 2 : 1);
 });
 
+// ---- MIDI ----
+let midiOut = null;                                          // the chosen MIDIOutput
+const midiMsg = new Uint8Array(3);                           // one buffer for every send
+const midiHeld = new Set();                                  // notes sounding on the output, channel << 7 | note
+function midiOutSend(st, d1, d2) {
+  midiMsg[0] = st; midiMsg[1] = d1; midiMsg[2] = d2;
+  midiOut.send(midiMsg);
+  const kind = st & 0xf0, key = (st & 15) << 7 | d1;
+  if (kind === 0x90 && d2) midiHeld.add(key); else if (kind === 0x80 || kind === 0x90) midiHeld.delete(key);
+}
+function midiOutDrain() {                                    // what the firmware sent since the last frame
+  const w = Atomics.load(ctl, 24);
+  let r = Atomics.load(ctl, 25);
+  for (; r !== w; r = (r + 1) | 0) {
+    const m = Atomics.load(ctl, 128 + (r & 63));
+    if (midiOut) midiOutSend(m & 255, m >> 8 & 127, m >> 16 & 127);
+  }
+  Atomics.store(ctl, 25, r);
+}
+function midiOutSilence() {                                  // note-offs for what is held, then All Notes Off everywhere
+  if (!midiOut) return;
+  for (const key of midiHeld) midiOutSend(0x80 | key >> 7, key & 127, 0);
+  for (let ch = 0; ch < 16; ch++) midiOutSend(0xB0 | ch, 123, 0);
+}
 $('midi').addEventListener('click', async () => {
   if (!navigator.requestMIDIAccess) { note('This browser has no Web MIDI. Use Chrome or Edge.'); return; }
   try {
     const access = await navigator.requestMIDIAccess();
+    const label = () => {
+      $('midi').textContent = `MIDI: ${access.inputs.size} in, out: ${midiOut ? midiOut.name : 'none'}`;
+    };
     const hook = () => {
-      let n = 0;
       access.inputs.forEach((inp) => {
-        n++;
         inp.onmidimessage = (m) => { if (running && m.data.length) midiPush(m.data[0], m.data[1] || 0, m.data[2] || 0, 1); };
       });
-      $('midi').textContent = n ? `MIDI in: ${n} device${n > 1 ? 's' : ''}` : 'No MIDI devices';
+      const sel = $('midiout');
+      sel.replaceChildren(new Option('none', ''), ...[...access.outputs.values()].map((o) => new Option(o.name, o.id)));
+      if (midiOut && !access.outputs.has(midiOut.id)) midiOut = null;   // unplugged
+      sel.value = midiOut ? midiOut.id : '';
+      sel.hidden = false;
+      label();
+    };
+    $('midiout').onchange = () => {
+      midiOutSilence();
+      midiOut = access.outputs.get($('midiout').value) || null;
+      label();
+      $('midiout').blur();
     };
     access.onstatechange = hook; hook();
   } catch (err) { note('MIDI access refused: ' + err.message); }

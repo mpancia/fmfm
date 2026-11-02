@@ -27,7 +27,9 @@
           <select id="patch" disabled aria-label="Patch to load"><option>power on first</option></select></label>
       </div>
       <div class="group">
-        <button id="midi" type="button">Connect MIDI in</button>
+        <button id="midi" type="button">Connect MIDI</button>
+        <select id="midiout" hidden aria-label="MIDI output">
+          <option value="">none</option></select>
       </div>
       <div class="group">
         <button id="record" type="button" disabled title="Record what you hear to a file (WebM/Opus)">Record</button>
