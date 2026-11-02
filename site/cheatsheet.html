@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="description" content="FORMALFRED on the FM-1: pages, controls, sequencers, punch keys, harmony, effects.">
+<title>formalfred — cheat sheet</title>
+<link rel="icon" href="alfred.svg">
+<link rel="stylesheet" href="style.css">
+<style>
+/* the sheet: dense ledgers in columns, small-capped mono headings, hairlines between the columns; prints on one leaf */
+.sheet { padding: 26px 0 var(--band); }
+.sheet .head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--gap);
+  border-bottom: 1px solid var(--rule); padding-bottom: 11px; margin-bottom: 18px; }
+.sheet .head h1 { font-size: 26px; }
+.sheet .dek { margin: 0; max-width: none; text-align: right; }
+.sheet .grid { columns: 3 300px; column-gap: 22px; column-rule: 1px solid var(--hairline); }
+.sheet section { break-inside: avoid; margin: 0 0 18px; }
+.sheet h2 { font: 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--ink);
+  border-bottom: 1px solid var(--rule); padding-bottom: 3px; margin-bottom: 4px; }
+.sheet h2 small { color: var(--muted); letter-spacing: .06em; float: right; }
+.sheet table.ledger { font-size: 11px; line-height: 1.35; }
+.sheet table.ledger th { font-size: 9px; padding-bottom: 2px; }
+.sheet table.ledger td { padding: 3px 8px 3px 0; }
+.sheet table.ledger td:first-child { color: var(--ink); white-space: normal; max-width: 12em; }
+.sheet table.ledger td:last-child { color: #333; }
+.sheet .note { font: 11px/1.4 var(--mono); color: var(--muted); margin: 4px 0 0; max-width: none; }
+.sheet b { font-weight: 400; color: var(--ink); }
+.sheet kbd { font-size: 10px; padding: 0 3px; }
+.sheet code { font-size: inherit; }
+.sheet tr { break-inside: avoid; }
+.sheet .punch { border-left: 2px solid var(--note); padding-left: 8px; }
+@media (max-width: 760px) { .sheet .head { display: block; } .sheet .dek { text-align: left; margin-top: 6px; } }
+@media print {
+  @page { margin: 12mm; }
+  .bar, footer.foot, .sheet .back { display: none; }
+  html, body { background: #fff; }
+  .sheet { padding: 0; }
+  .sheet .wrap { max-width: none; padding: 0; }
+  .sheet .grid { columns: 3; column-gap: 16px; column-fill: auto; }
+  .sheet .head h1 { font-size: 22px; }
+  .sheet .dek { font-size: 10px; }
+  .sheet h2 { font-size: 10px; }
+  .sheet table.ledger { font-size: 9.5px; line-height: 1.3; }
+  .sheet table.ledger td { padding: 2px 5px 2px 0; }
+  .sheet .note { font-size: 9.5px; }
+  .sheet section { break-inside: auto; margin-bottom: 10px; }
+  .sheet h2 { break-after: avoid; }
+  .sheet .head { margin-bottom: 12px; }
+  a { text-decoration: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="bar"><div class="wrap">
+  <a class="wordmark" href="./">formalfred</a>
+  <nav aria-label="Sections">
+    <a href="sim/">simulator</a>
+    <a href="installer.html">install</a>
+    <a href="cheatsheet.html" aria-current="page">cheat sheet</a>
+    <a href="pitch/">pitch</a>
+    <a href="./#proved">proofs</a>
+    <a href="https://github.com/mpancia/fmfm">source</a>
+  </nav>
+</div></div>
+
+<main class="sheet"><div class="wrap">
+  <header class="head">
+    <h1>FORMALFRED on the FM-1</h1>
+    <p class="dek">The panel works like Mutable Dreams. Each group button opens its pages; press it again for the
+      next page. The four knobs set the four values on screen.
+      <span class="back">Print this page for one leaf.</span></p>
+  </header>
+
+  <div class="grid">
+
+  <section>
+    <h2>Groups and pages <small>knobs 1 to 4</small></h2>
+    <table class="ledger">
+      <tr><td>HOME</td><td>the four lanes: hits, steps, speed, chance</td></tr>
+      <tr><td>SEQ</td><td><b>RHYTHM</b>: hits, steps, speed, chance, the bar drawn as a circle. <b>FEEL</b>: rhythm
+        source (Euclid, rotate with accents, cellular automaton, ratchet) and its knobs. <b>NOTES</b>: note source
+        (random, walk, up, down, bounce, loop, turing, step, markov, grammar, chord) and its knobs. <b>RANGE</b>:
+        scale, low note, chord follow</td></tr>
+      <tr><td>EDIT</td><td><b>SOUND</b>: shape (48 Braids, 8 FM, 10 drums), timbre, colour, level. <b>FILTER</b>:
+        cutoff, resonance, envelope, low/band/high. <b>ENVELOPE</b>: attack, release, envelope to timbre.
+        <b>MIX</b>: lane levels. <b>PAN</b></td></tr>
+      <tr><td>LFO</td><td>target (OFF, CHANCE, LEVEL, TIMBRE, COLOUR), rate in bars, depth, for the chosen
+        lane</td></tr>
+      <tr><td>FX</td><td><b>REVERB</b>: send, decay, bright, return. <b>DELAY</b>: time, feedback, tone,
+        return</td></tr>
+      <tr><td>GLO</td><td><b>HARMONY</b>: key, scale lock, chord progression, bars per chord. <b>SYSTEM</b>: tempo,
+        keys octave, LOOK (seven colour schemes), SWING. <b>MIDI</b>: channels, INT or EXT clock. <b>BANKS</b>:
+        patch, save slot, DEMO, AUTO (plays the demo songs in turn, changing a lane every 8 bars)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Controls</h2>
+    <table class="ledger">
+      <tr><td>SELECT</td><td>pick a lane (in a browser: the group)</td></tr>
+      <tr><td>PRESETS</td><td>the browser: sounds on EDIT (255, by engine or by type), patches elsewhere (142
+        factory, 8 user). ALGO changes the grouping while it is open</td></tr>
+      <tr><td>ALGORITHM</td><td>tempo</td></tr>
+      <tr><td>PLAY</td><td>start or stop; stopping silences everything</td></tr>
+      <tr><td>SEL</td><td>mute the chosen lane</td></tr>
+      <tr><td>REC</td><td>PUNCH: while the page is up the keys are momentary effects on the mix (right)</td></tr>
+      <tr><td>SAVE</td><td>save the patch to the slot chosen on GLO &gt; BANKS</td></tr>
+      <tr><td>ARP</td><td>held keys play one at a time in step with the clock, on the chosen lane's sound (MODE,
+        RATE, OCTAVES, GATE). ARP again while holding keys latches them. ARP with nothing held opens QUANT: OFF,
+        SCALE (white keys are the scale degrees) or CHORD (white keys are the current chord)</td></tr>
+      <tr><td>keys, OCT- OCT+</td><td>play the chosen lane's sound</td></tr>
+    </table>
+    <p class="note">ARP MODE: OFF (the keys play straight), UP, DOWN, UPDOWN, RANDOM, PLAYED (in the order pressed);
+      RATE a note value; OCTAVES 1 to 3; GATE as a share of the step.</p>
+  </section>
+
+  <section class="punch">
+    <h2>Punch <small>REC, then the keys</small></h2>
+    <table class="ledger">
+      <tr><th>keys, in order</th><th>does</th></tr>
+      <tr><td>HALF, DOUBLE</td><td>time</td></tr>
+      <tr><td>STUTTER, ROLL, OCT-, OCT+, SHIFT, GATE, CRUSH</td><td>momentary effects on the mix, like the OP-XY's
+        punch-in FX</td></tr>
+      <tr><td>WASH, THROW, BREAK</td><td>reverb up, delay up, all muted</td></tr>
+      <tr><td>next four</td><td>mute lane 1 to 4</td></tr>
+      <tr><td>last four (A4 to C5)</td><td>re-roll lane 1 to 4: a new random loop, register and automaton row,
+        and an unlearnt chain</td></tr>
+    </table>
+    <p class="note">The knobs set the rates. Let go and the effect is gone: with no key held every effect is the
+      identity; the gate gain fades over 1.5 ms.</p>
+  </section>
+
+  <section>
+    <h2>Feel <small>SEQ &gt; FEEL, rhythm source</small></h2>
+    <table class="ledger">
+      <tr><th>feel</th><th>knobs</th><th>does</th></tr>
+      <tr><td>EUCLID</td><td>(HITS, STEPS on RHYTHM)</td><td><code>hits</code> spread as evenly as whole steps
+        allow</td></tr>
+      <tr><td>ROTATE</td><td>ROTATE, ACCENTS</td><td>the Euclidean bar turned by <code>rotate</code> steps;
+        <code>accents</code> of its hits, picked by a second Euclidean pattern laid over the hits, play louder and the
+        rest softer</td></tr>
+      <tr><td>AUTOMAT</td><td>RULE</td><td>an elementary cellular automaton (rule 0 to 255) on a ring of
+        <code>steps</code> cells, seeded from the Euclidean bar, one generation a bar; a dead row is reseeded. Rule 90
+        is the Sierpinski triangle, 30 is chaos, 204 freezes</td></tr>
+      <tr><td>RATCHET</td><td>RATCHET, SUBHITS</td><td>each hit split into <code>ratchet</code> (1 to 4) sub-hits, of
+        which <code>subhits</code> play (the hit itself always); each sub-hit's gate is cut to its share of the
+        step</td></tr>
+    </table>
+    <p class="note">The circle on RHYTHM and FEEL shows the live bar: hits in the lane colour, accents bigger, the
+      current step white; the automaton's row changes every bar.</p>
+  </section>
+
+  <section>
+    <h2>Notes <small>SEQ &gt; NOTES, note source</small></h2>
+    <table class="ledger">
+      <tr><th>algo</th><th>knobs</th><th>does</th></tr>
+      <tr><td>RANDOM</td><td></td><td>a random position in the range</td></tr>
+      <tr><td>WALK</td><td>STEP</td><td>a random step of up to <code>step</code> positions, stopping at the
+        ends</td></tr>
+      <tr><td>UP, DOWN</td><td></td><td>climb or fall through the range and wrap</td></tr>
+      <tr><td>BOUNCE</td><td></td><td>up and down</td></tr>
+      <tr><td>LOOP</td><td>LENGTH, MUTATE</td><td>replay a memory of <code>length</code> notes; each slot has
+        <code>mutate</code> percent chance to be replaced when it plays</td></tr>
+      <tr><td>TURING</td><td>LENGTH, FLIP</td><td>a shift register of <code>length</code> bits; the recycled bit flips
+        with <code>flip</code> percent chance; the low byte sets the pitch. FLIP 0 is a locked loop</td></tr>
+      <tr><td>STEP</td><td>LENGTH, MUTATE</td><td>LOOP whose memory you play in: with the lane chosen and STEP on,
+        each key writes the next slot</td></tr>
+      <tr><td>MARKOV</td><td>STYLE, JUMP</td><td>each move (-3 to +3 positions) is drawn from a row of weights picked
+        by the last move. The weights start as a style (STEPS, LEAPS, REPEATS, ARCS) and learn from the keys you
+        play; ROLL on the PUNCH page forgets. JUMP sometimes doubles a move</td></tr>
+      <tr><td>GRAMMAR</td><td>GRAMMAR, DEPTH</td><td>an L-system (FIBO, CANTOR, THUE, ROUND) expanded
+        <code>depth</code> levels; each symbol moves the line by a step or a third</td></tr>
+      <tr><td>CHORD</td><td>TONES, OCTAVE</td><td>climbs <code>tones</code> notes of the lane's scale from its bottom
+        note (with chord follow, the chord); OCTAVE is the chance of an octave jump</td></tr>
+    </table>
+    <p class="note">The keys teach only the chosen lane, and only STEP and MARKOV listen.</p>
+  </section>
+
+  <section>
+    <h2>Harmony <small>GLO &gt; HARMONY, SEQ &gt; RANGE</small></h2>
+    <table class="ledger">
+      <tr><th>chord follow</th><th>does</th></tr>
+      <tr><td>OFF</td><td>the lane sees only the key's scale</td></tr>
+      <tr><td>7TH, TRIAD</td><td>the lane follows the progression; chords are stacked from the key's scale, so on a
+        table progression the lane stays in key</td></tr>
+      <tr><td>COMPL</td><td>the opposite: only the notes outside the key. Those have the scale's intervals, each
+        shifted by the same count (Babbitt's hexachord theorem), and why BLACK KEYS still sounds like C major</td></tr>
+    </table>
+    <table class="ledger" style="margin-top: 8px">
+      <tr><th>progression</th><th>is</th></tr>
+      <tr><td>OFF</td><td>no progression</td></tr>
+      <tr><td>1-4-5-1, 1-5-6-4, 6-4-1-5, 2-5-1-1, 1-6-3-7, 1-3-4-5, 1-6-2-5</td><td>degrees: 1-4-5-1 is I IV V in a
+        major key and i iv v in a minor one</td></tr>
+      <tr><td>WALK LR</td><td>walks the Tonnetz through all 24 major and minor triads and comes back</td></tr>
+      <tr><td>WALK PL</td><td>a hexatonic cycle of six</td></tr>
+      <tr><td>WALK PR</td><td>an octatonic cycle of eight</td></tr>
+    </table>
+    <p class="note">Each walk move is P, L or R, which keeps two notes of the triad and changes one; the walks leave the
+      key on purpose.</p>
+  </section>
+
+  <section>
+    <h2>Effects <small>FX: REVERB, FX again: DELAY</small></h2>
+    <table class="ledger">
+      <tr><th>reverb</th><th>does</th></tr>
+      <tr><td>SEND</td><td>how much of the chosen lane goes to the reverb (0 to 100%, kept in the patch)</td></tr>
+      <tr><td>DECAY</td><td>how long the tail rings (0 to 100%; the loop gain runs from 0.35 to 0.98)</td></tr>
+      <tr><td>BRIGHT</td><td>how dark or bright the tail is (the low-pass in each loop, 0.6 to 0.97)</td></tr>
+      <tr><td>RETURN</td><td>how loud the wet signal is in the mix (0 to 100%; 100% is a gain of 1.0)</td></tr>
+    </table>
+    <table class="ledger" style="margin-top: 8px">
+      <tr><th>delay</th><th>does</th></tr>
+      <tr><td>TIME</td><td>the note value of the echo: 1/32, 1/16, 1/8T, 1/16., 1/8, 1/4T, 1/8., 1/4 of the
+        tempo</td></tr>
+      <tr><td>FEEDBK</td><td>how much of each echo goes round again (0 to 100%; 100% is a gain of 0.95)</td></tr>
+      <tr><td>TONE</td><td>the low-pass in the loop (0.2 to 1.0; 100% is no filtering)</td></tr>
+      <tr><td>RETURN</td><td>how loud the echo is in the mix (0 to 100%; 100% is unity)</td></tr>
+    </table>
+    <p class="note">Each lane's SEND feeds both the reverb and the delay; each effect has its own RETURN.</p>
+  </section>
+
+  <section>
+    <h2>Simulator keys <small>sim/</small></h2>
+    <table class="ledger">
+      <tr><td><kbd>Z</kbd>–<kbd>/</kbd></td><td>play from C4</td></tr>
+      <tr><td><kbd>Q</kbd>–<kbd>T</kbd></td><td>play from C5, or click the keys</td></tr>
+      <tr><td><kbd>-</kbd> <kbd>=</kbd></td><td>OCT- and OCT+</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>PLAY</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>HOME</td></tr>
+      <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>turn Select</td></tr>
+      <tr><td><kbd>PageUp</kbd> <kbd>PageDown</kbd></td><td>step through the patches</td></tr>
+      <tr><td>knobs</td><td>scroll wheel, drag up or down, click the left or right half, or arrow keys when
+        focused</td></tr>
+      <tr><td><code>?patch=N</code></td><td>a link with it loads that patch at power on</td></tr>
+    </table>
+    <p class="note">Hover a button for what it does.</p>
+  </section>
+
+  </div>
+</div></main>
+
+<footer class="foot"><div class="wrap">
+  <a class="wordmark" href="./">formalfred</a>
+  <p>From <code>README.md</code>, <code>docs/SEQUENCERS.md</code> and <code>docs/FX.md</code>.
+  <a href="https://github.com/mpancia/fmfm">Source</a>.</p>
+</div></footer>
+
+</body>
+</html>
