@@ -20,7 +20,13 @@ you hear, save the screen as a PNG, and give you a link to the patch you're on (
 PageUp and PageDown change patch, hover a button for what it does. `docs/SIMULATOR.md`.
 
 To put it on an FM-1: the installer on the site, and `docs/FM1.md` for the hardware and the backup to take
-first. What is proved is [below](#what-is-proved).
+first.
+
+[Using it](#using-it) · [How it works](#how-it-works) · [What is proved](#what-is-proved) ·
+[Prerequisites](#system-prerequisites) · [Targets](#targets) · [What is trusted](#what-is-trusted) ·
+`docs/`: [sequencers](docs/SEQUENCERS.md), [effects](docs/FX.md), [simulator](docs/SIMULATOR.md),
+[hardware](docs/FM1.md), [Lean on the chip](docs/LEAN-ON-CHIP.md), [engines](docs/LEAN-ENGINES.md),
+[budget](docs/BUDGET.md), [proof ledger](docs/PROOFS.md)
 
 ## Using it
 
