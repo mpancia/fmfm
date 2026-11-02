@@ -31,7 +31,7 @@ jobs:
       - name: Build the simulator and the package
         run: make web && make fw && make test
       - name: Assemble the site
-        run: .venv/bin/python tools/make_site.py "0.1.${{ github.run_number }}"
+        run: .venv/bin/python tools/make_site.py "1.0.${{ github.run_number }}"
       - uses: actions/upload-pages-artifact@v3
         with: { path: build/site }
   deploy:

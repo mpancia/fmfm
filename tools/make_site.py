@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "build/site"
-version = sys.argv[1] if len(sys.argv) > 1 else "0.1.0"
+version = sys.argv[1] if len(sys.argv) > 1 else "1.0.0"
 shutil.rmtree(OUT, ignore_errors=True)
 shutil.copytree(ROOT / "site", OUT)
 shutil.copytree(ROOT / "build/web", OUT / "sim")

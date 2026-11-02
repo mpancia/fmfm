@@ -490,7 +490,12 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`
 
 ## Reproducibility
 
-- `fw/` is Dinghy vendored at a fixed commit (`fw/UPSTREAM.md`), GPL-3.0.
+- The whole is GPL-3.0 (`LICENSE`): `fw/` is Dinghy vendored at a fixed commit (`fw/UPSTREAM.md`), GPL-3.0;
+  Braids and Clouds code under `voices/` and `fx/` is MIT (`fw/LICENSING.md`).
+- Releases: a GitHub release with `formalfred.fwsc` attached, identity `FM-1_960`, the update loader in the
+  package so another firmware installs over it again. The card on The Firmware Hub reads `fmhub.json` and
+  `docs/card.png` (`tools/make_card.py`). FORMALFRED has no projects or samples of its own format to import, and
+  does not read other firmwares' projects or samples.
 - `lean-toolchain` pins Lean. `lakefile.toml` + `lake-manifest.json` pin
   dependencies (currently none: core Lean only). Never run `lake update`
   except on purpose.

@@ -1,0 +1,8 @@
+{
+  "what": "A generative music box with its logic proved in Lean 4. Four lanes of Euclidean, cellular and ratchet rhythms with random walks, Markov chains, grammars and Tonnetz progressions; 48 Braids engines, a 4-op FM voice and a synthesized 808, each with a filter; reverb, delay, patches and demos.",
+  "author": "Matthew Pancia",
+  "kinds": ["groove"],
+  "play": "https://mpancia.github.io/fmfm/sim/",
+  "cheat": "https://mpancia.github.io/fmfm/",
+  "image": "docs/card.png"
+}
