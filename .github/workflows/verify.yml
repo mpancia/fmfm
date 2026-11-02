@@ -1,0 +1,49 @@
+name: verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages
+        # g++-multilib: make test-exports links the 32-bit host build with the system c++ -m32
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential g++-multilib python3 python3-venv bubblewrap
+      - name: Allow unprivileged user namespaces
+        # Ubuntu 24.04 restricts them by default; bubblewrap (lake comparator) needs them
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Cache toolchains
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elan
+            vendor
+            build/init
+          key: tc-${{ hashFiles('lean-toolchain', 'tools/vendor.sh') }}
+      - name: Cache the Lean build
+        uses: actions/cache@v4
+        with:
+          path: .lake
+          key: >-
+            lake-${{ hashFiles('lean-toolchain', 'lake-manifest.json', '*.lean', 'Fmfm/**', 'Firmware/**',
+            'Spec/**', 'Proofs/**', 'Examples/**') }}
+          restore-keys: lake-
+      - name: make install
+        # elan, the venv, the JieLi toolchain (vendor/, a download) and lake build; elan goes on PATH for the lake steps
+        run: make install && echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: lake build
+        run: lake build
+      - name: lake comparator
+        run: lake comparator
+      - name: lake check
+        run: lake check
+      - name: make lint
+        run: python3 tools/lint.py
+      - name: make test-exports
+        run: make test-exports

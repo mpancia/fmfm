@@ -280,7 +280,7 @@ import is a lint error: Comparator cannot see it.
 adds an axiom, so `lake check` fails), `maxHeartbeats 0`, `partial def`, `unsafe`, `x = x` theorems,
 theorems outside `Proofs/`, public theorems without `Why it matters:`, a stale `docs/PROOFS.md` or
 `Challenge.lean`, and a proof module the root does not import. It warns on undocumented declarations.
-`make check` adds the chip link check, the differential tests and Comparator.
+`make check` adds the chip link check, the differential tests, Comparator and `lake check`.
 
 ## 13. Before you finish a change
 

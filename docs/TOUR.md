@@ -13,11 +13,12 @@ Five commands, in this order. `make install` first (elan, Lean v4.35.0, the JieL
 |---|---|---|
 | `lake build` | Every theorem in `Proofs/` elaborates, and `Examples/` instantiates each one on concrete inputs. `Challenge.lean` is not a default target, so no `sorry` is built. | exit 0, no `error:` line, no `declaration uses 'sorry'` warning |
 | `lake comparator` | In a sandbox: `Proofs/` proves each of the 313 statements of `Challenge.lean`, and the only axioms are `propext`, `Classical.choice` and `Quot.sound` (`comparator.json`). A changed statement on either side is a mismatch, not a pass. | `Your solution is okay!`; `PARANOID=1 make comparator` adds the five external checkers, which all accept |
-| `lake check` | Replays the whole build through the kernel and fails on any axiom beyond the three. The GitHub workflow does not run it; run it by hand. | `Uses axioms: propext, Classical.choice, Quot.sound`, exit 0 |
+| `lake check` | Replays the whole build through the kernel and fails on any axiom beyond the three. `.github/workflows/verify.yml` runs it on every push, after `lake build` and `lake comparator`; `make check` includes it. | `Uses axioms: propext, Classical.choice, Quot.sound`, exit 0 |
 | `make test-exports` | The compiler: 354 scalar `@[export fm1_*]` functions compiled to C (Lean's backend, this computer's clang), run on random inputs, and the kernel asked by `decide +kernel` whether the definitions give the same values. 85 table readers are left out (opaque to the kernel; `make test-lean` covers them) and 30 take objects. | `export check: 354 scalar exports (85 table readers left out: opaque to the kernel, covered by make test-lean), 2124 values from the compiled C, 0 the kernel disagrees with` |
 | `make test` | The web build of the real firmware in node: boot, sound, screen, LEDs, the 21 demos, every factory patch, and twelve theorems asserted on the running machine (`fw/firmware/src/watch.h`). Checks are counted and failures must be zero. | `PASS 142 factory patches, 6 s each: 0 with clipping or silence; peaks <min> to <max>` (the peaks vary); above it, one `PASS <demo>: the watched theorems hold (<n> checks)` line per demo |
 
-`make check` is lint, the chip link check, `make test-lean`, `make test-exports` and `make comparator` in one go.
+`make check` is lint, the chip link check, `make test-lean`, `make test-exports`, `make comparator` and `lake check` in
+one go.
 
 ## Read these ten first
 

@@ -29,7 +29,21 @@ jobs:
       - name: make install
         run: make install
       - name: Build the simulator and the package
-        run: make web && make fw && make test && make video
+        run: make web && make fw && make test
+      - name: Cache the film
+        # tools/make_video.py renders build/web/dinghy.wasm (the firmware, the Lean code, the voices and the page's
+        # host) with ffmpeg, about 13 minutes; its cards come from the Proofs/ docstrings
+        id: film
+        uses: actions/cache@v4
+        with:
+          path: build/video
+          key: >-
+            film-${{ hashFiles('tools/make_video.py', 'tools/render_web.mjs', 'tools/proof_index.py',
+            'tools/build_*.sh', 'tools/target_env.sh', 'lean-toolchain', 'Proofs/**', 'Firmware/**', 'rt/**',
+            'fw/firmware/**', 'voices/**', 'ui/**', 'fx/**', 'web/**') }}
+      - name: make video
+        if: steps.film.outputs.cache-hit != 'true'
+        run: make video
       - name: Assemble the site
         run: .venv/bin/python tools/make_site.py "1.0.${{ github.run_number }}"
       - uses: actions/upload-pages-artifact@v3

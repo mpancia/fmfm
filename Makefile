@@ -7,7 +7,7 @@ export PATH := $(HOME)/.elan/bin:$(PATH)
 ELAN_INIT_URL := https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
 ROOT := $(CURDIR)
 
-.PHONY: install run web pitch video test test-lean test-exports audit build check lean-check fw flash-deps clean lint proofs comparator perf
+.PHONY: install run web pitch video test test-lean test-exports audit build check lean-check kernel-check fw flash-deps clean lint proofs comparator perf
 
 
 install:
@@ -87,8 +87,12 @@ comparator:
 lint:
 	python3 tools/lint.py
 
-# Lint, the chip link check, the differential tests, then Comparator (Linux, bubblewrap).
-check: lint lean-check test-lean test-exports comparator
+# The whole build replayed through the kernel; fails on any axiom beyond propext, Classical.choice and Quot.sound.
+kernel-check:
+	lake check
+
+# Lint, the chip link check, the differential tests, Comparator (Linux, bubblewrap), then the kernel replay.
+check: lint lean-check test-lean test-exports comparator kernel-check
 
 # Only needed to flash from this computer: python MIDI libs for fw/tools/fm1_install.py.
 flash-deps:

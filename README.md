@@ -2,12 +2,14 @@
 
 <img src="docs/card.png" width="240" height="240" align="right" alt="The HOME screen: four lanes, their bars, the key and the chord">
 
+![verify](https://github.com/mpancia/fmfm/actions/workflows/verify.yml/badge.svg)
+
 Firmware for the M-VAVE FM-1 that makes music on its own. Four lanes of generative rhythm and melody, Braids
 voices, an FM voice, an 808, a filter, reverb and delay. The sequencer, the voices' arithmetic, the effects and
 the patch format are Lean 4, and 313 theorems about that code are checked on every build. Alfred, a little
 pixel-art butler, bows at boot and waits in the corner when you stop. Made for the Vibecheck hackathon.
 
-Hear it now, no hardware: https://mpancia.github.io/fmfm/sim/ (Chrome or Edge for MIDI in). The site also has
+Hear it now, no hardware: https://mpancia.github.io/fmfm/sim/ (Chrome or Edge for MIDI). The site also has
 the installer and the pitch deck.
 
 Or build it:
@@ -17,8 +19,8 @@ make install && make run
 ```
 
 Open http://localhost:8000/, click Power on, and it plays. The simulator is the real firmware
-(`fw/firmware/src/dinghy.c`) compiled to WebAssembly: same screen, keys, knobs, audio, MIDI in. Tour walks you through
-the panel in 80 seconds, pressing the buttons itself. It can record what you hear, save the screen as a PNG,
+(`fw/firmware/src/dinghy.c`) compiled to WebAssembly: same screen, keys, knobs, audio, MIDI in and out. Tour walks
+you through the panel in 80 seconds, pressing the buttons itself. It can record what you hear, save the screen as a PNG,
 and give you a link to the patch you're on (`?patch=N`). Space is PLAY,
 PageUp and PageDown change patch, hover a button for what it does. `docs/SIMULATOR.md`.
 
@@ -486,11 +488,12 @@ Fedora: `sudo dnf install git curl gcc make python3 bubblewrap`.
 | `make test-exports` | every scalar Lean export run as compiled C, and the kernel asked whether it agrees |
 | `make fw` | build `fw/build/dinghy.fwsc` (does not flash) |
 | `make lean-check` | the Lean in `Firmware/` links for the chip with only the runtime in `rt/` |
+| `make kernel-check` | `lake check`: the whole build replayed through the kernel, standard axioms only |
 | `make proofs` | regenerate `docs/PROOFS.md` and the Comparator challenge from the proof docstrings |
 | `make comparator` | `lake comparator`: `Proofs/` proves every statement in `Challenge.lean` with standard axioms only (`PARANOID=1` adds the five external checkers) |
 | `make perf` | instructions per sample on this machine (`docs/BUDGET.md`) |
 | `make lint` | style and proof layout checks |
-| `make check` | lint, lean-check, test-lean, test-exports, comparator |
+| `make check` | lint, lean-check, test-lean, test-exports, comparator, kernel-check |
 | `make flash-deps` | the MIDI libraries `fw/tools/fm1_install.py` needs |
 
 ## Licence, releases, pins
@@ -508,11 +511,11 @@ The proofs are about the Lean in `Firmware/`. `Challenge.lean` is the statements
 proofs (`tools/gen_challenge.py`); `lake comparator` checks in a sandbox that `Proofs/` proves each of them using
 only `propext`, `Classical.choice` and `Quot.sound`. What the statements mean rests on the definitions in `Spec/`
 and `Firmware/` and the English beside them, which are read, not proved; `lake check` replays the whole build
-through the kernel (run by hand; `make check` runs Comparator, the GitHub workflow runs neither). `docs/PROOFS.md`
-lists each theorem with the definitions its statement depends on. `Examples/` runs every theorem on concrete
-inputs, so the hypotheses are known to be satisfiable, and `#guard`s that the specs reject bad inputs. No
-`axiom`, no `native_decide` (`make lint` refuses both); `maxRecDepth` is raised in three proof files for big
-`decide`s, `maxHeartbeats` never.
+through the kernel. `.github/workflows/verify.yml` runs `lake build`, `lake comparator` and `lake check` on every
+push, and `make check` includes `lake check`. `docs/PROOFS.md` lists each theorem with the definitions its
+statement depends on. `Examples/` runs every theorem on concrete inputs, so the hypotheses are known to be
+satisfiable, and `#guard`s that the specs reject bad inputs. No `axiom`, no `native_decide` (`make lint` refuses
+both); `maxRecDepth` is raised in three proof files for big `decide`s, `maxHeartbeats` never.
 
 Not covered by the proofs:
 
