@@ -15,3 +15,4 @@ import Spec.Presets
 import Spec.Tonnetz
 import Spec.Fm
 import Spec.Drum
+import Spec.Clock

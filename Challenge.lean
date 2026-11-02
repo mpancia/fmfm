@@ -118,6 +118,10 @@ theorem clock_double_time_is_double (acc dt bpm : UInt32) (accSmall : acc.toNat 
       (Clock.ticksDue (Clock.advance acc dt bpm 100) 10000).toNat * 2 ≤
         (Clock.ticksDue (Clock.advance acc dt bpm 200) 10000).toNat + 2 := sorry
 
+theorem clock_loop_follows_the_wall_clock (bpm : UInt32) (gaps : List UInt32) (bpmIn : bpm.toNat ≤ 240)
+    (gapsShort : ∀ dt ∈ gaps, dt.toNat ≤ 20000) :
+    Clock.loop bpm 100 10000 0 gaps = List.replicate (Clock.elapsed gaps * bpm.toNat * 4 / 10000) .tick := sorry
+
 -- Proofs/Delay.lean
 theorem delay_gains_in_range (setting : UInt32) :
     0 ≤ (Delay.feedbackGain setting).toInt ∧ (Delay.feedbackGain setting).toInt ≤ 31129 ∧
@@ -1447,6 +1451,14 @@ theorem run_bar_plays_every_ratchet (hits steps div mask low span : Nat) (seed :
     l.rhythm.ratchet ≤ l.div →
     Lane.noteOns (l.trace (List.replicate (l.steps * l.div) .tick)) =
       l.hits * Rhythm.count (Rhythm.subPlays l.rhythm) l.rhythm.ratchet := sorry
+
+theorem run_plays_by_the_wall_clock (hits steps div mask low span : Nat) (seed bpm : UInt32)
+    (gaps : List UInt32) (bpmIn : bpm.toNat ≤ 240) (gapsShort : ∀ dt ∈ gaps, dt.toNat ≤ 20000) :
+    let l := (Lane.make hits steps div mask low span seed).setNotes 0 100 1 0
+    let ticks := Clock.elapsed gaps * bpm.toNat * 4 / 10000
+    Lane.noteOns (l.trace (Clock.loop bpm 100 10000 0 gaps)) =
+      l.hits * (ticks / (l.steps * l.div)) +
+        Rhythm.count (Euclid.hit l.hits l.steps) (Lane.stepAfter l.div l.steps ticks) := sorry
 
 -- Proofs/Smooth.lean
 theorem smooth_parameter_between (start target xfade : Int32)

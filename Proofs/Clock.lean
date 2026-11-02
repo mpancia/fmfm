@@ -1,4 +1,5 @@
 import Firmware.Clock
+import Spec.Clock
 
 /-- The accumulator and the tempo product as plain numbers: nothing wraps when the accumulator is below one
 longest tick, the gap is under 20 seconds, the tempo is at most 240 and the punch scale at most 200. -/
@@ -74,3 +75,44 @@ theorem clock_double_time_is_double (acc dt bpm : UInt32) (accSmall : acc.toNat 
     clock_advance_toNat acc dt bpm 100 accSmall gap bpmIn (by decide)]
   simp only [UInt32.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
   omega
+
+/-- Taking the whole ticks out first and then counting over the rest is counting over the whole. -/
+private theorem clock_loop_split (a x : Nat) : a / 10000 + (a % 10000 + x) / 10000 = (a + x) / 10000 := by
+  have := Nat.div_add_mod a 10000
+  rw [show a + x = 10000 * (a / 10000) + (a % 10000 + x) by omega, Nat.mul_add_div (by decide)]
+
+/-- The loop from any residue below one tick: its ticks are the residue plus the elapsed time's worth of
+tick, in whole ticks. -/
+private theorem clock_loop_from (bpm : UInt32) (bpmIn : bpm.toNat ≤ 240) : ∀ (gaps : List UInt32),
+    (∀ dt ∈ gaps, dt.toNat ≤ 20000) → ∀ acc : UInt32, acc.toNat < 10000 →
+    Clock.loop bpm 100 10000 acc gaps =
+      List.replicate ((acc.toNat + Clock.elapsed gaps * bpm.toNat * 4) / 10000) .tick := by
+  intro gaps
+  induction gaps with
+  | nil =>
+    intro _ acc small
+    simp [Clock.loop, Clock.elapsed, Nat.div_eq_of_lt small]
+  | cons dt gaps ih =>
+    intro short acc small
+    have advance := clock_advance_toNat acc dt bpm 100 (by omega) (short dt (List.mem_cons_self ..)) bpmIn
+      (by decide)
+    have ⟨due, rest⟩ := clock_due_toNat (Clock.advance acc dt bpm 100) 10000
+    simp only [UInt32.toNat_ofNat, Nat.reducePow, Nat.reduceMod, Nat.mul_div_cancel _ (by decide : 0 < 100)]
+      at advance due rest
+    have later := ih (fun g mem => short g (List.mem_cons_of_mem dt mem)) (Clock.remainder _ 10000)
+      (by rw [rest]; exact Nat.mod_lt _ (by decide))
+    rw [Clock.loop, later, List.replicate_append_replicate, due, rest, advance, clock_loop_split]
+    congr 2
+    simp only [Clock.elapsed, List.map_cons, List.sum_cons, Nat.add_mul]
+    omega
+
+/-- Straight time at full tempo: over any run of main-loop passes whose gaps are each under 20 s and add up to
+`ms` milliseconds, at a tempo of at most 240, the loop from an empty accumulator feeds the lanes exactly
+`ms * bpm * 4 / 10000` ticks, whatever the gaps are.
+Why it matters: the song follows elapsed time, not how often the main loop gets round to polling, so a slow
+redraw or a patch load leaves the tempo alone. -/
+theorem clock_loop_follows_the_wall_clock (bpm : UInt32) (gaps : List UInt32) (bpmIn : bpm.toNat ≤ 240)
+    (gapsShort : ∀ dt ∈ gaps, dt.toNat ≤ 20000) :
+    Clock.loop bpm 100 10000 0 gaps = List.replicate (Clock.elapsed gaps * bpm.toNat * 4 / 10000) .tick := by
+  have := clock_loop_from bpm bpmIn gaps gapsShort 0 (by decide)
+  simpa using this

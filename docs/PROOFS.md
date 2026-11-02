@@ -5,7 +5,7 @@ One entry per public theorem in `Proofs/`. The spec surface is the definitions t
 `Firmware/` (the code) and `Spec/` (definitions needed to state it). `Examples/Sequencer.lean` and
 `Examples/Voices.lean` instantiate every theorem on concrete inputs.
 
-Modules: [Analog](#analog) (6), [AnalogSetup](#analogsetup) (2), [Arp](#arp) (7), [Blend](#blend) (2), [BraidsData](#braidsdata) (8), [Clock](#clock) (4), [Delay](#delay) (7), [Digital](#digital) (6), [DigitalSetup](#digitalsetup) (3), [Divider](#divider) (2), [Drum](#drum) (14), [Euclid](#euclid) (7), [Filter](#filter) (5), [Filters](#filters) (6), [FiltersSetup](#filterssetup) (3), [Fm](#fm) (10), [FmAlgorithms](#fmalgorithms) (3), [FmDeviation](#fmdeviation) (3), [FmEnvelope](#fmenvelope) (3), [FmLock](#fmlock) (3), [FmRange](#fmrange) (3), [FmSymmetry](#fmsymmetry) (4), [Harmony](#harmony) (9), [Keys](#keys) (4), [KeysChord](#keyschord) (3), [Lane](#lane) (14), [Lfo](#lfo) (3), [Machine](#machine) (1), [MacroSetup](#macrosetup) (3), [Mix](#mix) (8), [Noise](#noise) (10), [NoiseSetup](#noisesetup) (6), [Notes](#notes) (13), [Patch](#patch) (5), [Percussion](#percussion) (8), [PercussionSetup](#percussionsetup) (4), [Physical](#physical) (22), [PhysicalSetup](#physicalsetup) (4), [Pitch](#pitch) (2), [Presets](#presets) (1), [Punch](#punch) (7), [PunchMix](#punchmix) (3), [Quantizer](#quantizer) (4), [Random](#random) (2), [Reverb](#reverb) (13), [Rhythm](#rhythm) (6), [Run](#run) (6), [Smooth](#smooth) (4), [Swing](#swing) (3), [Tables](#tables) (6), [Tonnetz](#tonnetz) (6), [VoiceSetup](#voicesetup) (2), [Vowels](#vowels) (3), [VowelsSetup](#vowelssetup) (5), [Wavetables](#wavetables) (6), [WavetablesSetup](#wavetablessetup) (6)
+Modules: [Analog](#analog) (6), [AnalogSetup](#analogsetup) (2), [Arp](#arp) (7), [Blend](#blend) (2), [BraidsData](#braidsdata) (8), [Clock](#clock) (5), [Delay](#delay) (7), [Digital](#digital) (6), [DigitalSetup](#digitalsetup) (3), [Divider](#divider) (2), [Drum](#drum) (14), [Euclid](#euclid) (7), [Filter](#filter) (5), [Filters](#filters) (6), [FiltersSetup](#filterssetup) (3), [Fm](#fm) (10), [FmAlgorithms](#fmalgorithms) (3), [FmDeviation](#fmdeviation) (3), [FmEnvelope](#fmenvelope) (3), [FmLock](#fmlock) (3), [FmRange](#fmrange) (3), [FmSymmetry](#fmsymmetry) (4), [Harmony](#harmony) (9), [Keys](#keys) (4), [KeysChord](#keyschord) (3), [Lane](#lane) (14), [Lfo](#lfo) (3), [Machine](#machine) (1), [MacroSetup](#macrosetup) (3), [Mix](#mix) (8), [Noise](#noise) (10), [NoiseSetup](#noisesetup) (6), [Notes](#notes) (13), [Patch](#patch) (5), [Percussion](#percussion) (8), [PercussionSetup](#percussionsetup) (4), [Physical](#physical) (22), [PhysicalSetup](#physicalsetup) (4), [Pitch](#pitch) (2), [Presets](#presets) (1), [Punch](#punch) (7), [PunchMix](#punchmix) (3), [Quantizer](#quantizer) (4), [Random](#random) (2), [Reverb](#reverb) (13), [Rhythm](#rhythm) (6), [Run](#run) (7), [Smooth](#smooth) (4), [Swing](#swing) (3), [Tables](#tables) (6), [Tonnetz](#tonnetz) (6), [VoiceSetup](#voicesetup) (2), [Vowels](#vowels) (3), [VowelsSetup](#vowelssetup) (5), [Wavetables](#wavetables) (6), [WavetablesSetup](#wavetablessetup) (6)
 
 ## Analog
 
@@ -222,6 +222,15 @@ ticks of 10000, swing 0).
 Why it matters: a bar under DOUBLE is half a bar long to the tick, so lanes, swing and chord changes stay in step.
 
 Spec surface: `Clock.advance`, `Clock.ticksDue`
+
+**`clock_loop_follows_the_wall_clock`**: Straight time at full tempo: over any run of main-loop passes whose gaps are
+each under 20 s and add up to `ms` milliseconds, at a tempo of at most 240, the loop from an empty accumulator feeds the
+lanes exactly `ms * bpm * 4 / 10000` ticks, whatever the gaps are.
+
+Why it matters: the song follows elapsed time, not how often the main loop gets round to polling, so a slow redraw or a
+patch load leaves the tempo alone.
+
+Spec surface: `Clock.elapsed`, `Clock.loop`
 
 ## Delay
 
@@ -2127,6 +2136,16 @@ same sub-hits, each on its own tick. With `ratchet > div` a step is too short an
 Why it matters: ratchets play exactly the rolls the knobs ask for, so every rhythm kind has a liveness theorem.
 
 Spec surface: `Lane.make`, `Lane.noteOns`, `Rhythm.count`, `Rhythm.subPlays`
+
+**`run_plays_by_the_wall_clock`**: A plain lane (Euclidean source, play chance 100) under the main loop in straight time
+at full tempo, over passes whose gaps are each under 20 s at a tempo of at most 240: with `ticks` the elapsed time's
+worth of ticks, it plays `hits` notes for every whole bar of `steps * div` ticks, plus the hits among the steps before
+the step it stands on at the end.
+
+Why it matters: the number of notes a lane plays in a stretch of wall-clock time follows from the tempo, the hits and
+the division alone, so no pass of the main loop can lose or double a note.
+
+Spec surface: `Clock.elapsed`, `Clock.loop`, `Euclid.hit`, `Lane.make`, `Lane.noteOns`, `Lane.stepAfter`, `Rhythm.count`
 
 ## Smooth
 

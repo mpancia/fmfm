@@ -4,6 +4,7 @@ import Spec.Rhythm
 import Proofs.Rhythm
 import Proofs.Lane
 import Proofs.Euclid
+import Proofs.Clock
 
 /-- Moving the clock on does not touch the sounding note. -/
 private theorem run_moved_playing (l : Lane) : l.moved.playing = l.playing := rfl
@@ -799,3 +800,149 @@ theorem run_bar_plays_every_ratchet (hits steps div mask low span : Nat) (seed :
   rw [count]
   generalize run_count (fun k => Rhythm.subPlays l.rhythm (k + 1)) (l.rhythm.ratchet - 1) = c
   rw [Nat.mul_add, Nat.mul_one, Nat.mul_comm c]
+
+/-- A tick keeps a lane with no automaton row steady: nothing moves on at the end of a bar. -/
+private theorem run_tick_keeps_steady (l : Lane) (f : Nat → Bool) (steady : l.Steady f)
+    (noRow : l.rhythm.kind ≠ 2) : l.tick.Steady f ∧ l.tick.rhythm.kind ≠ 2 := by
+  have keep := run_tick_steady l
+  have same : l.tick.rhythm = l.rhythm := by
+    have m : l.tick.rhythm = l.moved.rhythm := by
+      unfold Lane.tick; split <;> (try split) <;> rfl
+    rw [m]; unfold Lane.moved Rhythm.endBar; dsimp only
+    rw [ite_eq_right noRow]; split <;> rfl
+  refine ⟨⟨by rw [same]; exact steady.1, by rw [keep.2.1]; exact steady.2.1, ?_⟩, by rw [same]; exact noRow⟩
+  intro s; rw [same, keep.2.2.1, keep.2.2.2.1]; exact steady.2.2 s
+
+/-- The note-ons of any run of ticks of a steady lane with no automaton row are the ticks `run_plays` says
+play, bar after bar. -/
+private theorem run_plain_ons (f : Nat → Bool) (n : Nat) : ∀ (k : Nat) (m : Lane), m.Steady f →
+    m.rhythm.kind ≠ 2 → 0 < m.div → m.count = k % m.div → m.step = (k / m.div) % m.steps →
+    Lane.noteOns (m.trace (List.replicate n .tick)) = run_ons f m.steps m.div k n := by
+  induction n with
+  | zero => intro k m _ _ _ _ _; simp [Lane.trace, Lane.noteOns, run_ons]
+  | succ n ih =>
+    intro k m steady noRow divPos count step
+    have t := run_tick_clock m k divPos count step
+    have on := run_steady_tick_on m f k steady divPos count step
+    have next := run_tick_keeps_steady m f steady noRow
+    have later := ih (k + 1) m.tick next.1 next.2 (t.2.2.1 ▸ divPos) (by rw [t.1, t.2.2.1])
+      (by rw [t.2.1, t.2.2.1, t.2.2.2])
+    have ⟨ons, _⟩ := run_counts_cons (m.tick.off, m.tick.on) (m.tick.trace (List.replicate n .tick))
+    rw [List.replicate_succ]
+    show Lane.noteOns ((m.tick.off, m.tick.on) :: m.tick.trace (List.replicate n .tick)) = _
+    rw [ons, later, t.2.2.1, t.2.2.2]
+    show (if m.tick.on.isSome = true then 1 else 0) + _ = _
+    rw [on]
+    rfl
+
+/-- Whether a tick plays repeats every bar. -/
+private theorem run_plays_period (f : Nat → Bool) (steps div k : Nat) (divPos : 0 < div) :
+    run_plays f steps div (k + steps * div) = run_plays f steps div k := by
+  unfold run_plays
+  rw [show k + steps * div + 1 = k + 1 + div * steps by rw [Nat.mul_comm]; omega, Nat.add_mul_mod_self_left,
+    show k + steps * div = k + div * steps by rw [Nat.mul_comm], Nat.add_mul_div_left _ _ divPos,
+    Nat.add_mod_right]
+
+/-- Counting from one bar later counts the same ticks. -/
+private theorem run_ons_period (f : Nat → Bool) (steps div : Nat) (divPos : 0 < div) : ∀ (n k : Nat),
+    run_ons f steps div (k + steps * div) n = run_ons f steps div k n := by
+  intro n
+  induction n with
+  | zero => intro k; rfl
+  | succ n ih =>
+    intro k
+    show (if run_plays f steps div (k + steps * div) then 1 else 0) +
+        run_ons f steps div (k + steps * div + 1) n =
+      (if run_plays f steps div k then 1 else 0) + run_ons f steps div (k + 1) n
+    rw [run_plays_period f steps div k divPos, show k + steps * div + 1 = k + 1 + steps * div by omega, ih]
+
+/-- Whole bars and then a part of one: each whole bar counts the bar's hits. -/
+private theorem run_ons_bars (f : Nat → Bool) (steps div : Nat) (divPos : 0 < div) (r : Nat) : ∀ b : Nat,
+    run_ons f steps div 0 (b * (steps * div) + r) = b * run_count f steps + run_ons f steps div 0 r := by
+  intro b
+  induction b with
+  | zero => simp
+  | succ b ih =>
+    rw [show (b + 1) * (steps * div) + r = steps * div + (b * (steps * div) + r) by rw [Nat.succ_mul]; omega,
+      run_ons_add, run_ons_period f steps div divPos, ih,
+      run_ons_steps f steps div divPos steps (Nat.le_refl _), Nat.succ_mul]
+    omega
+
+/-- Ticks of step `q`'s block that stop before its pulse play nothing. -/
+private theorem run_ons_short (f : Nat → Bool) (steps div q : Nat) : ∀ (o i : Nat), i + o < div →
+    run_ons f steps div (q * div + i) o = 0 := by
+  intro o
+  induction o with
+  | zero => intro _ _; rfl
+  | succ o ih =>
+    intro i lt
+    show (if run_plays f steps div (q * div + i) then 1 else 0) + run_ons f steps div (q * div + i + 1) o = 0
+    have noPulse : run_plays f steps div (q * div + i) = false := by
+      unfold run_plays
+      rw [show q * div + i + 1 = i + 1 + div * q by rw [Nat.mul_comm]; omega, Nat.add_mul_mod_self_left,
+        Nat.mod_eq_of_lt (by omega : i + 1 < div)]
+      simp
+    rw [noPulse, show q * div + i + 1 = q * div + (i + 1) by omega, ih (i + 1) (by omega)]
+    rfl
+
+/-- Part of a bar from its start, `q` whole steps and `o` ticks of the next: the hits among those steps. -/
+private theorem run_ons_part (f : Nat → Bool) (steps div : Nat) (divPos : 0 < div) (q o : Nat)
+    (inBar : q < steps) (inStep : o < div) : run_ons f steps div 0 (q * div + o) = run_count f q := by
+  rw [run_ons_add, Nat.zero_add, run_ons_steps f steps div divPos q (by omega)]
+  have short := run_ons_short f steps div q o 0 (by omega)
+  rw [Nat.add_zero] at short
+  rw [short, Nat.add_zero]
+
+/-- Over `n` ticks from the start of a bar: the bar's hits for each whole bar, then the hits among the steps
+the rest covers. -/
+private theorem run_ons_total (f : Nat → Bool) (steps div : Nat) (divPos : 0 < div) (stepsPos : 0 < steps)
+    (n : Nat) :
+    run_ons f steps div 0 n = n / (steps * div) * run_count f steps + run_count f (n / div % steps) := by
+  have barPos : 0 < steps * div := Nat.mul_pos stepsPos divPos
+  have remBelow := Nat.mod_lt n barPos
+  have quotBelow : n % (steps * div) / div < steps := by rw [Nat.div_lt_iff_lt_mul divPos]; exact remBelow
+  have quotEq : n % (steps * div) / div = n / div % steps := Nat.mod_mul_left_div_self n div steps
+  have split : n =
+      n / (steps * div) * (steps * div) + (n % (steps * div) / div * div + n % (steps * div) % div) := by
+    rw [Nat.div_add_mod', Nat.div_add_mod']
+  conv => lhs; rw [split]
+  rw [run_ons_bars f steps div divPos, run_ons_part f steps div divPos _ _ quotBelow (Nat.mod_lt _ divPos),
+    quotEq]
+
+/-- A plain lane (Euclidean source, play chance 100) under the main loop in straight time at full tempo, over
+passes whose gaps are each under 20 s at a tempo of at most 240: with `ticks` the elapsed time's worth of
+ticks, it plays `hits` notes for every whole bar of `steps * div` ticks, plus the hits among the steps before
+the step it stands on at the end.
+Why it matters: the number of notes a lane plays in a stretch of wall-clock time follows from the tempo, the
+hits and the division alone, so no pass of the main loop can lose or double a note. -/
+theorem run_plays_by_the_wall_clock (hits steps div mask low span : Nat) (seed bpm : UInt32)
+    (gaps : List UInt32) (bpmIn : bpm.toNat ≤ 240) (gapsShort : ∀ dt ∈ gaps, dt.toNat ≤ 20000) :
+    let l := (Lane.make hits steps div mask low span seed).setNotes 0 100 1 0
+    let ticks := Clock.elapsed gaps * bpm.toNat * 4 / 10000
+    Lane.noteOns (l.trace (Clock.loop bpm 100 10000 0 gaps)) =
+      l.hits * (ticks / (l.steps * l.div)) +
+        Rhythm.count (Euclid.hit l.hits l.steps) (Lane.stepAfter l.div l.steps ticks) := by
+  intro l ticks
+  have valid : l.Valid := lane_set_notes_valid (Lane.make hits steps div mask low span seed)
+    (lane_make_valid hits steps div mask low span seed) 0 100 1 0
+  have steady : l.Steady (Euclid.hit l.hits l.steps) := by
+    refine ⟨?_, rfl, ?_⟩
+    · show (Rhythm.make 0 0 0 90 1 1 _ _ 0).kind ≠ 3
+      simp [Rhythm.make]
+    · intro s
+      show Rhythm.hit (Rhythm.make 0 0 0 90 1 1 _ _ 0) l.hits l.steps s = _
+      simp [Rhythm.hit, Rhythm.source, Rhythm.make]
+  have noRow : l.rhythm.kind ≠ 2 := by
+    show (Rhythm.make 0 0 0 90 1 1 _ _ 0).kind ≠ 2
+    simp [Rhythm.make]
+  have same : ∀ s, run_count (Euclid.hit l.hits l.steps) s = Euclid.countHits l.hits l.steps s := by
+    intro s; induction s with
+    | zero => rfl
+    | succ s ih => unfold run_count Euclid.countHits; rw [ih]
+  rw [clock_loop_follows_the_wall_clock bpm gaps bpmIn gapsShort,
+    run_plain_ons _ ticks 0 l steady noRow valid.divPositive (by rw [Nat.zero_mod]; rfl)
+      (by rw [Nat.zero_div, Nat.zero_mod]; rfl),
+    run_ons_total _ _ _ valid.divPositive valid.stepsPositive, same l.steps,
+    euclid_hit_count l.hits l.steps valid.stepsPositive valid.hitsFit, run_count_eq,
+    Nat.mul_comm (ticks / (l.steps * l.div)) l.hits]
+  rfl

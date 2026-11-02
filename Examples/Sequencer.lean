@@ -101,6 +101,14 @@ example := run_bar_plays_every_hit 5 16 2 0xAB5 48 12 1
 example := run_bar_plays_every_hit_turned 5 16 2 0xAB5 48 12 1 3 2 90 2 2
 -- 3 of 8 at twelve ticks a step with a ratchet of 4 playing 2 sub-hits: hits times sub-plays note-ons.
 example := run_bar_plays_every_ratchet 3 8 12 0xAB5 48 12 1 0 0 90 4 2 (by decide)
+-- 4.5 s of main-loop passes a millisecond apart at 120 bpm is 216 ticks: two bars of 5 in 16 at six ticks a
+-- step and four steps of a third, so ten notes plus the one hit among steps 0 to 3. The 4500 gaps are checked
+-- one by one, deeper than the default recursion limit allows.
+set_option maxRecDepth 20000 in
+example := run_plays_by_the_wall_clock 5 16 6 0xAB5 48 12 1 120 (List.replicate 4500 1) (by decide)
+  (by decide +kernel)
+#guard Lane.noteOns (((Lane.make 5 16 6 0xAB5 48 12 1).setNotes 0 100 1 0).trace
+  (Clock.loop 120 100 10000 0 (List.replicate 4500 1))) == 5 * 2 + Rhythm.count (Euclid.hit 5 16) 4
 
 /-! Rhythm -/
 
@@ -349,6 +357,9 @@ example := clock_division_is_the_loop 25000 10000 (by decide)
 example := clock_half_time_is_half 5000 20000 120 (by decide) (by decide) (by decide)
 -- Double time over a 20 ms gap at 120 bpm gives twice the ticks, within rounding.
 example := clock_double_time_is_double 5000 20000 120 (by decide) (by decide) (by decide)
+-- Forty passes 100 ms apart at 120 bpm: 4 s is 192 ticks, however the loop polls.
+example := clock_loop_follows_the_wall_clock 120 (List.replicate 40 100) (by decide) (by decide)
+#guard (Clock.loop 120 100 10000 0 (List.replicate 40 100)).length == 192
 
 /-! Patch -/
 

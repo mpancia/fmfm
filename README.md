@@ -6,7 +6,7 @@
 
 Firmware for the M-VAVE FM-1 that makes music on its own. Four lanes of generative rhythm and melody, Braids
 voices, an FM voice, an 808, a filter, reverb and delay. The sequencer, the voices' arithmetic, the effects and
-the patch format are Lean 4, and 313 theorems about that code are checked on every build. Alfred, a little
+the patch format are Lean 4, and 315 theorems about that code are checked on every build. Alfred, a little
 pixel-art butler, bows at boot and waits in the corner when you stop. Made for the Vibecheck hackathon.
 
 Hear it now, no hardware: https://mpancia.github.io/fmfm/sim/ (Chrome or Edge for MIDI). The site also has
@@ -92,10 +92,10 @@ audit` checks the level of every factory sound.
 ## What is proved
 
 <!-- proofs:begin -->
-313 theorems, checked by Lean's kernel and by `make comparator`. Generated from the docstrings
+315 theorems, checked by Lean's kernel and by `make comparator`. Generated from the docstrings
 in `Proofs/` by `make proofs`; `docs/PROOFS.md` has the full statements.
 
-<details><summary><b>The sequencer</b>: 104 theorems</summary>
+<details><summary><b>The sequencer</b>: 106 theorems</summary>
 
 The four lanes. No note is left sounding when you stop, the lanes stay in phase, at play chance 100 a bar plays exactly
 the hits set and never a rest below it, and every note is in the scale and the range.
@@ -122,6 +122,7 @@ the hits set and never a rest below it, and every note is in the scale and the r
 | `run_bar_plays_every_hit` | A plain lane (Euclidean source, play chance 100) has exactly `hits` note-ons over the `steps * div` ticks of a bar from a fresh lane, for any settings (`make` clamps them to knob range). | the safety theorems say a lane never plays on a rest; this one says it plays on every hit. |
 | `run_bar_plays_every_hit_turned` | A rotated lane (Euclidean source turned by ROTATE, play chance 100) also plays exactly `hits` notes in a bar. | ROTATE never loses or doubles a hit. |
 | `run_bar_plays_every_ratchet` | A ratchet lane (kind 3, play chance 100) with `ratchet ≤ div` plays, over the `steps * div` ticks of a bar from a fresh lane, exactly `hits` times the number of sub-hits that play; every hit step rolls the same sub-hits, each on its own tick. | ratchets play exactly the rolls the knobs ask for, so every rhythm kind has a liveness theorem. |
+| `run_plays_by_the_wall_clock` | A plain lane (Euclidean source, play chance 100) under the main loop in straight time at full tempo, over passes whose gaps are each under 20 s at a tempo of at most 240: with `ticks` the elapsed time's worth of ticks, it plays `hits` notes for every whole bar of `steps * div` ticks, plus the hits among the steps before the step it stands on at the end. | the number of notes a lane plays in a stretch of wall-clock time follows from the tempo, the hits and the division alone, so no pass of the main loop can lose or double a note. |
 | `rhythm_automaton_row_fits` | One automaton generation stays inside the bar: the new row has no bit at or beyond `steps` (`steps ≤ 32`). | a hit can never land on a step that does not exist, however long the automaton runs. |
 | `rhythm_accent_only_on_hit` | An accent only falls on a hit. | accents cannot add a note on a rest. |
 | `rhythm_rotate_keeps_hits` | A rotated bar (ROTATE) has exactly `hits` hits, like the plain one. | ROTATE never adds or loses a note. |
@@ -206,6 +207,7 @@ the hits set and never a rest below it, and every note is in the scale and the r
 | `clock_division_is_the_loop` | `ticksDue` and `remainder` describe the firmware's `while (acc >= len) { acc -= len; tick(); }` loop: ticks due times the length plus the remainder is the accumulator, and the remainder is below one tick. | every fact about `ticksDue` and `remainder` is a fact about the loop in `dinghy.c`. |
 | `clock_half_time_is_half` | Over the same milliseconds from the same residue, HALF fires half the ticks of straight time to within one tick of rounding: `2 * half ≤ straight + 2` and `straight ≤ 2 * half + 1` (straight ticks of 10000, swing 0). | a bar under HALF is two bars long to the tick, so lanes, swing and chord changes stay in step. |
 | `clock_double_time_is_double` | Over the same milliseconds from the same residue, DOUBLE fires twice the ticks of straight time to within one tick of rounding: `double ≤ 2 * straight + 1` and `2 * straight ≤ double + 2` (straight ticks of 10000, swing 0). | a bar under DOUBLE is half a bar long to the tick, so lanes, swing and chord changes stay in step. |
+| `clock_loop_follows_the_wall_clock` | Straight time at full tempo: over any run of main-loop passes whose gaps are each under 20 s and add up to `ms` milliseconds, at a tempo of at most 240, the loop from an empty accumulator feeds the lanes exactly `ms * bpm * 4 / 10000` ticks, whatever the gaps are. | the song follows elapsed time, not how often the main loop gets round to polling, so a slow redraw or a patch load leaves the tempo alone. |
 
 </details>
 
