@@ -151,3 +151,7 @@ footer.foot a { color: var(--canvas); }
   table.proofs td:first-child, table.proofs td.num { border-bottom: 0; padding-bottom: 2px; }
   footer.foot .wrap { grid-template-columns: 1fr; gap: 15px; padding-bottom: 33px; }
 }
+
+/* the film */
+.film { margin: 0; }
+.film video { display: block; width: 100%; aspect-ratio: 16 / 9; background: var(--ink); border: 1px solid var(--ink); }

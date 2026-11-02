@@ -2,7 +2,7 @@
 """Assemble the GitHub Pages site into build/site:
    index.html, the installer (with manifest.json and the .fwsc), and the simulator under sim/.
 Run after `make web` and `make fw`.  tools/make_site.py [VERSION]"""
-import hashlib, json, re, shutil, sys
+import hashlib, json, re, shutil, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,4 +41,8 @@ from make_pitch import home_screen, render as render_pitch
 home_screen(OUT)
 shutil.copy(ROOT / "web/alfred.svg", OUT / "alfred.svg")          # the icon of every page, and the butler in the vitrine
 render_pitch(OUT / "pitch", OUT / "screen-home.png")             # the five-minute deck, at pitch/
+film = OUT / "pitch/formalfred.webm"                               # the landing page's poster: a frame of the film
+if film.exists():
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", "12", "-i", str(film), "-frames:v", "1", "-q:v", "4",
+                    str(OUT / "poster.jpg")], check=True)
 print(OUT, product, len(data))

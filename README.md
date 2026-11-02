@@ -26,9 +26,9 @@ first.
 
 [Using it](#using-it) · [How it works](#how-it-works) · [What is proved](#what-is-proved) ·
 [Prerequisites](#system-prerequisites) · [Targets](#targets) · [What is trusted](#what-is-trusted) ·
-`docs/`: [sequencers](docs/SEQUENCERS.md), [effects](docs/FX.md), [simulator](docs/SIMULATOR.md),
-[hardware](docs/FM1.md), [Lean on the chip](docs/LEAN-ON-CHIP.md), [engines](docs/LEAN-ENGINES.md),
-[budget](docs/BUDGET.md), [proof ledger](docs/PROOFS.md)
+`docs/`: [reviewer's tour](docs/TOUR.md), [sequencers](docs/SEQUENCERS.md), [effects](docs/FX.md),
+[simulator](docs/SIMULATOR.md), [hardware](docs/FM1.md), [Lean on the chip](docs/LEAN-ON-CHIP.md),
+[engines](docs/LEAN-ENGINES.md), [budget](docs/BUDGET.md), [proof ledger](docs/PROOFS.md)
 
 ## Using it
 
