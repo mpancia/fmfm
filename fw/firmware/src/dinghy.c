@@ -8,7 +8,7 @@
  * page. Four knobs set the four values on screen. SELECT picks the lane, SEL mutes it, ALGORITHM sets the tempo.
  * PRESETS opens the browser: sounds in EDIT, patches elsewhere (SELECT then picks the family).
  * PLAY starts and stops, SAVE keeps the patch in a slot, REC opens the PUNCH page (the keys as momentary effects;
- * its ROLL keys give a lane a new variation).
+ * its ROLL keys give a lane a new variation, KEEP and FREEZE hold on to a bar you like, FILL fills the bar).
  *
  * Rules of the chip (no FPU, no 64-bit division): docs/RULES.md. Platform calls: docs/API.md. */
 static void app_idle(void);
@@ -247,6 +247,18 @@ static const char *const TYPE_NAME[] = {"ALL", "TONE", "PLUCK", "PAD", "DRUM"}; 
 #define NTYPE (sizeof TYPE_NAME / sizeof TYPE_NAME[0])
 
 static lean_object *lane[NL];
+/* KEEP and FREEZE (the PUNCH page, keys 20 to 25): the notes a lane started in this bar and in the last whole one, and
+ * the lane as it was when its bar began, held while frozen so the bar plays again from it */
+static struct {
+    uint8_t cur[16], last[16], cur_n, last_n;
+    uint8_t frozen, align;                      /* FREEZE is on; a KEEP waits for the bar end to start its phrase at slot 0 */
+    uint32_t kept_until;                        /* the HOME row says KEPT until this ms */
+    lean_object *start;                         /* the lane at its bar start, or 0 */
+} lane_bar[NL];
+static uint32_t lanes_frozen(void)
+{
+    return lane_bar[0].frozen + lane_bar[1].frozen + lane_bar[2].frozen + lane_bar[3].frozen;
+}
 static struct {
     uint8_t hits, steps, speed, scale, low, span, preset, muted, algo, chance, amount, mutate, chord, level, send, pan;
     uint8_t feel, rotate, accents, rule, ratchet, subhits;   /* the rhythm source: not in patches yet */
@@ -304,16 +316,20 @@ static uint32_t lane_mask(uint32_t i)           /* the scale, turned to the key 
 
 static void lane_apply(uint32_t i)
 {
-    uint32_t mask = lane_mask(i), chance = lfo[i].target ? lfo[i].chance : cfg[i].chance;
-    lane[i] = fm1_lane_reconfigure(lane[i], cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], mask);
+    uint32_t mask = lane_mask(i), chance = lfo[i].target ? lfo[i].chance : cfg[i].chance, hits = cfg[i].hits;
+    if (punch_keys >> 26 & 1u && !cfg[i].muted) {   /* FILL held (PUNCH key 26): every hit plays and two more join in */
+        chance = 100; hits = hits + 2u > cfg[i].steps ? cfg[i].steps : hits + 2u;
+    }
+    lane[i] = fm1_lane_reconfigure(lane[i], hits, cfg[i].steps, SPEED[cfg[i].speed], mask);
     lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, chance, cfg[i].amount, cfg[i].mutate);
     lane[i] = fm1_lane_set_rhythm(lane[i], cfg[i].feel, cfg[i].rotate, cfg[i].accents, cfg[i].rule, cfg[i].ratchet, cfg[i].subhits, 0);
-    WATCH_LANE_SET(i, mask, cfg[i].hits, cfg[i].steps, cfg[i].feel, chance);
+    WATCH_LANE_SET(i, mask, hits, cfg[i].steps, cfg[i].feel, chance);
 }
 
 static void lane_report(uint32_t i)             /* play what the lane just started, stop what it stopped */
 {
     uint32_t off = fm1_lane_off_of(lane[i]), on = fm1_lane_on_of(lane[i]);
+    if (on < 128u && lane_bar[i].cur_n < 16u) lane_bar[i].cur[lane_bar[i].cur_n++] = (uint8_t)on;   /* this bar's notes: KEEP */
 #ifdef WATCHED
     if (on < 128u) {
         uint32_t steps = wlane[i].steps, step = fm1_lane_step_of(lane[i]);
@@ -353,16 +369,60 @@ static void silence_lanes(void)
     }
 }
 
+static void lane_thaw(uint32_t i)               /* the lane is rebuilt: FREEZE lets its bar go, KEEP's notes are stale */
+{
+    if (lane_bar[i].start) lean_dec(lane_bar[i].start);
+    lane_bar[i].start = 0; lane_bar[i].frozen = 0; lane_bar[i].align = 0; lane_bar[i].cur_n = 0; lane_bar[i].last_n = 0;
+}
+
 static void lane_remake(uint32_t i)             /* a new lane from the settings: stops its note first */
 {
     lane[i] = fm1_lane_silence(lane[i]);
     lane_report(i);
+    lane_thaw(i);
     lean_dec(lane[i]);
     lane[i] = fm1_lane_make(cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i), cfg[i].low, cfg[i].span,
                             0x9E3779B9u * (cfg[i].seed + 1u));
     lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, cfg[i].chance, cfg[i].amount, cfg[i].mutate);
     lane[i] = fm1_lane_set_rhythm(lane[i], cfg[i].feel, cfg[i].rotate, cfg[i].accents, cfg[i].rule, cfg[i].ratchet, cfg[i].subhits, 1);
     WATCH_LANE_SET(i, lane_mask(i), cfg[i].hits, cfg[i].steps, cfg[i].feel, cfg[i].chance);
+}
+
+static void lane_bar_end(uint32_t i)            /* the step wrapped to 0: the bar's notes, KEEP's start, FREEZE's replay */
+{
+    uint32_t k;
+    for (k = 0; k < lane_bar[i].cur_n; k++) lane_bar[i].last[k] = lane_bar[i].cur[k];
+    lane_bar[i].last_n = lane_bar[i].cur_n; lane_bar[i].cur_n = 0;
+    if (lane_bar[i].align) {                    /* Lane.setNotes keeps slot % amount: an amount of 1 puts the loop at
+                                                 * slot 0, so the kept phrase starts with the bar */
+        lane_bar[i].align = 0;
+        lane[i] = fm1_lane_set_notes(lane[i], cfg[i].algo, cfg[i].chance, 1, cfg[i].mutate);
+        lane_apply(i);
+    }
+    if (lane_bar[i].frozen && lane_bar[i].start) {   /* the bar again from the same state; the knobs still apply */
+        lean_dec(lane[i]); lean_inc(lane_bar[i].start); lane[i] = lane_bar[i].start;
+        lane_apply(i);
+    } else {
+        if (lane_bar[i].start) lean_dec(lane_bar[i].start);
+        lean_inc(lane[i]); lane_bar[i].start = lane[i];
+    }
+}
+
+/* KEEP: the bar the lane last played (or this one so far) becomes its STEP loop. From then on the lane plays those n
+ * notes in that order, bar after bar, until MUTATE or a ROLL lets it drift: notes_loop_repeats (Proofs/Notes.lean)
+ * says a STEP loop with no mutation replays its slots in turn, lane_learn_valid (Proofs/Lane.lean) that each learn
+ * keeps the lane valid. */
+static void lane_keep(uint32_t i)
+{
+    const uint8_t *notes = lane_bar[i].last_n ? lane_bar[i].last : lane_bar[i].cur;
+    uint32_t n = lane_bar[i].last_n ? lane_bar[i].last_n : lane_bar[i].cur_n, k;
+    if (!n) return;
+    cfg[i].algo = 7; cfg[i].amount = (uint8_t)n; cfg[i].mutate = 0; cfg[i].chance = 100;
+    lane[i] = fm1_lane_set_notes(lane[i], 7, 100, 1, 0);   /* an amount of 1 puts the cursor at 0 (Lane.setNotes) */
+    lane_apply(i);
+    for (k = 0; k < n; k++) lane[i] = fm1_lane_learn(lane[i], notes[k]);   /* slots 0 to n-1; the cursor comes round to 0 */
+    lane_bar[i].frozen = 0; lane_bar[i].align = 1;   /* the loop is the freeze now; the phrase starts with the next bar */
+    lane_bar[i].kept_until = fm1_ms + 1000u;
 }
 
 static void lanes_remask(void)                  /* the key, scale lock or chord changed */
@@ -417,6 +477,7 @@ static void patch_set(const char *name, uint32_t new_bpm, uint32_t new_key, uint
         cfg[i].feel = src[i].feel; cfg[i].rotate = src[i].rotate; cfg[i].accents = src[i].accents; cfg[i].rule = src[i].rule;
         cfg[i].ratchet = src[i].ratchet; cfg[i].subhits = src[i].subhits;
         set_sound(i, src[i].sound);
+        lane_thaw(i);
         lean_dec(lane[i]);
         lane[i] = fm1_lane_make(cfg[i].hits, cfg[i].steps, SPEED[cfg[i].speed], lane_mask(i), cfg[i].low, cfg[i].span,
                                 0x9E3779B9u * (cfg[i].seed + 1u));
@@ -599,11 +660,10 @@ static void clock_poll(void)                    /* 24 ticks a quarter note: bpm 
         arp_report();
         if (!running) continue;
         for (i = 0; i < NL; i++) {
-#ifdef WATCHED
             uint32_t before = fm1_lane_step_of(lane[i]);
-#endif
             lane[i] = fm1_lane_tick(lane[i]);
             lane_report(i);
+            if (before && fm1_lane_step_of(lane[i]) == 0) lane_bar_end(i);   /* the step wrapped: a bar ended */
 #ifdef WATCHED
             if (wlane[i].steps > 1u && before == wlane[i].steps - 1u && fm1_lane_step_of(lane[i]) == 0) {   /* a bar ended */
                 uint32_t k, expect = 0;         /* run_bar_plays_the_rhythm: the hits of the row the bar started with */
@@ -685,9 +745,12 @@ static const char *const FTYPE_NAME[3] = {"LOW", "BAND", "HIGH"};
 static const char *const QUANT_NAME[3] = {"OFF", "SCALE", "CHORD"};   /* Firmware/Keys.lean: the white keys as degrees */
 static uint32_t quant;
 static uint32_t page = P_HOME, group_page[NGROUPS] = {P_HOME, P_RHYTHM, P_SOUND, P_HARMONY, P_REVERB, P_LFO, P_ARP, P_PUNCH};
-/* the PUNCH page's keys, in the lower octave from F3, then the four mutes (Firmware/Punch.lean) */
-static const char *const PUNCH_NAME[16] = {"HALF", "DOUBLE", "STUTTER", "ROLL", "OCT-", "OCT+", "SHIFT", "GATE",
-                                           "CRUSH", "WASH", "THROW", "BREAK", "MUTE 1", "MUTE 2", "MUTE 3", "MUTE 4"};
+/* the PUNCH page's keys, in the lower octave from F3: the effects, then the four mutes (Firmware/Punch.lean); above them
+ * the rolls, the keeps, the two freezes and the fill (A4 to G5) */
+static const char *const PUNCH_NAME[27] = {"HALF", "DOUBLE", "STUTTER", "ROLL", "OCT-", "OCT+", "SHIFT", "GATE",
+                                           "CRUSH", "WASH", "THROW", "BREAK", "MUTE 1", "MUTE 2", "MUTE 3", "MUTE 4",
+                                           "ROLL 1", "ROLL 2", "ROLL 3", "ROLL 4", "KEEP 1", "KEEP 2", "KEEP 3", "KEEP 4",
+                                           "FREEZE", "FRZ ALL", "FILL"};
 static const char *const PUNCH_RATE[3] = {"1/8", "1/16", "1/32"};
 static uint32_t browse_mode, browse_until, browse_family, browse_pos;   /* 0 closed, 1 sounds, 2 patches */
 static uint32_t browse_by, browse_type;                                  /* sounds grouped by engine (0) or by type (1) */
@@ -1183,6 +1246,8 @@ static void draw_lane(uint32_t i)               /* one lane row: the ledger on H
         cv_text(8, 0, &FONT_S, s, live);
         draw_steps(24, 3, i, live, 6, 10, 7);
         cv_text(150, 0, &FONT_S, SCALE_NAME[scale_lock ? scale_lock - 1u : cfg[i].scale], TH.mid);
+        if (fm1_ms < lane_bar[i].kept_until) cv_text(200, 0, &FONT_S, "KEPT", live);   /* KEEP took the bar: a second's note */
+        else if (lane_bar[i].frozen) cv_text(208, 0, &FONT_S, "FRZ", ink);
         p = put_num(s, cfg[i].hits); *p++ = '/'; p = put_num(p, cfg[i].steps); *p++ = ' ';
         p = put_str(p, SPEED_NAME[cfg[i].speed]); *p = 0;
         cv_text(8, 16, &FONT_S, s, ink);
@@ -1190,12 +1255,12 @@ static void draw_lane(uint32_t i)               /* one lane row: the ledger on H
         cv_rect(8, 33, 224, 1, TH.dim);
         cv_blit(0, HOME_ROW_Y(i));
     } else {
+        const char *tag = lane_bar[i].frozen ? "FRZ" : braids_shape_name(cfg[i].sound.shape);   /* frozen: the mark, not the sound */
         cv_begin(240, 14, TH.bg);
         s[0] = (char)('1' + i); s[1] = 0;
         cv_text(6, -2, &FONT_S, s, i == selected ? live : TH.dim);
         draw_steps(22, 2, i, i == selected ? live : TH.dim, 5, 8, 6);
-        cv_text(232 - text_w(&FONT_S, braids_shape_name(cfg[i].sound.shape)), -2, &FONT_S, braids_shape_name(cfg[i].sound.shape),
-                i == selected ? live : TH.dim);
+        cv_text(232 - text_w(&FONT_S, tag), -2, &FONT_S, tag, i == selected ? live : TH.dim);
         cv_blit(0, STRIP_ROW_Y(i));
     }
 }
@@ -1273,16 +1338,17 @@ static void draw_columns(void)                  /* the page's four values: a met
         cv_rect(x, 0, 46, 62, well);
         cv_rect(x, 62 - (int32_t)(fill * 62u / 255u), 46, (int32_t)(fill * 62u / 255u), col);
     }
-    if (page == P_PUNCH) {                      /* the keys as a grid, the held ones lit */
-        cv_begin(240, 64, TH.bg);
-        for (k = 0; k < 16u; k++) {
-            int32_t x = 4 + (int32_t)(k % 4u) * 59, y = (int32_t)(k / 4u) * 16;
-            uint32_t on = punch_keys >> k & 1u;
-            cv_rect(x, y, 55, 15, on ? LANE_COLOUR(k < 12u ? selected : k - 12u) : well);
+    if (page == P_PUNCH) {                      /* the keys as a grid, the held ones lit: the lower octave, the rest below */
+        cv_begin(240, 48, TH.bg);
+        for (k = 0; k < 27u; k++) {
+            int32_t x = 4 + (int32_t)(k % 4u) * 59, y = (int32_t)(k / 4u % 4u) * 12;
+            uint32_t on = k == 24u ? lane_bar[selected].frozen : k == 25u ? lanes_frozen() == NL : punch_keys >> k & 1u;
+            if (k == 16u) { cv_blit(0, 90); cv_begin(240, 36, TH.bg); }   /* the canvas holds 64 rows: two blits */
+            cv_rect(x, y, 55, 11, on ? LANE_COLOUR(k < 12u || k > 23u ? selected : k % 4u) : well);
             cv_text(x + 27 - text_w(&FONT_S, PUNCH_NAME[k]) / 2, y - 1, &FONT_S, PUNCH_NAME[k], on ? TH.bg : TH.mid);
         }
     }
-    cv_blit(0, 90);
+    cv_blit(0, page == P_PUNCH ? 138 : 90);
     if (page == P_RHYTHM || page == P_FEEL) draw_circle();
     cv_begin(240, 36, TH.bg);
     for (k = 0; k < 4u; k++) {
@@ -1414,7 +1480,8 @@ static uint32_t ui_hash(void)                   /* changes whenever something ou
                     arp_cfg.mode | arp_cfg.rate << 8 | arp_cfg.octaves << 16 | arp_cfg.gate << 24, arp_cfg.latch,
                     browse_family, browse_by, browse_type, chord_index, save_slot, midi_out_base, set.oct, set.ch, set.look, reverb_time, reverb_bright,
                     reverb_amount, delay_time, delay_feedback, delay_tone, delay_amount, demo_auto, set.swing, set.clock, ext_bpm,
-                    punch_keys, punch.stutter | punch.gate << 8 | punch.crush << 16 | punch.shift << 24, quant};
+                    punch_keys, punch.stutter | punch.gate << 8 | punch.crush << 16 | punch.shift << 24, quant,
+                    lane_bar[0].frozen | lane_bar[1].frozen << 1 | lane_bar[2].frozen << 2 | lane_bar[3].frozen << 3};
     for (i = 0; i < sizeof cfg; i++) h = (h ^ b[i]) * 16777619u;
     for (i = 0; i < NL; i++) h = (h ^ (lfo[i].target | lfo[i].rate << 8 | lfo[i].depth << 16)) * 16777619u;
     for (i = 0; i < sizeof g / sizeof g[0]; i++) h = (h ^ g[i]) * 16777619u;
@@ -1543,15 +1610,24 @@ static void app_main(void)
         prev = keys;
         punch_keys = page == P_PUNCH ? keys : 0u;   /* on the PUNCH page the keys are effects, not notes */
         if (punch_keys != punch_shown_keys) {   /* an effect came or went: the returns and the crush follow the keys */
+            uint32_t fill = (punch_keys ^ punch_shown_keys) >> 26 & 1u;
             punch_shown_keys = punch_keys;
             reverb_apply(); delay_apply();
             punch_crush = fm1_punch_crush_factor(punch_keys, punch.crush);
             punch_gate_target = fm1_punch_gate_target(punch_keys, punch.gate, tick_count);
+            if (fill) for (k = 0; k < NL; k++) lane_apply(k);   /* FILL (key 26) came or went: hits and chance follow it */
         }
         for (k = 0; k < 27u; k++) {             /* a key stops the note it started: the octave may change meanwhile */
             if (down >> k & 1u && page == P_PUNCH) {
-                held[k] = 255;                  /* an effect, not a note; keys 16 to 19 roll a new variation of lane 1 to 4 */
+                held[k] = 255;                  /* an effect, not a note; keys 16 to 19 roll a new variation of lane 1 to
+                                                 * 4, 20 to 23 keep a lane's last bar, 24 and 25 freeze the chosen lane or all */
                 if (k >= 16u && k < 20u) { cfg[k - 16u].seed = (uint16_t)(cfg[k - 16u].seed * 5u + 1u); lane_remake(k - 16u); }
+                if (k >= 20u && k < 24u) lane_keep(k - 20u);
+                if (k == 24u) lane_bar[selected].frozen ^= 1u;
+                if (k == 25u) {
+                    uint32_t all = lanes_frozen() == NL, j;
+                    for (j = 0; j < NL; j++) lane_bar[j].frozen = (uint8_t)!all;
+                }
                 continue;
             }
             if (down >> k & 1u) {
@@ -1562,7 +1638,9 @@ static void app_main(void)
                     arp_cfg.physical |= 1u << k;
                     arp = fm1_arp_press(arp, held[k]);
                 } else { play(held[k], 100, &cfg[selected].sound, cfg[selected].send, cfg[selected].pan); midi_send(0x90u | 15u, held[k], 100); }
-                if (cfg[selected].algo == 7u || cfg[selected].algo == 8u) lane[selected] = fm1_lane_learn(lane[selected], held[k]);   /* STEP writes it, MARKOV counts it */
+                if ((cfg[selected].algo == 7u || cfg[selected].algo == 8u) && !lane_bar[selected].frozen)   /* STEP writes it,
+                                                 * MARKOV counts it; a frozen lane learns nothing, its bar must come back the same */
+                    lane[selected] = fm1_lane_learn(lane[selected], held[k]);
             }
             if (up >> k & 1u && held[k] < 128u) {
                 arp_cfg.physical &= ~(1u << k);
@@ -1657,7 +1735,8 @@ static void app_main(void)
         }
         if (!browse_mode)
             for (k = 0; k < NL; k++) {
-                uint32_t sig = fm1_lane_step_of(lane[k]) + 1u;
+                uint32_t sig = fm1_lane_step_of(lane[k]) + 1u | lane_bar[k].frozen << 8 |
+                               (fm1_ms < lane_bar[k].kept_until ? 512u : 0u);
                 if (sig != row_sig[k]) {
                     row_sig[k] = sig;
                     draw_lane(k);

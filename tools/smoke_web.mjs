@@ -6,7 +6,9 @@ import fs from 'fs';
 const mod = await WebAssembly.compile(fs.readFileSync(process.env.WASM || 'build/web/dinghy.wasm'));
 const BTN = { PLAY: 12, EDIT: 6, SEQ: 11, GLO: 7, HOME: 8, SAVE: 9, FX: 2, LFO: 5, ENV: 4, REC: 13, ARP: 10 };
 const ENC = { SELECT: 0, ALGORITHM: 1, K1: 2, K2: 3, K3: 4, K4: 5, PRESETS: 6 };
-let mem, inp, ms = 0, reports = [], frame = new Uint16Array(240 * 240);
+let mem, inp, outp, ms = 0, reports = [], frame = new Uint16Array(240 * 240);
+const midi = [];                                       // [ms, status, data 1, data 2]: what the firmware sent out
+let midiSeen = 0;
 const peaks = new Map();                               // half-second -> loudest sample in it
 const crossings = new Map();                           // half-second -> zero crossings (a brightness proxy)
 const events = [];                                     // [ms, fn(dataview)]
@@ -21,6 +23,11 @@ const imports = { env: {
     ms = t;
     const d = new DataView(mem.buffer, inp);
     while (events.length && events[0][0] <= t) events.shift()[1](d);
+    const o = new DataView(mem.buffer, outp);
+    for (const w = o.getUint32(0, true); midiSeen < w; midiSeen++) {     // web_host.c's ring of 64
+      const m = o.getUint32(4 + 4 * (midiSeen % 64), true);
+      midi.push([t, m & 255, m >> 8 & 127, m >> 16 & 127]);
+    }
     if (t >= END) throw new Error('done');
   },
   js_audio(ptr, n) {
@@ -94,10 +101,25 @@ at(59400, keys(1 << 8)); at(60200, keys(1 << 9)); at(61000, keys(0)); at(61100, 
 // the per-voice filter (EDIT, EDIT: the FILTER page): lane 1's cutoff down to 10 for two seconds, then back up
 at(61200, press(BTN.EDIT)); at(61300, press(BTN.EDIT)); at(61350, shot('filter')); at(61400, turn(ENC.K1, -45));
 at(64400, turn(ENC.K1, 45)); at(64500, press(BTN.HOME));
-const END = 67000;
+// KEEP and FREEZE (PUNCH keys 20 and 24, lane 1): first the LFO off and the chords off, so lane 1's bar is a fixed thing
+// (LFO: knob 1 back to OFF; GLO is the HARMONY page: knob 3 back to OFF), then lane 1 on RANDOM notes (SEQ is the NOTES
+// page now) and busier (SEQ, SEQ: RHYTHM; 4 hits in its 7 steps, sixteenths). The patch is AIRPORTS' copy at 64 bpm: a
+// bar of lane 1 is 42 ticks, 1641 ms, 4 random notes at chance 100. FREEZE after two bars on the page: the next two
+// bars are the same notes at the same times. FREEZE again thaws; once the bar begun frozen is over, KEEP 1 takes the
+// last bar: from the next bar on, the same four notes come round every bar (and they are not the frozen bar's).
+at(67000, press(BTN.LFO)); at(67100, turn(ENC.K1, -1)); at(67200, press(BTN.GLO)); at(67300, turn(ENC.K3, -10));
+at(67400, press(BTN.SEQ)); at(67450, turn(ENC.K1, -10)); at(67500, press(BTN.SEQ)); at(67550, press(BTN.SEQ));
+at(67600, turn(ENC.K1, 3)); at(67700, turn(ENC.K3, -4));
+at(67800, press(BTN.REC)); at(67900, shot('punch keys'));
+at(71500, keys(1 << 24)); at(71600, keys(0)); at(71700, shot('frozen'));
+at(77000, keys(1 << 24)); at(77100, keys(0));
+at(80400, keys(1 << 20)); at(80500, keys(0)); at(80600, press(BTN.HOME)); at(80700, shot('kept')); at(81600, shot('kept gone'));
+// FILL (key 26) held for two bars: every lane plays 2 more hits a bar (lane 1: 6 of 7 instead of 4)
+at(85800, press(BTN.REC)); at(86000, keys(1 << 26)); at(89300, keys(0));
+const END = 90000;
 events.sort((a, b) => a[0] - b[0]);
 const inst = await WebAssembly.instantiate(mod, imports);
-mem = inst.exports.memory; inp = inst.exports.web_in_ptr();
+mem = inst.exports.memory; inp = inst.exports.web_in_ptr(); outp = inst.exports.web_out_ptr();
 try { inst.exports.web_run(); } catch (e) { if (e.message !== 'done') throw e; }
 
 const peak = (from, to) => Math.max(...[...peaks].filter(([h]) => h * 500 >= from && h * 500 < to).map(([, p]) => p), 0);
@@ -161,6 +183,25 @@ ok('WALK LR from C major goes C, Em, G, Bm, a triad each, two notes in common ea
    [0, 1, 2, 3, 22].every((s) => bits(triad(s)) === 3 && bits(triad(s) & triad(s + 1)) === 2));
 ok('the RANGE page shows COMPL', changed(shots.compl, shots['home 2']) > 500);
 ok('no Lean runtime reports', reports.length === 0);
+// lane 1's note-ons (channel 1) after a moment; a bar of lane 1 is 1641 ms (42 ticks at 64 bpm)
+const laneOns = (from) => midi.filter(([t, st]) => t >= from && st === 0x90).map(([t, , n]) => [t, n]);
+const notes = (ons) => ons.map(([, n]) => n).join(' ');
+const frozen = laneOns(73300).slice(0, 8), kept = laneOns(82200).slice(0, 8);
+const sameBar = (a, b) => a.length === 4 && b.length === 4 && notes(a) === notes(b) &&
+  a.every(([t], i) => Math.abs(b[i][0] - t - 1641) <= 40);
+ok(`FREEZE plays lane 1's bar again, the same notes at the same times (${notes(frozen.slice(0, 4))} | ${notes(frozen.slice(4))})`,
+   sameBar(frozen.slice(0, 4), frozen.slice(4)));
+ok(`KEEP 1 makes lane 1 play its last bar every bar (${notes(kept.slice(0, 4))} | ${notes(kept.slice(4))})`,
+   sameBar(kept.slice(0, 4), kept.slice(4)) && notes(kept.slice(0, 4)) !== notes(frozen.slice(0, 4)));
+ok('the PUNCH page draws the upper keys below the grid and FREEZE lights its cell there',
+   changed(region(shots['punch keys'], 138, 174), region(shots.frozen, 138, 174)) > 50 &&
+   changed(region(shots['punch keys'], 90, 138), region(shots.frozen, 90, 138)) === 0);
+const corner = (f) => { const px = []; for (let y = 28; y < 44; y++) px.push(...f.slice(y * 240 + 200, y * 240 + 232)); return px; };   // row 1's right edge
+ok('the HOME row says KEPT for a second', changed(corner(shots.kept), corner(shots['home 2'])) > 20 &&
+   changed(corner(shots['kept gone']), corner(shots['home 2'])) === 0);
+const onsIn = (from, to) => laneOns(from).filter(([t]) => t < to).length;
+const plain = onsIn(82200, 85200), filled = onsIn(86200, 89200);
+ok(`FILL held gives lane 1 two more hits a bar (${plain} note-ons in 3 s, ${filled} with FILL)`, plain >= 6 && filled >= plain * 1.3);
 // the proofs, watched (fw/firmware/src/watch.h): the theorems' statements checked on the running machine
 const watched = [];
 for (let i = 0; i < inst.exports.web_watch_count(); i++) {

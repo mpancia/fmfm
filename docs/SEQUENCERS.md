@@ -31,7 +31,12 @@ white; the automaton's row changes every bar.
 | CHORD | TONES, OCTAVE | climbs `tones` notes of the lane's scale from its bottom note (with chord follow, the chord); OCTAVE is the chance of an octave jump |
 
 The keys teach only the chosen lane, and only STEP and MARKOV listen. The four ROLL keys on the PUNCH page (REC;
-A4 to C5) reseed a lane: a new random loop, register and automaton row, and an unlearnt chain.
+A4 to C5) reseed a lane: a new random loop, register and automaton row, and an unlearnt chain. The keys above them
+keep what a lane played instead: KEEP 1 to 4 (C#5 to E5) take the notes of the lane's last whole bar and make them
+its STEP loop, chance 100 and no mutation, so that bar comes round again every bar (`notes_loop_repeats`) until
+MUTATE or a ROLL lets it drift. FREEZE (F5) makes the chosen lane repeat the bar it is in, from the same random
+state, and FRZ ALL (F#5) does that to all four; either again, or a ROLL, thaws, and a frozen lane learns nothing
+from the keys. FILL (G5) is momentary: while held every unmuted lane plays at chance 100 with two more hits.
 
 ## What is proved (`docs/PROOFS.md`)
 
