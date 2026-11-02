@@ -33,14 +33,14 @@
   </div>
   <div>
     <p>The FM-1 is a pocket keyboard with a 240-pixel screen, seven encoders and a speaker. This firmware replaces
-    the stock one with four lanes that each divide the clock into a rhythm and pick notes from a scale: Euclidean
-    patterns, cellular automata and ratchets on one side, random walks, Markov chains, grammars and Tonnetz chord
-    walks on the other. The voices are all 48 Braids shapes, a four-operator FM voice and a synthesized 808, each
-    with a filter, plus a reverb and a ping-pong delay. 136 patches and 15 demo songs to start from. Alfred bows at
-    boot and stands in the corner when you stop the clock.</p>
+    the stock one with four lanes. Each divides the clock into a rhythm (Euclidean patterns, cellular automata,
+    ratchets) and picks notes from a scale (random walks, Markov chains, grammars, Tonnetz chord walks). The voices
+    are all 48 Braids shapes, a four-operator FM voice and a synthesized 808, each with a filter, plus a reverb and
+    a ping-pong delay. 136 patches and 15 demo songs to start from. Alfred bows at boot and stands in the corner
+    when you stop the clock.</p>
     <p>The lanes, the voices, the effects, the mix and the patch format are Lean 4, compiled to C and then to the
-    chip, and {{theorems}} theorems about that code go through Lean's kernel on every build. What stays C (the
-    screen, the drivers, the loops that call the Lean) the README lists as trusted. It runs on a real FM-1.</p>
+    chip. {{theorems}} theorems about that code go through Lean's kernel on every build. What stays C (the screen,
+    the drivers, the loops that call the Lean) the README lists as trusted. It runs on a real FM-1.</p>
     <p>
       <a class="button solid" href="sim/">Try it in the browser</a>
       <a class="button" href="installer.html">Install on an FM-1</a>
@@ -54,17 +54,17 @@
   <div class="cols">
     <div>
       <p class="label">Rhythm</p>
-      <p>A lane's bar is Euclidean by default, 1 to 32 steps with the hits spread as evenly as possible, at any
-      of eight clock divisions; or a rotated bar with accents, a cellular automaton, or ratchets. A lane's position
-      in its bar depends only on the tick count, so four lanes at four speeds stay in phase
+      <p>A lane's bar is Euclidean by default: 1 to 32 steps, hits spread as evenly as possible, at any of eight
+      clock divisions. Or a rotated bar with accents, a cellular automaton, or ratchets. A lane's position in its
+      bar depends only on the tick count, so four lanes at four speeds stay in phase
       (<code>run_clock_never_drifts</code>), and a bar plays exactly the hits you set (<code>run_bar_plays_every_hit</code>).</p>
     </div>
     <div>
       <p class="label">Notes</p>
-      <p>Eleven note sources, from a random draw through walks, a mutating loop, a Turing register, a Markov chain
-      that learns from the keys and a grammar. Chord progressions are written as degrees and a lane can follow the
-      chord, its seventh, or the notes outside the key. The last three progressions walk the Tonnetz by P, L and R.
-      Whatever you pick, the note that comes out is in the scale (<code>lane_note_in_scale</code>).</p>
+      <p>Eleven note sources: a random draw, walks, a mutating loop, a Turing register, a Markov chain that learns
+      from the keys, a grammar. Chord progressions are written as degrees; a lane can follow the chord, its
+      seventh, or the notes outside the key. The last three progressions walk the Tonnetz by P, L and R. The note
+      that comes out is always in the scale (<code>lane_note_in_scale</code>).</p>
     </div>
     <div>
       <p class="label">Sound</p>
@@ -106,7 +106,7 @@
     </table>
     <p style="margin-top: 22px">Every theorem is in
     <a href="https://github.com/mpancia/fmfm/blob/main/docs/PROOFS.md">docs/PROOFS.md</a> with its statement, why it
-    matters and the definitions it depends on. The README says what is trusted instead: the screen, the drivers, the
+    matters and the definitions it depends on. The README lists what is trusted: the screen, the drivers, the
     accessors that read Braids' tables, and the C loops that call the Lean. The proofs are about the code the chip
     runs; the engine arithmetic is also checked sample for sample against the original Braids. Nothing here models
     the hardware.</p>

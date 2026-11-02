@@ -1,13 +1,12 @@
 # Effects
 
 Two sends on one bus: each lane's SEND (on the REVERB page) feeds both the reverb and the delay; each effect has
-its own RETURN. The FX button opens REVERB, and again DELAY.
+its own RETURN. FX opens REVERB, FX again DELAY.
 
 ## Reverb send
 
-A stereo reverb on a send bus: each lane sends some of its sound to it, the reverb adds its wet signal to the mix.
-It is the reverb of Clouds (Mutable Instruments, MIT, Emilie Gillet), ported to fixed-point with its arithmetic
-in Lean.
+A stereo reverb on a send bus: each lane sends some of its sound to it and the wet signal goes into the mix. It is
+the reverb from Clouds (Mutable Instruments, MIT, Emilie Gillet), ported to fixed-point with its arithmetic in Lean.
 
 | Control (FX button, then knobs) | Does |
 |---|---|
@@ -16,18 +15,18 @@ in Lean.
 | BRIGHT | how dark or bright the tail is (the low-pass in each loop, 0.6 to 0.97) |
 | RETURN | how loud the wet signal is in the mix (0 to 100%; 100% is a gain of 1.0) |
 
-DECAY, BRIGHT and RETURN belong to the patch; SEND belongs to each lane. With RETURN at 0 the reverb does not run at
-all (it costs nothing), and when it comes back on the old tail is dropped.
+DECAY, BRIGHT and RETURN belong to the patch; SEND to each lane. With RETURN at 0 the reverb does not run (it costs
+nothing); when it comes back the old tail is dropped.
 
 ### The network
 
-Clouds' reverb is the Griesinger topology from Dattorro's paper. The send goes through four allpass diffusers; the
-result feeds two loops, each two allpasses and a long delay, crossed so each loop feeds the other, with a low-pass in
-each. Two slow LFOs (0.5 Hz and 0.3 Hz) move the read position of one diffuser and of the long delay of the first
-loop, so the tail shimmers instead of ringing at fixed frequencies. The left and right outputs are the two loops.
+Clouds' reverb is the Griesinger topology from Dattorro's paper. The send goes through four allpass diffusers into
+two loops, each two allpasses and a long delay, crossed so each loop feeds the other, with a low-pass in each. Two
+slow LFOs (0.5 Hz and 0.3 Hz) move the read position of one diffuser and of the first loop's long delay, so the
+tail shimmers instead of ringing at fixed frequencies. Left and right outputs are the two loops.
 
-Delay lines are Clouds' sizes scaled by 353/256 from its 32 kHz to our 44.1 kHz, so the room is the same size. They
-live in one 32768-sample memory, stored as 16 bits holding the signal times 4096 (Clouds' 12-bit format).
+Delay lines are Clouds' sizes scaled by 353/256, from its 32 kHz to our 44.1 kHz, so the room is the same size.
+They share one 32768-sample memory, 16 bits each holding the signal times 4096 (Clouds' 12-bit format).
 
 ### How it is built
 
@@ -40,48 +39,48 @@ fx/reverb.h               the C interface
 ```
 
 As for the engines (`docs/LEAN-ENGINES.md`), Lean's generated C is included in the glue as inline functions, so the
-audio interrupt runs plain integer code with no Lean runtime. The order of operations in the network is C, copied
-from `Reverb::Process`; the arithmetic of each step is Lean.
+audio interrupt runs plain integer code with no Lean runtime. The order of the network is C, copied from
+`Reverb::Process`; the arithmetic of each step is Lean.
 
 ### What is proved
 
-See `docs/PROOFS.md`, section Reverb, eleven theorems:
+`docs/PROOFS.md`, section Reverb, eleven theorems:
 
 - every position is inside the memory; at every scale up to 400 the ten delay lines fit and never overlap;
 - the two modulated reads (the first diffuser and the long delay of the second loop) stay inside their own line
-  whatever the LFO does, at every scale from 192 to 400, and the LFO's wobble is always between 0 and 1.0;
+  for any LFO value, at every scale from 192 to 400, and the LFO's wobble is between 0 and 1.0;
 - every decay and brightness setting gives a gain below 1.0, and a signal times a gain of at most 1.0 keeps its sign
   and never grows, rounding included;
-- one step of the low-pass lands between its state and its input, and an interpolated read lands between its two
-  neighbours, so neither can overshoot;
+- one step of the low-pass lands between its state and its input, and an interpolated read between its two
+  neighbours, so neither overshoots;
 - the stored sample saturates instead of wrapping;
 - one trip round the two loops with nothing coming in scales a sample by the decay gain squared, plus at most
   one unit of rounding, so an undriven tail shrinks every trip (`reverb_round_trip_decays`);
 - the wet sample handed to the mix is within 2^29 + 2^21 and its return at any RETURN setting is exact
-  (`reverb_wet_never_overflows`); `mix_bus_never_wraps` takes exactly that bound, so the two promises join.
+  (`reverb_wet_never_overflows`); `mix_bus_never_wraps` takes exactly that bound.
 
-These last two are about `Spec/Reverb.lean`, which writes down the glue's sequence of calls for one sample
-with the memory reads as parameters. That the spec is the glue is checked, not assumed: `make test-lean`
-runs `tests/reverb_spec_diff.c`, which records what the glue reads before each of 20000 samples (a burst,
-a settings change, the tail) and `tests/reverb_spec.lean` recomputes both outputs from the spec; they agree
-on every sample, and swapping two reads in the spec makes 18342 of them disagree.
+The last two are about `Spec/Reverb.lean`, which writes down the glue's sequence of calls for one sample with the
+memory reads as parameters. That the spec matches the glue is checked: `make test-lean` runs
+`tests/reverb_spec_diff.c`, which records what the glue reads before each of 20000 samples (a burst, a settings
+change, the tail), and `tests/reverb_spec.lean` recomputes both outputs from the spec. They agree on every sample;
+swapping two reads in the spec makes 18342 of them disagree.
 
-The network's order is Lean too (`Reverb.diffuse`, `Reverb.loop`), and the trip theorems are about it: a tail
-stays within the memory's range however many trips it makes and shrinks by the decay each trip. What remains C is
-the moving of samples between the memory and those steps, which `tests/reverb_spec_diff.c` checks against the Lean
-order over 20000 samples. With `mix_machine_sample_bounded` (`Proofs/Mix.lean`) the voices, both sends and the
-limiter join into one statement: the sample the master stage sees is the mix, clipped, never a wrapped burst.
+The network's order is Lean too (`Reverb.diffuse`, `Reverb.loop`), and the trip theorems are about it: a tail stays
+within the memory's range over any number of trips and shrinks by the decay each trip. What remains C is the moving
+of samples between the memory and those steps, which `tests/reverb_spec_diff.c` checks against the Lean order over
+20000 samples. With `mix_machine_sample_bounded` (`Proofs/Mix.lean`) the voices, both sends and the limiter join
+into one statement: the sample the master stage sees is the mix, clipped, never a wrapped burst.
 
 ### How it is tested
 
 `make test-lean` runs `tests/reverb_diff.cc`: the same input and settings through Clouds' original float code
-(`tests/reference/clouds`, unchanged, namespace renamed at compile time) and through the port, at Clouds' own sizes.
+(`tests/reference/clouds`, unchanged, namespace renamed at compile time) and through the port, at Clouds' sizes.
 
 - For the first 4000 samples, before the long delays are first read, the two agree to within -41 dB (a click) of
   rounding error.
 - After that the LFO matters: the port's sine is a parabola and Clouds' is a recurrence, so a delay time differs by a
   tenth of a sample and the wobbling tails are not the same waveform. The tail is compared by loudness in 50 ms
-  windows, down to -41 dBFS: the worst window is within 1.04 dB of the original, the mean within 0.4 dB, over five
+  windows down to -41 dBFS: the worst window is within 1.04 dB of the original, the mean within 0.4 dB, over five
   inputs (clicks at three settings, a noise burst, a sine burst).
 - `make test` checks in the simulator that the tail rings on after PLAY stops and then dies away.
 
@@ -98,11 +97,10 @@ Measured with `tools/render_web.mjs` (the simulator's output as a WAV, with its 
 
 ### Not done, not measured
 
-- Not heard: the numbers say the port follows Clouds and that nothing clips, not that it sounds good.
+- Not heard: the numbers say the port follows Clouds and nothing clips, not that it sounds good.
 - Not measured on the chip: about 720 chip instructions a sample (`docs/BUDGET.md`), the price of two INIT
   patches' voices. The memory is 64 KiB of the pool (the pool use is 316 KiB of 344 KiB).
-- No delay, no chorus, no other Clouds parts (granular, pitch shifter, diffuser). The diffuser inside the reverb is
-  part of it.
+- No chorus, no other Clouds parts (granular, pitch shifter, diffuser). The diffuser inside the reverb is part of it.
 
 ## Delay send
 
@@ -118,21 +116,21 @@ is low-passed and fed, times the feedback, into the other line, so the echoes al
 | TONE | the low-pass in the loop (0.2 to 1.0; 100% is no filtering) |
 | RETURN | how loud the echo is in the mix (0 to 100%; 100% is unity) |
 
-The four belong to the patch (layout version 3, 102 bytes); the echo follows the TEMPO knob and a patch's tempo,
-retuning whenever the tempo changes. Notes longer than a line allows at a slow tempo are held at 464 ms (a
-quarter note below 130 bpm, a dotted eighth below 97, an eighth below 65; a 1/16 or 1/32 is never held). Ping-pong
-needs two periods of memory, one a side, which is why the longest echo is shorter than a single line's would be.
-With RETURN at 0 the delay does not run, and when it comes back the old echoes are dropped.
+The four belong to the patch (layout version 3, 102 bytes). The echo follows the TEMPO knob and a patch's tempo and
+retunes whenever the tempo changes. A note longer than a line allows at a slow tempo is held at 464 ms (a quarter
+note below 130 bpm, a dotted eighth below 97, an eighth below 65; a 1/16 or 1/32 is never held). Ping-pong needs
+two periods of memory, one a side, so the longest echo is shorter than a single line's would be. With RETURN at 0
+the delay does not run; when it comes back the old echoes are dropped.
 
-What is proved (`docs/PROOFS.md`, section Delay): the feedback gain is at most 0.95 and the tone between 0.2 and
-1.0 for every setting; with nothing new on the send, what goes back into a line is at most 95% of the echo plus
-one count of rounding, so a tail of echoes shrinks geometrically whatever the settings; the delay in samples is
-always between 1 and 20479, so a line never reads where it writes, and the positions wrap inside the lines (they
-are not a power of two); a 1/32 or 1/16 is exact at every tempo from 40 to 240, everything up to a dotted eighth
-from 97 bpm, every note value from 130; a send louder than full scale saturates in the line instead of wrapping.
-The patch round-trip proofs cover the four new bytes.
+Proved (`docs/PROOFS.md`, section Delay): the feedback gain is at most 0.95 and the tone between 0.2 and 1.0 for
+every setting; with nothing new on the send, what goes back into a line is at most 95% of the echo plus one count
+of rounding, so a tail of echoes shrinks geometrically at any setting; the delay in samples is always between 1
+and 20479, so a line never reads where it writes, and the positions wrap inside the lines (they are not a power of
+two); a 1/32 or 1/16 is exact at every tempo from 40 to 240, everything up to a dotted eighth from 97 bpm, every
+note value from 130; a send louder than full scale saturates in the line instead of wrapping. The patch round-trip
+proofs cover the four new bytes.
 
 Tested: `make test` plays with the delay at full feedback and return, stops, and checks that the echoes ring on and
 die away. Rendered with `tools/render_web.mjs` at 64 bpm and an eighth (469 ms), the peaks after a stop come every
-0.47 s and alternate: left, right, left. Not heard. Cost: about 160 host instructions a sample (`make perf`), a
+0.47 s and alternate left, right, left. Not heard. Cost: about 160 host instructions a sample (`make perf`), a
 quarter of the reverb. Memory: 80 KiB of the pool, which is 316 KiB of 344 KiB with the Lean heap at 32 KiB.

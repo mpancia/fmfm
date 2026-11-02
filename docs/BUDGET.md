@@ -1,12 +1,12 @@
 # The audio budget
 
-What a sample costs, and whether it fits the FM-1's audio interrupt. Nothing here was measured on an FM-1; this
-is an estimate from the host build and the chip's disassembly, with its assumptions listed.
+What a sample costs, and whether it fits the FM-1's audio interrupt. Nothing here was measured on an FM-1. It is
+an estimate from the host build and the chip's disassembly, with the assumptions listed.
 
 ## What the chip gives
 
 - AC7911B: a pi32v2 core, "DC to 320 MHz" in the datasheet. The stock bootloader sets the clock and Dinghy keeps
-  it; the value is not known to us. The numbers below are given at 160, 240 and 320 MHz.
+  it; we don't know the value. The numbers below are given at 160, 240 and 320 MHz.
 - 44.1 kHz, so one sample has 3628 cycles at 160 MHz, 5442 at 240 MHz, 7256 at 320 MHz.
 - `app_audio` gets 256 frames at a time, 5.8 ms. The USB and key-scan interrupts take some of it; Dinghy's rule
   (`fw/docs/RULES.md`) is to stay under half.
@@ -21,9 +21,9 @@ renders take per sample with a Linux perf counter. Scripts hold keys, stop the l
 
 Two checks on the method:
 
-- gcc's `-Os` left `lean_int64_of_nat` calls in the Lean code (every `Int64` literal became a runtime unboxing);
-  JieLi's clang folds them (the chip's `write_line` is `r0 = 16384; r1_r0 += r4 * r2; r1_r0 >>= 15`). The host
-  build therefore uses clang; with gcc the same code counted 4 to 7 times more.
+- gcc's `-Os` leaves `lean_int64_of_nat` calls in the Lean code (every `Int64` literal becomes a runtime unboxing);
+  JieLi's clang folds them (the chip's `write_line` is `r0 = 16384; r1_r0 += r4 * r2; r1_r0 >>= 15`). So the host
+  build uses clang; with gcc the same code counts 4 to 7 times more.
 - The reverb's chip disassembly (`fm1_reverb_block` and its helpers, pi32v2) is 152 instructions in the loop plus
   2 x 39 (`read_modulated`), 8 x 22 (`read_line`) and 12 x 26 (`write_line`): about 720 a sample. The host count for
   the same thing is 628. So a host instruction is about 1.15 chip instructions here.
@@ -49,11 +49,10 @@ The six-voice rows are averaged over a run that is a quarter silent, so the soun
 costly ones (2900 to 3230 for six); most sit at 2400 to 2600.
 
 The FM voice (shapes 48 to 55, `Firmware/Fm.lean`), counted the same way on one voice alone (a perf counter round
-`braids_voice_render`, x86-64, `-O2`): 238 instructions a sample against 256 for 3 SQR and 112 for CSAW, so it
-sits with the costly Braids shapes, a little under the dearest. Four operators each cost a degree-5 sine
-polynomial (six multiplies), a push and an envelope; the envelopes move once a block of 16 samples, which took
-the voice from 306 to 238. Six FM voices with reverb are the "six 3 SQR" row above: fine at 320 MHz, over
-budget at 240.
+`braids_voice_render`, x86-64, `-O2`): 238 instructions a sample, against 256 for 3 SQR and 112 for CSAW, so it
+costs about as much as the dearest Braids shapes. Four operators each cost a degree-5 sine polynomial (six
+multiplies), a push and an envelope. The envelopes move once a block of 16 samples; moved every sample the voice
+costs 306. Six FM voices with reverb are the "six 3 SQR" row above: fine at 320 MHz, over budget at 240.
 
 The 808 drums (shapes 56 to 65, `Firmware/Drum.lean`), counted the same way: 73 (CB) to 127 (SD) instructions a
 sample, BD 100, the hats 86, the cymbal 104: cheaper than any Braids shape but CSAW. The per-voice filter
@@ -71,16 +70,16 @@ Assume one chip instruction a cycle plus a third for memory and the divides (1.3
 | Six CSAW with reverb | 3700 | 100% | 68% | 51% |
 | Six 3 SQR with reverb (worst) | 6600 | 180% | 120% | 90% |
 
-So: the default patch fits at any plausible clock, inside Dinghy's half-budget rule at 240 MHz and above. Full
+So the default patch fits at any plausible clock, and inside Dinghy's half-budget rule at 240 MHz and above. Full
 polyphony of a cheap shape with reverb fits at 240 MHz. Six voices of the costliest shapes with reverb do not fit
 at 240 MHz and are marginal at 320 MHz. The lanes play four sounds through six voices, so the worst case needs
 long releases of a costly shape on every lane.
 
 If it crackles on a real FM-1, in order of least damage:
 
-1. `fm1_ticks()` around `app_audio` to replace this estimate with a measurement (Dinghy's `RULES.md` shows how).
+1. `fm1_ticks()` around `app_audio`, to replace this estimate with a measurement (Dinghy's `RULES.md` shows how).
 2. `NV` from 6 to 4 in `dinghy.c`: one voice a lane, no overlap of releases.
-3. The reverb's `compress` divides by 8 with the hardware divider (round toward zero, as Clouds' float cast does);
+3. The reverb's `compress` divides by 8 with the hardware divider (round toward zero, as Clouds' float cast does):
    twelve divides a sample. An arithmetic shift rounds toward minus infinity, one LSB off for negative samples, and
    would need `reverb_compress_saturates` restated.
 4. Skip the reverb when more than four voices sound.
@@ -90,4 +89,4 @@ If it crackles on a real FM-1, in order of least damage:
 - The clock. The datasheet's ceiling is 320 MHz; 160 or 240 MHz would be ordinary choices.
 - Cycles an instruction on pi32v2, the divide's cost, cache behaviour on a 64 KiB ring read at ten places.
 - Whether Dinghy's own yardstick (sloopDX's engines at "about 1000 to 1500" on the host) was measured with gcc or
-  clang; against it the default patch is at the low end and six costly voices are three times over.
+  clang. Against it the default patch is at the low end and six costly voices are three times over.

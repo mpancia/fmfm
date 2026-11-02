@@ -1,6 +1,6 @@
 # Lean code on the FM-1
 
-Code in `Firmware/` is Lean that runs on the chip and in the simulator. Lean's compiler turns it into C,
+`Firmware/` is Lean that runs on the chip and in the simulator. Lean's compiler turns it into C,
 `tools/build_lean_fw.sh` compiles that C for the target, and it is linked into the firmware next to
 `fw/firmware/src/dinghy.c`, which calls it through `rt/fm1_lean.h`.
 
@@ -20,18 +20,18 @@ dinghy.c (hand-written C) ---------------------┘
 
 ## What the runtime (`rt/lean_rt.c`) provides
 A fixed pool (32 KiB by default, `FM1_LEAN_POOL_BYTES`), size-class free lists, reference-counted freeing, arrays,
-byte arrays (`ByteArray`, which the patch slots use),
-panic reporting. It does **not** provide big numbers (any `Nat`/`Int` of 2^31 or more stops the firmware with
-"number too big"; a `UInt32` of 2^31 or more converted with `toNat` does this), threads, tasks, IO, or
-external objects. If the pool runs out, the firmware stops ("Lean pool exhausted"). On the chip a stop is an
-illegal instruction, which Dinghy's crash screen reports; in the simulator the page shows the message.
+byte arrays (`ByteArray`, which the patch slots use) and panic reporting. It does **not** provide big numbers,
+threads, tasks, IO or external objects. Any `Nat`/`Int` of 2^31 or more stops the firmware with "number too
+big"; so does a `UInt32` of 2^31 or more converted with `toNat`. If the pool runs out, the firmware stops ("Lean
+pool exhausted"). On the chip a stop is an illegal instruction, which Dinghy's crash screen reports; in the
+simulator the page shows the message.
 
 ## Rules for the C side
 - Every `@[export]` function takes its arguments **owned**. `lane = fm1_lane_tick(lane)` is right. To read
   without losing `t`, use the `_of` wrappers in `rt/fm1_lean.h` (they `lean_inc` first).
 - New export? Add its prototype to `rt/fm1_lean.h`.
 - Do not call Lean from interrupts. Keep the audio path scalar.
-- Lean's compiler is run with `compiler.extract_closed false` (set in each file, and for `Init`), so no module
+- Lean's compiler runs with `compiler.extract_closed false` (set in each file, and for `Init`), so no module
   initialisation is needed. Keep that line in every new `Firmware/` file. A definition with no arguments (a
   table as a `List`, a named constant) is still a global that only the initialiser fills, so the firmware reads
   it as nil: write it as a function of its index instead. The same goes for `Init` constants such as
@@ -46,13 +46,13 @@ illegal instruction, which Dinghy's crash screen reports; in the simulator the p
 
 ## Trusted, not proved
 The runtime, Lean's C generator, JieLi's clang, and the C that calls the Lean code. JieLi's clang crashes on two
-`Init` modules (`Init.Tactics`, `Init.Data.Order.PackageFactories`); `tools/build_lean_init.sh` skips them and the
-link would fail loudly if firmware code needed anything from them.
+`Init` modules (`Init.Tactics`, `Init.Data.Order.PackageFactories`); `tools/build_lean_init.sh` skips them, and
+the link would fail if firmware code needed anything from them.
 
 ## Status
 - Tested: `make test` runs the web build in node (sound, PLAY, screen) and the chip link builds. The lane code is
   proved in `Proofs/Lane.lean`.
-- Tested on an FM-1: the install, the lanes, the keys, the screen, the sound. Not measured: time and RAM cost of
-  Lean calls on the chip, or whether the 32 KiB pool is enough for four lanes over a long run: the smoke test drives
-  every page, patch load and save and every shape, and its high-water mark is about 11 KiB; `make test` fails if
-  it passes 16 KiB.
+- Tested on an FM-1: the install, the lanes, the keys, the screen, the sound.
+- Not measured: the time and RAM cost of Lean calls on the chip, and whether the 32 KiB pool is enough for four
+  lanes over a long run. The smoke test drives every page, every patch load and save and every shape; its
+  high-water mark is about 11 KiB, and `make test` fails if it passes 16 KiB.

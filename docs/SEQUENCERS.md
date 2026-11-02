@@ -1,8 +1,8 @@
 # The sequencers
 
 Each lane is one `Lane` (`Firmware/Lane.lean`): a clock divider drives a rhythm source, each hit may play a
-note, and a note source picks the pitch, which the scale then adjusts. The two sources are chosen on the SEQ
-pages and combine freely: four rhythms by eleven note sources.
+note, a note source picks the pitch and the scale snaps it. Both sources are chosen on the SEQ pages and combine
+freely: four rhythms by eleven note sources.
 
 ## Rhythm sources (SEQ > FEEL)
 
@@ -32,7 +32,7 @@ white; the automaton's row changes every bar.
 | CHORD | TONES, OCTAVE | climbs `tones` notes of the lane's scale from its bottom note (with chord follow, the chord); OCTAVE is the chance of an octave jump |
 
 The keys teach only the chosen lane, and only STEP and MARKOV listen. The four ROLL keys on the PUNCH page (REC;
-A4 to C5) give a lane a new seed: a new random loop, register and automaton row, and an unlearnt chain.
+A4 to C5) reseed a lane: a new random loop, register and automaton row, and an unlearnt chain.
 
 ## What is proved (`docs/PROOFS.md`)
 
@@ -51,35 +51,33 @@ A4 to C5) give a lane a new seed: a new random loop, register and automaton row,
   settings come back exactly when it loads (`lane_from_patch_keeps_feel`).
 - GRAMMAR always has a phrase (`notes_grammar_phrase_never_empty`); CHORD's tones are scale tones
   (`notes_scale_tone_in_scale`).
-- The whole instrument at once: over any performance of the four lanes and the arpeggiator, every note-on has
-  a note-off and PLAY stopping leaves nothing sounding anywhere (`machine_every_note_on_has_a_note_off`,
-  `Spec/Machine.lean`).
-- Not proved: anything about which other rules live or die, or the markov chain's learnt weights beyond their
-  range.
+- The whole instrument: over any performance of the four lanes and the arpeggiator, every note-on has a note-off
+  and PLAY stopping leaves nothing sounding (`machine_every_note_on_has_a_note_off`, `Spec/Machine.lean`).
+- Not proved: which other rules live or die, or the markov chain's learnt weights beyond their range.
 
 ## In patches
 
 The FEEL settings are saved with the lane (`Firmware/Patch.lean`, layout version 2: 22 bytes a lane, 98 a
 patch; `patch_decode_encode_round_trip` covers them, and a slot with a rotation past its steps or more
-accents than hits does not load). Version 1 slots from before no longer load.
+accents than hits does not load). Version 1 slots do not load.
 
 ## The arpeggiator (ARP)
 
-`Firmware/Arp.lean`: the keys you hold, played one at a time in step with the clock whether the lanes run or
-not, on the chosen lane's sound. MODE: OFF (the keys play straight), UP, DOWN, UPDOWN, RANDOM, PLAYED (in the
-order pressed); RATE a note value; OCTAVES 1 to 3; GATE as a share of the step. ARP again on its page latches:
-the notes keep going after the keys are let go, and the next phrase you play replaces them; PLAY stopping lets
-them go. The keys still teach STEP and MARKOV lanes while the arpeggiator plays them.
+`Firmware/Arp.lean`: the held keys, played one at a time in step with the clock whether the lanes run or not, on
+the chosen lane's sound. MODE: OFF (the keys play straight), UP, DOWN, UPDOWN, RANDOM, PLAYED (in the order
+pressed); RATE a note value; OCTAVES 1 to 3; GATE as a share of the step. ARP again on its page latches: the
+notes keep going after the keys are let go, and the next phrase you play replaces them; PLAY stopping lets them
+go. The keys still teach STEP and MARKOV lanes while the arpeggiator plays them.
 
 Proved (`Proofs/Arp.lean`): every note it starts is one you are holding, raised by whole octaves
 (`arp_note_is_held`); every op keeps it consistent; over any run of ticks, keys and settings every note-on has a
-note-off (`arp_every_note_on_has_a_note_off`); UP plays what you hold through, note for note, in order
+note-off (`arp_every_note_on_has_a_note_off`); UP plays what you hold in order, note for note
 (`arp_up_plays_pattern`).
 
 ## The demo songs
 
 The first 17 patches (the DEMOS group of the browser, and the DEMO knob on GLO > BANKS, which steps through
-them) each show something off; CLOCKWORK is the boot patch. `make test` renders them all and checks none clips.
+them) each show one thing; CLOCKWORK is the boot patch. `make test` renders them all and checks none clips.
 
 | Demo | What it shows |
 |---|---|
