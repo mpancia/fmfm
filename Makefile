@@ -85,7 +85,7 @@ comparator:
 
 # Style checks: sorry/axioms, undocumented or pointless theorems, excess comments, machine-sounding prose.
 lint:
-	python3 tools/lint.py
+	.venv/bin/python tools/lint.py
 
 # The whole build replayed through the kernel; fails on any axiom beyond propext, Classical.choice and Quot.sound.
 kernel-check:

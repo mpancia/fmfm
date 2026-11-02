@@ -44,6 +44,6 @@ jobs:
       - name: lake check
         run: lake check
       - name: make lint
-        run: python3 tools/lint.py
+        run: .venv/bin/python tools/lint.py
       - name: make test-exports
         run: make test-exports
