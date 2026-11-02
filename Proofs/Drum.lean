@@ -9,9 +9,6 @@ sum within 16 bits and every shape's chain of filters and gains, as `voices/drum
 far inside 32 bits, so the saturation at the end is a hold and never a wrap; and each shape's tail is gone in
 the time its rate promises, computed in the kernel. -/
 
-/- Walking the noise register's 65535-step orbit in the kernel is a recursion deeper than the default. -/
-set_option maxRecDepth 100000
-
 /-- An arithmetic shift right of a 32-bit number by 14 is division by 16384, rounding down. -/
 private theorem drum_shift14 (x : Int32) : (x >>> 14).toInt = x.toInt / 16384 := by
   show (x >>> 14).toBitVec.toInt = _
@@ -89,6 +86,8 @@ private theorem drum_orbit_sound (seed s : UInt32) (n : Nat) (walk : Drum.orbitA
       | zero => exact first
       | succ k => exact ih (Drum.lfsr s) rest (k + 1) (by omega) (by omega)
 
+-- the kernel walks the noise register's 65535-step orbit: a recursion deeper than the default
+set_option maxRecDepth 100000 in
 /-- Checked in the kernel: from state 1 the register is back at 1 after 65535 steps and at none of the
 65534 steps before. -/
 private theorem drum_orbit_checked :
@@ -104,6 +103,8 @@ theorem drum_noise_period :
     Drum.lfsrAfter 1 65535 = 1 ∧ ∀ k, 0 < k → k < 65535 → Drum.lfsrAfter 1 k ≠ 1 :=
   ⟨drum_orbit_checked.1, fun k hk hlt => drum_orbit_sound 1 1 65534 drum_orbit_checked.2 k hk (by omega)⟩
 
+-- the kernel walks the noise register's 65535-step orbit: a recursion deeper than the default
+set_option maxRecDepth 100000 in
 /-- Checked for every 16-bit state (split in two for the kernel): a nonzero state steps to a nonzero 16-bit
 state. -/
 private theorem drum_every_state :

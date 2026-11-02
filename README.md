@@ -521,15 +521,23 @@ all accept. They do not cover:
 - The hardware, and `web/web_host.c` for the simulator. The firmware runs on an FM-1 (installed over USB; the
   lanes, keys, screen and sound as in the simulator); nothing about the chip is proved, only what the Lean computes.
 - Lean's `Init` library compiled for the chip by `tools/build_lean_init.sh`.
+- The 34 `@[extern] opaque` table readers (`grep -n opaque Firmware/*.lean`): Braids' wavetables, waveshapers and
+  lookup tables, read from the C++ data. Their contract is only the return type (an `Int16` or `UInt16`, so every
+  theorem that mentions one is about any 16-bit value it might give) and the index bound the caller proves
+  (`*_reads_inside_*` theorems); the kernel never evaluates them, which is why `make test-lean` runs those engine
+  steps against Braids' own C++ instead. No `axiom` and no `native_decide` anywhere (`make lint` rejects them).
+- `maxRecDepth` is raised in `Proofs/BraidsData.lean` and `Proofs/FmRange.lean` (4000, table-wide `decide`s)
+  and on the two kernel walks of the noise register's orbit in `Proofs/Drum.lean` (100000); `maxHeartbeats` is
+  never raised.
 
 Two checks reach into that list from the proved side:
 
 - **The compiler, checked** (`make test-exports`, `tools/check_exports.py`): every scalar `@[export fm1_*]`
-  function (291 of 376; the rest take objects, or read Braids' tables through `@[extern] opaque` accessors the
+  function (354 of 439; the rest take objects, or read Braids' tables through `@[extern] opaque` accessors the
   kernel cannot evaluate, and those are the engine steps `make test-lean` runs against Braids' own C++) is
   compiled to C and built for this computer,
   run on random inputs, and Lean's kernel is then asked whether the definition gives the same value
-  (`example : f a = c := by decide +kernel`): 1746 values a run, in step on every one. The kernel evaluates the
+  (`example : f a = c := by decide +kernel`): 2124 values a run, in step on every one. The kernel evaluates the
   definition itself, so this is the compiled code against the thing the theorems are about, with the Lean to C
   compiler, clang and `lean.h` in between. Writing it found one bug: `fm1_harmony_chord_root` reduced its
   arguments after turning them into `Nat`, so a value above 2^31 (which the C never sends) would have reached
