@@ -38,7 +38,7 @@ const note = (t, ms = 4000) => { $('status').textContent = t; noteUntil = perfor
 
 let ctl, ring, frame, worker, audio, gain, analyser, running = false, lastFrame = 0, lastLeds = [0, 0];
 const mouseKeys = new Set(), pcKeys = new Set();
-const keyEls = [], ledKey = [], ledBtn = [], btnEls = [];
+const keyEls = [], ledKey = [], ledBtn = [], btnEls = [], encStep = [];
 
 // ---- input -> shared state ----
 function pushNotes() {
@@ -49,12 +49,13 @@ function pushNotes() {
   keyEls.forEach((el, k) => el.classList.toggle('down', (m >> k & 1) === 1));
 }
 function buttonDown(id) {
+  tourInput(); tourPage(id);
   Atomics.or(ctl, 1, 1 << id); Atomics.or(ctl, 2, 1 << id); btnEls[id].classList.add('down');
 }
 function buttonUp(id) {
   Atomics.and(ctl, 1, ~(1 << id)); Atomics.or(ctl, 3, 1 << id); btnEls[id].classList.remove('down');
 }
-function turn(enc, d) { Atomics.add(ctl, 4 + enc, d); }
+function turn(enc, d) { tourInput(); Atomics.add(ctl, 4 + enc, d); }
 function midiPush(st, d1, d2, src) {
   const w = Atomics.load(ctl, 11), r = Atomics.load(ctl, 12);
   if (((w - r) | 0) >= 64) return;                       // queue full: drop
@@ -72,7 +73,9 @@ function build() {
     el.setAttribute('role', 'button'); el.setAttribute('aria-label', keyName(k));
     const led = document.createElement('span'); led.className = 'led'; el.append(led);
     if (isBlack(k)) el.style.left = `calc(${whites} * 100% / 16 - 100% / 16 * .3 + 1px)`; else whites++;
-    el.addEventListener('pointerdown', (e) => { el.setPointerCapture(e.pointerId); mouseKeys.add(k); pushNotes(); });
+    el.addEventListener('pointerdown', (e) => {
+      el.setPointerCapture(e.pointerId); tourInput(); mouseKeys.add(k); pushNotes();
+    });
     const up = () => { mouseKeys.delete(k); pushNotes(); };
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
     keys.append(el); keyEls.push(el); ledKey.push(led);
@@ -109,7 +112,7 @@ function build() {
       if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
     });
     const label = document.createElement('span'); label.textContent = name;
-    wrap.append(knob, label); $('encoders').append(wrap);
+    wrap.append(knob, label); $('encoders').append(wrap); encStep.push(step);
   });
 }
 
@@ -118,6 +121,7 @@ const inField = (e) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName
 function loadPatch(i) {
   const n = $('patch').options.length;
   if (!running || !n) return;
+  tourInput();
   i = ((i % n) + n) % n;
   $('patch').value = String(i); Atomics.store(ctl, 20, i + 1);
 }
@@ -127,7 +131,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '[' || e.key === ']') { turn(SELECT, e.key === ']' ? 1 : -1); return; }
   if (e.key === 'PageUp' || e.key === 'PageDown') { e.preventDefault(); loadPatch(Number($('patch').value) + (e.key === 'PageDown' ? 1 : -1)); return; }
   const c = e.key.toLowerCase();
-  if (c in PC_KEYS) { pcKeys.add(PC_KEYS[c]); pushNotes(); }
+  if (c in PC_KEYS) { tourInput(); pcKeys.add(PC_KEYS[c]); pushNotes(); }
 });
 document.addEventListener('keyup', (e) => {
   if (!running) return;
@@ -249,7 +253,8 @@ async function powerOn() {
       const sel = $('patch');
       sel.replaceChildren(...e.data.patches.map((name, i) => new Option(`${i + 1}  ${name}`, i)));
       sel.disabled = false;
-      for (const id of ['record', 'shot', 'share']) $(id).disabled = false;
+      for (const id of ['record', 'shot', 'share', 'tour']) $(id).disabled = false;
+      tourReset();
     }
   };
   worker.postMessage({ ctl: ctl.buffer, ring: ring.buffer, frame: frame.buffer, base: location.href });
@@ -266,20 +271,24 @@ function powerOff(why) {
   $('off').hidden = false; $('power').textContent = 'Power on'; $('power').disabled = false;
   $('patch').disabled = true;
   if (recorder) stopRecording();
-  for (const id of ['record', 'shot', 'share']) $(id).disabled = true;
+  for (const id of ['record', 'shot', 'share', 'tour']) $(id).disabled = true;
+  tourStop();
   $('demo').textContent = 'Demo'; $('demo').classList.remove('on');
   status(why || 'Off. Power on to boot the firmware (the firmware\'s saved settings are lost when it powers off).');
 }
 $('power').addEventListener('click', () => (running ? powerOff() : powerOn()));
 $('vol').addEventListener('input', () => { if (gain) gain.gain.value = $('vol').value / 100; });
-$('patch').addEventListener('change', () => { if (running) Atomics.store(ctl, 20, Number($('patch').value) + 1); $('patch').blur(); });
+$('patch').addEventListener('change', () => {
+  if (running) { tourInput(); Atomics.store(ctl, 20, Number($('patch').value) + 1); }
+  $('patch').blur();
+});
 let demoWanted = false;                                      // Demo pressed while off: start AUTO once the firmware is up
 const linkPatch = new URLSearchParams(location.search).get('patch');   // ?patch=N (1-based, as the list shows)
 let patchWanted = linkPatch && Number(linkPatch) >= 1 ? Number(linkPatch) - 1 : null;
 if (patchWanted !== null) status(`Off. Power on to boot the firmware and load patch ${linkPatch}.`);
 $('demo').addEventListener('click', async () => {
   if (!running) { demoWanted = true; await powerOn(); return; }
-  Atomics.store(ctl, 22, Atomics.load(ctl, 23) ? 2 : 1);
+  tourInput(); Atomics.store(ctl, 22, Atomics.load(ctl, 23) ? 2 : 1);
 });
 
 $('midi').addEventListener('click', async () => {
@@ -327,6 +336,129 @@ $('share').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(url.toString()); note(`Copied ${url}`); }
   catch { history.replaceState(null, '', url); note(`Link: ${url}`); }
 });
+
+// ---- the tour ----
+// A guided walk for someone who has never seen the panel: the page presses the buttons and turns the knobs, and a
+// caption under the device says what the screen shows. The firmware remembers each group's last page (goto_group in
+// dinghy.c), so the tour keeps the same model, fed by every press, to reach a page with the right number of taps.
+// Its own input is marked (`tour.own`); anyone else's stops it.
+const SEQ = 11, EDIT = 6, GLO = 7, FX = 2, ENV = 4, REC = 13, KNOB1 = 2, KNOB3 = 4;
+const PAGES = { [HOME]: ['HOME'], [SEQ]: ['RHYTHM', 'FEEL', 'NOTES', 'RANGE'], [FX]: ['REVERB', 'DELAY'],
+  [EDIT]: ['SOUND', 'FILTER', 'ENVELOPE', 'MIX', 'PAN'], [GLO]: ['HARMONY', 'SYSTEM', 'MIDI', 'BANKS'], 5: ['LFO'],
+  10: ['ARP', 'QUANT'], [REC]: ['PUNCH'] };
+const tour = { run: 0, own: false, group: HOME, index: 0, memo: {}, keys: new Set(), btn: -1 };
+const STOPPED = Symbol('tour stopped');
+let tourSeq = 0;
+function tourReset() { tour.group = HOME; tour.index = 0; tour.memo = {}; }
+function tourPage(id) {                                      // what a press does to the page, as dinghy.c does it
+  if (id === ENV) { tour.group = EDIT; tour.index = 2; tour.memo[EDIT] = 2; }
+  else if (id === REC) { tour.group = tour.group === REC ? HOME : REC; tour.index = 0; }
+  else if (id in PAGES) {
+    tour.index = tour.group === id ? (tour.index + 1) % PAGES[id].length : tour.memo[id] || 0;
+    tour.group = id; tour.memo[id] = tour.index;
+  }
+}
+function tourInput() { if (tour.run && !tour.own) tourStop(); }
+function tourStop() {
+  if (!tour.run) return;
+  tour.run = 0;
+  if (tour.btn >= 0) { buttonUp(tour.btn); tour.btn = -1; }
+  if (tour.keys.size) { for (const k of tour.keys) mouseKeys.delete(k); tour.keys.clear(); if (running) pushNotes(); }
+  $('tour').classList.remove('on'); $('tour-strip').hidden = true;
+}
+function tourApi(me) {                                       // the script's verbs; each stops dead once `me` is over
+  const live = () => { if (tour.run !== me) throw STOPPED; };
+  const own = (f) => { tour.own = true; try { f(); } finally { tour.own = false; } };
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms)).then(live);
+  const press = async (id) => {
+    live(); own(() => buttonDown(id)); tour.btn = id;
+    await sleep(80);
+    tour.btn = -1; buttonUp(id);
+    await sleep(160);
+  };
+  const goto = async (g, i) => {                             // tap the group button until its page `i` is up
+    const n = PAGES[g].length;
+    let k = tour.group === g ? (i - tour.index + n) % n : 1 + (i - (tour.memo[g] || 0) + n) % n;
+    while (k--) await press(g);
+  };
+  const knob = async (enc, d) => {                           // a few detents at a time, so the screen is seen to follow
+    for (let left = d; left; ) {
+      const c = Math.max(-4, Math.min(4, left));
+      left -= c; own(() => encStep[enc](c));
+      await sleep(60);
+    }
+  };
+  const hold = async (keys, ms) => {
+    for (const k of keys) { tour.keys.add(k); mouseKeys.add(k); }
+    pushNotes(); await sleep(ms);
+    for (const k of keys) { tour.keys.delete(k); mouseKeys.delete(k); }
+    pushNotes();
+  };
+  const patch = (i) => own(() => loadPatch(i));
+  const playing = () => (lastLeds[0] >>> PLAY & 1) === 1;
+  const say = async (i, html) => {
+    const strip = $('tour-strip'), text = strip.querySelector('.say');
+    if (!strip.hidden) { text.classList.add('out'); await sleep(220); }
+    strip.querySelector('.n').textContent = `${i + 1} / ${TOUR.length}`; text.innerHTML = html;
+    strip.hidden = false; text.classList.remove('out');
+  };
+  return { sleep, press, goto, knob, hold, patch, playing, say };
+}
+// The script. Captions describe the boot patch, CLOCKWORK, which step 1 loads; knob moves are relative, so they
+// hold for whichever lane is chosen. The last step loads it again, so the tour leaves the patch as it found it.
+const TOUR = [
+  { do: async (t) => {
+      if (Atomics.load(ctl, 23)) Atomics.store(ctl, 22, 2);  // the demo would change the patch under the captions
+      await t.press(HOME); t.patch(0); await t.sleep(300);
+      if (!t.playing()) await t.press(PLAY);
+    },
+    say: '<b>HOME</b>: the boot patch, CLOCKWORK. Four lanes; each row is a lane\'s bar, its hits in colour and the ' +
+      'step playing in white. Below, the key, the chord of the moment, and PLAYING.', wait: 7000 },
+  { do: async (t) => { await t.goto(SEQ, 0); await t.knob(KNOB1, 2); },
+    say: '<b>SEQ</b>, RHYTHM: the chosen lane\'s bar as a circle. HITS up two: the rhythm is Euclidean, so the hits ' +
+      'spread as evenly over the steps as whole steps allow.', wait: 7000 },
+  { do: async (t) => { await t.goto(SEQ, 1); },
+    say: '<b>SEQ</b> again, FEEL: where the rhythm comes from. EUCLID; ROTATE, the bar turned, with accents; ' +
+      'AUTOMAT, a cellular automaton that steps a generation a bar; or RATCHET, each hit split.', wait: 7000 },
+  { do: async (t) => { await t.goto(SEQ, 2); },
+    say: '<b>SEQ</b> again, NOTES: ALGO is one of eleven note sources. Random, walks, loops, a TURING shift ' +
+      'register, a MARKOV chain that learns from the keys, a GRAMMAR rewriting a phrase, chord tones.', wait: 7000 },
+  { do: async (t) => { await t.goto(GLO, 0); await t.knob(KNOB3, 1); },
+    say: '<b>GLO</b>, HARMONY: CHORDS is a progression written as degrees, now 6-4-1-5. The lanes that follow it ' +
+      'take chords stacked from the key\'s scale, so they stay in key: a theorem.', wait: 8000 },
+  { do: async (t) => { await t.goto(EDIT, 0); await t.knob(KNOB1, -70); await t.knob(KNOB1, 50); },
+    say: '<b>EDIT</b>, SOUND: SHAPE runs down through the 48 Braids shapes and back up past them into the 8 FM ' +
+      'voices, to FM BASS. After those come 10 808 drums.', wait: 8000 },
+  { do: async (t) => { await t.goto(EDIT, 1); await t.knob(KNOB1, -25); },
+    say: '<b>EDIT</b> again, FILTER: CUTOFF down, and the lane darkens. Every voice runs through this state-variable ' +
+      'filter; fully open with no resonance it is an exact bypass, which is a theorem.', wait: 7000 },
+  { do: async (t) => { await t.goto(FX, 0); await t.knob(KNOB1, 6); },
+    say: '<b>FX</b>, REVERB: SEND up, more of this lane into the reverb, Clouds\' network in fixed point with its ' +
+      'arithmetic in Lean. An undriven tail shrinks every trip round the loops: a theorem.', wait: 7000 },
+  { do: async (t) => { await t.goto(REC, 0); await t.sleep(600); await t.hold([2, 9], 2600); },
+    say: '<b>REC</b>, PUNCH: while this page is up the keys are momentary effects. STUTTER and WASH, held for a bar; ' +
+      'let go and it is gone. With nothing held every effect is the identity, which is a theorem.', wait: 5000 },
+  { do: async (t) => {
+      await t.goto(HOME, 0); t.patch(0);
+      $('watch').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    },
+    say: '<b>HOME</b> again, and the patch as it booted. Below, the proofs, watched: twelve of the theorems\' ' +
+      'statements, checked on the running machine as it plays and counted.', wait: 9000 },
+];
+async function tourStart() {
+  const me = tour.run = ++tourSeq, t = tourApi(me);
+  $('tour').classList.add('on');
+  try {
+    for (let i = 0; i < TOUR.length; i++) {
+      await t.say(i, TOUR[i].say);
+      if (i === 0) $('tour-strip').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      await TOUR[i].do(t);
+      await t.sleep(TOUR[i].wait);
+    }
+  } catch (e) { if (e !== STOPPED) throw e; }
+  if (tour.run === me) tourStop();
+}
+$('tour').addEventListener('click', () => { if (tour.run) tourStop(); else tourStart(); $('tour').blur(); });
 
 build();
 flatScope();

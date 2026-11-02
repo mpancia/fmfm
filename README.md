@@ -17,8 +17,9 @@ make install && make run
 ```
 
 Open http://localhost:8000/, click Power on, and it plays. The simulator is the real firmware
-(`fw/firmware/src/dinghy.c`) compiled to WebAssembly: same screen, keys, knobs, audio, MIDI in. It can record what
-you hear, save the screen as a PNG, and give you a link to the patch you're on (`?patch=N`). Space is PLAY,
+(`fw/firmware/src/dinghy.c`) compiled to WebAssembly: same screen, keys, knobs, audio, MIDI in. Tour walks you through
+the panel in 80 seconds, pressing the buttons itself. It can record what you hear, save the screen as a PNG,
+and give you a link to the patch you're on (`?patch=N`). Space is PLAY,
 PageUp and PageDown change patch, hover a button for what it does. `docs/SIMULATOR.md`.
 
 To put it on an FM-1: the installer on the site, and `docs/FM1.md` for the hardware and the backup to take

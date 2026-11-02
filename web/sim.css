@@ -19,7 +19,7 @@ a:hover { text-decoration-color: var(--note); }
 main { max-width: 820px; margin: 0 auto; padding: 24px 16px 40px; }
 h1 { margin: 0; font-size: 24px; font-weight: 300; }
 h1 small { color: var(--muted); font-weight: 300; margin-left: 10px; font-size: 15px; }
-.vol, #watch th, .scope figcaption, .enc span {
+.vol, #watch th, .scope figcaption, .enc span, .tour .n {
   font: 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
 }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -139,6 +139,16 @@ select:disabled { opacity: .4; }
   content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--note);
   margin-right: 8px; vertical-align: 1px;
 }
+
+/* the tour's caption: one strip of ink under the device, the step count in the margin, the control named in the note */
+.tour {
+  display: flex; gap: 16px; align-items: baseline; padding: 10px 0 8px; border-bottom: 1px solid var(--hairline);
+}
+.tour[hidden] { display: none; }
+.tour .n { flex: none; min-width: 48px; }
+.tour .say { font-size: 15px; transition: opacity 220ms ease; }
+.tour .say.out { opacity: 0; }
+.tour b { font-weight: 400; color: var(--note); }
 
 @media (max-width: 720px) {
   main { padding: 16px 12px 32px; }

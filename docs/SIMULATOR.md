@@ -29,6 +29,11 @@ MIDI input (Chrome/Edge). The **Patch** list loads any factory patch or user slo
 (the page asks the firmware for the names at boot and follows the patch the device changes to). **Demo** turns
 AUTO on (GLO > BANKS) and the demo songs play themselves; from power-off it boots first. Press it again, or PLAY,
 to stop.
+**Tour** is a guided walk of about eighty seconds for someone who has never seen the panel: the page loads the
+boot patch, presses the buttons and turns the knobs itself (HOME, the SEQ pages, HARMONY, SOUND, FILTER, REVERB,
+PUNCH, HOME) and a caption under the device says what the screen shows. Press it again, or any key, button or
+knob, to stop; it ends by loading the boot patch again. The page keeps the firmware's page-per-group memory
+(`goto_group` in `dinghy.c`) in step with every press, so a tour run from any page lands where its captions say.
 
 ## What it does not model
 - CPU time: the chip is far slower than your computer. Check the audio ISR budget on hardware (`fm1_ticks()`) or

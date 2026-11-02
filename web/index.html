@@ -17,6 +17,9 @@
         <button id="power" class="primary" type="button">Power on</button>
         <button id="demo" type="button"
           title="The demo songs play themselves, a variation every 8 bars (GLO &gt; BANKS &gt; AUTO)">Demo</button>
+        <button id="tour" type="button" disabled
+          title="A guided walk through the panel, about a minute; the page presses and turns, any key or knob stops it">
+          Tour</button>
       </div>
       <div class="group">
         <label class="vol">Volume <input id="vol" type="range" min="0" max="100" value="70"></label>
@@ -50,6 +53,7 @@
       <div id="keys" class="keys" aria-label="Keys F3 to G5"></div>
     </div>
   </section>
+  <div id="tour-strip" class="tour" hidden><span class="n"></span><span class="say"></span></div>
   <figure id="scope-wrap" class="scope">
     <figcaption>line out</figcaption>
     <canvas id="scope" role="img" aria-label="Line out, the waveform as it plays"></canvas>
